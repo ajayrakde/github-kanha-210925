@@ -8,6 +8,7 @@ import Products from "@/pages/products";
 import Cart from "@/pages/cart";
 import Checkout from "@/pages/checkout";
 import Admin from "@/pages/admin";
+import Influencer from "@/pages/influencer";
 import ThankYou from "@/pages/thank-you";
 import TermsOfService from "@/pages/terms-of-service";
 import RefundPolicy from "@/pages/refund-policy";
@@ -24,6 +25,7 @@ function Router() {
           <Route path="/cart" component={Cart} />
           <Route path="/checkout" component={Checkout} />
           <Route path="/admin" component={Admin} />
+          <Route path="/influencer" component={Influencer} />
           <Route path="/thank-you" component={ThankYou} />
           <Route path="/terms-of-service" component={TermsOfService} />
           <Route path="/refund-policy" component={RefundPolicy} />

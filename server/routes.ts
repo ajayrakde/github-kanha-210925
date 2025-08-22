@@ -455,6 +455,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Influencer authentication routes
+  app.post('/api/influencer/login', async (req, res) => {
+    try {
+      const { phone, password } = req.body;
+      const influencer = await storage.authenticateInfluencer(phone, password);
+      if (influencer) {
+        req.session.influencerId = influencer.id;
+        req.session.userRole = 'influencer';
+        res.json({ success: true, influencer: { id: influencer.id, phone: influencer.phone, name: influencer.name } });
+      } else {
+        res.status(401).json({ message: 'Invalid credentials' });
+      }
+    } catch (error) {
+      console.error('Influencer login error:', error);
+      res.status(500).json({ message: 'Login failed' });
+    }
+  });
+
+  app.post('/api/influencer/logout', (req, res) => {
+    req.session.influencerId = undefined;
+    req.session.userRole = undefined;
+    res.json({ message: 'Logged out successfully' });
+  });
+
+  app.get('/api/influencer/me', async (req, res) => {
+    if (req.session.influencerId && req.session.userRole === 'influencer') {
+      try {
+        const influencer = await storage.getInfluencer(req.session.influencerId);
+        if (influencer) {
+          res.json({ authenticated: true, role: 'influencer', influencer });
+        } else {
+          res.status(401).json({ authenticated: false });
+        }
+      } catch (error) {
+        console.error('Error fetching influencer:', error);
+        res.status(500).json({ authenticated: false });
+      }
+    } else {
+      res.status(401).json({ authenticated: false });
+    }
+  });
+
 
   // Password generation utility
   const generatePassword = () => {
@@ -536,7 +578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Phone number and user type are required' });
       }
 
-      if (!['admin', 'buyer'].includes(userType)) {
+      if (!['admin', 'buyer', 'influencer'].includes(userType)) {
         return res.status(400).json({ message: 'Invalid user type' });
       }
 
@@ -569,6 +611,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           case 'admin':
             req.session.adminId = result.user.id;
             req.session.userRole = 'admin';
+            break;
+          case 'influencer':
+            req.session.influencerId = result.user.id;
+            req.session.userRole = 'influencer';
             break;
           case 'buyer':
             req.session.userId = result.user.id;
