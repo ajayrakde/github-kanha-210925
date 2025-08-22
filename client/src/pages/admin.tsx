@@ -243,12 +243,31 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Sidebar - Always visible */}
-      <div className="w-64 bg-white shadow-lg">
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      
+      {/* Sidebar */}
+      <div className={cn(
+        "w-64 bg-white shadow-lg fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 lg:inset-auto lg:z-auto",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+      )}>
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="flex items-center h-16 px-4 border-b border-gray-200">
+          <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
             <h1 className="text-xl font-semibold text-gray-900">Admin Panel</h1>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="lg:hidden"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <i className="fas fa-times"></i>
+            </Button>
           </div>
           
           {/* Navigation */}
@@ -307,10 +326,18 @@ export default function Admin() {
       </div>
       
       {/* Main content */}
-      <div className="flex-1">
+      <div className="flex-1 lg:ml-0">
         {/* Header */}
         <header className="bg-white shadow-sm border-b border-gray-200">
-          <div className="flex items-center h-16 px-4 sm:px-6">
+          <div className="flex items-center justify-between h-16 px-4 sm:px-6">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="lg:hidden mr-3"
+              onClick={() => setSidebarOpen(true)}
+            >
+              <i className="fas fa-bars"></i>
+            </Button>
             <div>
               <h2 className="text-xl font-semibold text-gray-900">
                 {sidebarItems.find(item => item.id === activeTab)?.label || 'Dashboard'}

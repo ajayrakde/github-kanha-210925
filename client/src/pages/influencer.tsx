@@ -262,7 +262,7 @@ export default function Influencer() {
       </div>
       
       {/* Main content */}
-      <div className="flex-1 lg:ml-0">
+      <div className="flex-1 ml-0 lg:ml-64">
         {/* Header */}
         <header className="bg-white shadow-sm border-b border-gray-200">
           <div className="flex items-center justify-between h-16 px-4 sm:px-6">
