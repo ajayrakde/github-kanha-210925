@@ -2,21 +2,19 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
-import { useInfluencerAuth } from "@/hooks/use-auth";
-import InfluencerLogin from "@/components/auth/influencer-login";
+import HybridLogin from "@/components/auth/hybrid-login";
 
 export default function Influencer() {
-  const { isAuthenticated, isLoading, logout } = useInfluencerAuth();
+  // Check if influencer is authenticated
+  const { data: influencer, isLoading } = useQuery({
+    queryKey: ['/api/influencer/me'],
+    retry: false,
+  });
   const [activeTab, setActiveTab] = useState("dashboard");
 
   const { data: offers } = useQuery({
     queryKey: ["/api/offers"],
-    enabled: isAuthenticated,
-  });
-
-  const { data: influencerData } = useQuery({
-    queryKey: ["/api/influencer/me"],
-    enabled: isAuthenticated,
+    enabled: !!influencer,
   });
 
   if (isLoading) {
@@ -27,13 +25,28 @@ export default function Influencer() {
     );
   }
 
-  if (!isAuthenticated) {
-    return <InfluencerLogin />;
+  if (!influencer) {
+    return (
+      <HybridLogin 
+        userType="influencer"
+        title="Influencer Portal"
+        onSuccess={() => window.location.reload()}
+      />
+    );
   }
+
+  const logout = async () => {
+    try {
+      await fetch('/api/influencer/logout', { method: 'POST' });
+      window.location.href = '/influencer';
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
 
   // Filter offers assigned to this influencer
   const myOffers = Array.isArray(offers) ? offers.filter((offer: any) => 
-    offer.influencerId === influencerData?.influencer?.id
+    offer.assignedInfluencerId === influencer?.id
   ) : [];
 
   const stats = {
@@ -43,11 +56,12 @@ export default function Influencer() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 py-6">
       <div className="mb-6 flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-semibold text-gray-900 mb-2">Influencer Dashboard</h2>
-          <p className="text-gray-600">Welcome {influencerData?.influencer?.name}</p>
+          <p className="text-gray-600">Welcome {influencer?.name}</p>
         </div>
         <Button 
           variant="outline" 
@@ -59,11 +73,11 @@ export default function Influencer() {
         </Button>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="dashboard" data-testid="tab-dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="offers" data-testid="tab-my-offers">My Offers</TabsTrigger>
-        </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="dashboard" data-testid="tab-dashboard">Dashboard</TabsTrigger>
+            <TabsTrigger value="offers" data-testid="tab-my-offers">My Offers</TabsTrigger>
+          </TabsList>
 
         <TabsContent value="dashboard" className="mt-6">
           <div className="bg-white rounded-lg shadow-sm p-6 min-h-[600px]">
@@ -89,19 +103,19 @@ export default function Influencer() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-600">Name</label>
-                  <p className="text-gray-900">{influencerData?.influencer?.name}</p>
+                  <p className="text-gray-900">{influencer?.name}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Phone</label>
-                  <p className="text-gray-900">{influencerData?.influencer?.phone}</p>
+                  <p className="text-gray-900">{influencer?.phone}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Email</label>
-                  <p className="text-gray-900">{influencerData?.influencer?.email || 'Not provided'}</p>
+                  <p className="text-gray-900">{influencer?.email || 'Not provided'}</p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Commission Rate</label>
-                  <p className="text-gray-900">{influencerData?.influencer?.commissionRate || 0}%</p>
+                  <p className="text-gray-900">10%</p>
                 </div>
               </div>
             </div>
@@ -158,7 +172,8 @@ export default function Influencer() {
             )}
           </div>
         </TabsContent>
-      </Tabs>
+        </Tabs>
+      </div>
     </div>
   );
 }

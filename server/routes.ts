@@ -645,7 +645,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Phone number, password, and user type are required' });
       }
 
-      if (!['admin', 'buyer'].includes(userType)) {
+      if (!['admin', 'buyer', 'influencer'].includes(userType)) {
         return res.status(400).json({ message: 'Invalid user type' });
       }
 
@@ -668,6 +668,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           break;
         
+        case 'influencer':
+          const influencer = await storage.authenticateInfluencer(cleanPhone, password);
+          if (influencer) {
+            user = influencer;
+            req.session.influencerId = influencer.id;
+            req.session.userRole = 'influencer';
+          }
+          break;
         
         case 'buyer':
           const buyer = await storage.authenticateUser(cleanPhone, password);
