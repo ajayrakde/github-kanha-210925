@@ -20,7 +20,6 @@ const productSchema = z.object({
   price: z.string().min(1, "Price is required").refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Price must be a positive number"),
   imageUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
   images: z.array(z.string().url("Must be a valid URL")).max(5, "Maximum 5 images allowed").optional(),
-  stock: z.string().min(1, "Stock is required").refine((val) => !isNaN(Number(val)) && Number(val) >= 0, "Stock must be a non-negative number"),
   isActive: z.boolean().default(true),
 });
 
@@ -46,7 +45,6 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
       price: product?.price || "",
       imageUrl: product?.imageUrl || "",
       images: product?.images || [],
-      stock: product?.stock?.toString() || "0",
       isActive: product?.isActive ?? true,
     },
   });
@@ -62,7 +60,6 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
         price: data.price,
         imageUrl: data.imageUrl || undefined,
         images: data.images || [],
-        stock: parseInt(data.stock),
         isActive: data.isActive,
       };
       
@@ -176,34 +173,18 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="price">Price (₹) *</Label>
-            <Input
-              id="price"
-              {...form.register("price")}
-              placeholder="0.00"
-              className="mt-2"
-              data-testid="input-product-price"
-            />
-            {form.formState.errors.price && (
-              <p className="text-sm text-red-600 mt-1">{form.formState.errors.price.message}</p>
-            )}
-          </div>
-
-          <div>
-            <Label htmlFor="stock">Stock Quantity *</Label>
-            <Input
-              id="stock"
-              {...form.register("stock")}
-              placeholder="0"
-              className="mt-2"
-              data-testid="input-product-stock"
-            />
-            {form.formState.errors.stock && (
-              <p className="text-sm text-red-600 mt-1">{form.formState.errors.stock.message}</p>
-            )}
-          </div>
+        <div>
+          <Label htmlFor="price">Price (₹) *</Label>
+          <Input
+            id="price"
+            {...form.register("price")}
+            placeholder="0.00"
+            className="mt-2"
+            data-testid="input-product-price"
+          />
+          {form.formState.errors.price && (
+            <p className="text-sm text-red-600 mt-1">{form.formState.errors.price.message}</p>
+          )}
         </div>
 
         <div>

@@ -1,4 +1,4 @@
-import { otps, admins, influencers, users, type Otp, type InsertOtp } from "@shared/schema";
+import { otps, admins, users, type Otp, type InsertOtp } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt } from "drizzle-orm";
 import { createHash } from "crypto";
@@ -34,7 +34,24 @@ export class OtpService {
   // Send OTP (mock implementation - in production, integrate with SMS service)
   private async sendSms(phone: string, otp: string): Promise<boolean> {
     console.log(`[SMS] Sending OTP ${otp} to ${phone}`);
-    // In production, integrate with services like Twilio, TextLocal, etc.
+    
+    // IMPORTANT: This is a mock implementation for development
+    // In production, integrate with SMS services like:
+    // - Twilio: https://www.twilio.com/docs/sms
+    // - TextLocal: https://www.textlocal.in/
+    // - AWS SNS: https://aws.amazon.com/sns/
+    // - Fast2SMS: https://www.fast2sms.com/
+    
+    // Example Twilio integration:
+    // const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    // const authToken = process.env.TWILIO_AUTH_TOKEN;
+    // const client = require('twilio')(accountSid, authToken);
+    // await client.messages.create({
+    //   body: `Your OTP is: ${otp}. Valid for 5 minutes.`,
+    //   from: process.env.TWILIO_PHONE_NUMBER,
+    //   to: `+91${phone}`
+    // });
+    
     return true;
   }
 
@@ -44,9 +61,6 @@ export class OtpService {
       case 'admin':
         const admin = await db.select().from(admins).where(eq(admins.phone, phone)).limit(1);
         return admin.length > 0;
-      case 'influencer':
-        const influencer = await db.select().from(influencers).where(eq(influencers.phone, phone)).limit(1);
-        return influencer.length > 0;
       case 'buyer':
         // For buyers, we allow new registrations
         return true;
@@ -56,7 +70,7 @@ export class OtpService {
   }
 
   // Send OTP to phone number
-  async sendOtp(phone: string, userType: 'admin' | 'influencer' | 'buyer'): Promise<{ success: boolean; message: string; otpId?: string }> {
+  async sendOtp(phone: string, userType: 'admin' | 'buyer'): Promise<{ success: boolean; message: string; otpId?: string }> {
     try {
       // Validate Indian phone number
       const phoneValidation = this.validateIndianPhone(phone);

@@ -20,7 +20,6 @@ const offerSchema = z.object({
   minCartValue: z.string().min(1, "Minimum cart value is required").refine((val) => !isNaN(Number(val)) && Number(val) >= 0, "Minimum cart value must be non-negative"),
   globalUsageLimit: z.string().optional().refine((val) => !val || (!isNaN(Number(val)) && Number(val) > 0), "Global usage limit must be positive"),
   perUserUsageLimit: z.string().min(1, "Per user usage limit is required").refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Per user usage limit must be positive"),
-  influencerId: z.string().optional(),
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   isActive: z.boolean().default(true),
@@ -38,17 +37,11 @@ interface Offer {
   minCartValue: string;
   globalUsageLimit: number | null;
   perUserUsageLimit: number;
-  influencerId: string | null;
   startDate: string | null;
   endDate: string | null;
   isActive: boolean;
 }
 
-interface Influencer {
-  id: string;
-  name: string;
-  username: string;
-}
 
 interface OfferFormProps {
   offer?: Offer | null;
@@ -59,9 +52,6 @@ export default function OfferForm({ offer, onClose }: OfferFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: influencers } = useQuery<Influencer[]>({
-    queryKey: ["/api/influencers"],
-  });
 
   const form = useForm<OfferFormData>({
     resolver: zodResolver(offerSchema),
@@ -74,7 +64,6 @@ export default function OfferForm({ offer, onClose }: OfferFormProps) {
       minCartValue: offer?.minCartValue || "0",
       globalUsageLimit: offer?.globalUsageLimit?.toString() || "",
       perUserUsageLimit: offer?.perUserUsageLimit?.toString() || "1",
-      influencerId: offer?.influencerId || "",
       startDate: offer?.startDate ? new Date(offer.startDate).toISOString().split('T')[0] : "",
       endDate: offer?.endDate ? new Date(offer.endDate).toISOString().split('T')[0] : "",
       isActive: offer?.isActive ?? true,
@@ -90,7 +79,6 @@ export default function OfferForm({ offer, onClose }: OfferFormProps) {
         minCartValue: data.minCartValue,
         globalUsageLimit: data.globalUsageLimit ? parseInt(data.globalUsageLimit) : undefined,
         perUserUsageLimit: parseInt(data.perUserUsageLimit),
-        influencerId: data.influencerId || undefined,
         startDate: data.startDate ? new Date(data.startDate).toISOString() : undefined,
         endDate: data.endDate ? new Date(data.endDate).toISOString() : undefined,
       };
@@ -252,25 +240,6 @@ export default function OfferForm({ offer, onClose }: OfferFormProps) {
           </div>
         </div>
 
-        <div>
-          <Label htmlFor="influencerId">Assign to Influencer</Label>
-          <Select
-            value={form.watch("influencerId")}
-            onValueChange={(value) => form.setValue("influencerId", value)}
-          >
-            <SelectTrigger className="mt-2" data-testid="select-influencer">
-              <SelectValue placeholder="Select an influencer" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="">No influencer</SelectItem>
-              {influencers?.map((influencer) => (
-                <SelectItem key={influencer.id} value={influencer.id}>
-                  {influencer.name} (@{influencer.username})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div>

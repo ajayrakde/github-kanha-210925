@@ -28,23 +28,11 @@ export const products = pgTable("products", {
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   imageUrl: text("image_url"), // Primary image for backward compatibility
   images: text("images").array().default([]), // Array of image URLs (max 5)
-  stock: integer("stock").default(0),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Influencers table - supporting both OTP and password authentication
-export const influencers = pgTable("influencers", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: varchar("name", { length: 255 }).notNull(),
-  phone: varchar("phone", { length: 15 }).notNull().unique(),
-  email: varchar("email", { length: 255 }),
-  password: varchar("password", { length: 255 }), // Optional for password login
-  isActive: boolean("is_active").default(true),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
 
 // Admin table - supporting both OTP and password authentication
 export const admins = pgTable("admins", {
@@ -85,7 +73,6 @@ export const offers = pgTable("offers", {
   isActive: boolean("is_active").default(true),
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
-  influencerId: varchar("influencer_id").references(() => influencers.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -145,15 +132,8 @@ export const productsRelations = relations(products, ({ many }) => ({
   cartItems: many(cartItems),
 }));
 
-export const influencersRelations = relations(influencers, ({ many }) => ({
-  offers: many(offers),
-}));
 
-export const offersRelations = relations(offers, ({ one, many }) => ({
-  influencer: one(influencers, {
-    fields: [offers.influencerId],
-    references: [influencers.id],
-  }),
+export const offersRelations = relations(offers, ({ many }) => ({
   orders: many(orders),
   redemptions: many(offerRedemptions),
 }));
@@ -207,7 +187,6 @@ export const offerRedemptionsRelations = relations(offerRedemptions, ({ one }) =
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertInfluencerSchema = createInsertSchema(influencers).omit({ id: true, createdAt: true });
 export const insertAdminSchema = createInsertSchema(admins).omit({ id: true, createdAt: true });
 export const insertOfferSchema = createInsertSchema(offers).omit({ id: true, createdAt: true, currentUsage: true });
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true, updatedAt: true });
@@ -220,8 +199,6 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type Product = typeof products.$inferSelect;
 export type InsertProduct = z.infer<typeof insertProductSchema>;
-export type Influencer = typeof influencers.$inferSelect;
-export type InsertInfluencer = z.infer<typeof insertInfluencerSchema>;
 export type Admin = typeof admins.$inferSelect;
 export type InsertAdmin = z.infer<typeof insertAdminSchema>;
 export type Offer = typeof offers.$inferSelect;

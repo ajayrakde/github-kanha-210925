@@ -166,7 +166,7 @@ export default function Admin() {
 
       {/* Product Form Dialog */}
       <Dialog open={showProductForm} onOpenChange={handleFormClose}>
-        <DialogContent className="sm:max-w-[600px]" aria-describedby="product-form-description">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto" aria-describedby="product-form-description">
           <DialogHeader>
             <DialogTitle>
               {editingProduct ? 'Edit Product' : 'Add New Product'}
@@ -184,7 +184,7 @@ export default function Admin() {
 
       {/* Offer Form Dialog */}
       <Dialog open={showOfferForm} onOpenChange={handleFormClose}>
-        <DialogContent className="sm:max-w-[600px]" aria-describedby="offer-form-description">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto" aria-describedby="offer-form-description">
           <DialogHeader>
             <DialogTitle>
               {editingOffer ? 'Edit Offer' : 'Create New Offer'}
