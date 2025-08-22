@@ -26,6 +26,7 @@ import {
   type InsertCartItem,
   type OfferRedemption,
 } from "@shared/schema";
+import type { AbandonedCart } from "@/lib/types";
 import { db } from "./db";
 import { eq, and, desc, sql, gte, lte, lt } from "drizzle-orm";
 
@@ -82,6 +83,16 @@ export interface IStorage {
   updateCartItem(sessionId: string, productId: string, quantity: number): Promise<CartItem>;
   removeFromCart(sessionId: string, productId: string): Promise<void>;
   clearCart(sessionId: string): Promise<void>;
+
+  // Abandoned cart operations
+  getAbandonedCarts(): Promise<AbandonedCart[]>;
+  trackCartActivity(sessionId: string): Promise<void>;
+  markCartAsAbandoned(sessionId: string): Promise<void>;
+
+  // Analytics operations
+  getPopularProducts(): Promise<Array<{ product: Product; orderCount: number; totalRevenue: number }>>;
+  getSalesTrends(days: number): Promise<Array<{ date: string; orders: number; revenue: number }>>;
+  getConversionMetrics(): Promise<{ totalSessions: number; ordersCompleted: number; conversionRate: number }>;
 
   // Order operations
   getOrders(): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer })[]>;
@@ -432,6 +443,103 @@ export class DatabaseStorage implements IStorage {
 
   async clearCart(sessionId: string): Promise<void> {
     await db.delete(cartItems).where(eq(cartItems.sessionId, sessionId));
+  }
+
+  // Abandoned cart tracking
+  async getAbandonedCarts(): Promise<AbandonedCart[]> {
+    const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours ago
+    
+    const abandonedCarts = await db
+      .select({
+        sessionId: cartItems.sessionId,
+        items: sql<number>`count(${cartItems.id})`,
+        totalValue: sql<number>`sum(cast(${products.price} as decimal) * ${cartItems.quantity})`,
+        lastActivity: sql<Date>`max(${cartItems.updatedAt})`,
+      })
+      .from(cartItems)
+      .innerJoin(products, eq(cartItems.productId, products.id))
+      .where(lt(cartItems.updatedAt, cutoffTime))
+      .groupBy(cartItems.sessionId)
+      .having(sql`count(${cartItems.id}) > 0`);
+
+    return abandonedCarts.map(cart => ({
+      sessionId: cart.sessionId,
+      items: cart.items,
+      totalValue: cart.totalValue,
+      lastActivity: cart.lastActivity,
+    }));
+  }
+
+  async trackCartActivity(sessionId: string): Promise<void> {
+    // Update timestamp on any cart activity
+    await db
+      .update(cartItems)
+      .set({ updatedAt: new Date() })
+      .where(eq(cartItems.sessionId, sessionId));
+  }
+
+  async markCartAsAbandoned(sessionId: string): Promise<void> {
+    // This could trigger email campaigns or other retention efforts
+    console.log(`Cart ${sessionId} marked as abandoned for potential recovery`);
+  }
+
+  // Analytics methods
+  async getPopularProducts(): Promise<Array<{ product: Product; orderCount: number; totalRevenue: number }>> {
+    const popularProducts = await db
+      .select({
+        product: products,
+        orderCount: sql<number>`count(${orderItems.id})`,
+        totalRevenue: sql<number>`sum(cast(${orderItems.price} as decimal) * ${orderItems.quantity})`,
+      })
+      .from(orderItems)
+      .innerJoin(products, eq(orderItems.productId, products.id))
+      .groupBy(products.id)
+      .orderBy(sql`count(${orderItems.id}) desc`)
+      .limit(10);
+
+    return popularProducts;
+  }
+
+  async getSalesTrends(days: number): Promise<Array<{ date: string; orders: number; revenue: number }>> {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const trends = await db
+      .select({
+        date: sql<string>`date(${orders.createdAt})`,
+        orders: sql<number>`count(${orders.id})`,
+        revenue: sql<number>`sum(cast(${orders.total} as decimal))`,
+      })
+      .from(orders)
+      .where(gte(orders.createdAt, startDate))
+      .groupBy(sql`date(${orders.createdAt})`)
+      .orderBy(sql`date(${orders.createdAt})`);
+
+    return trends;
+  }
+
+  async getConversionMetrics(): Promise<{ totalSessions: number; ordersCompleted: number; conversionRate: number }> {
+    // Get unique sessions that had cart activity
+    const [{ totalSessions }] = await db
+      .select({
+        totalSessions: sql<number>`count(distinct ${cartItems.sessionId})`,
+      })
+      .from(cartItems);
+
+    // Get orders completed
+    const [{ ordersCompleted }] = await db
+      .select({
+        ordersCompleted: sql<number>`count(${orders.id})`,
+      })
+      .from(orders);
+
+    const conversionRate = totalSessions > 0 ? (ordersCompleted / totalSessions) * 100 : 0;
+
+    return {
+      totalSessions: totalSessions || 0,
+      ordersCompleted: ordersCompleted || 0,
+      conversionRate,
+    };
   }
 
 

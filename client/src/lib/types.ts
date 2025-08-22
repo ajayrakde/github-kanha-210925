@@ -148,3 +148,22 @@ export interface AbandonedCart {
   totalValue: number;
   lastActivity: Date;
 }
+
+// Analytics types
+export interface PopularProduct {
+  product: Product;
+  orderCount: number;
+  totalRevenue: number;
+}
+
+export interface SalesTrend {
+  date: string;
+  orders: number;
+  revenue: number;
+}
+
+export interface ConversionMetrics {
+  totalSessions: number;
+  ordersCompleted: number;
+  conversionRate: number;
+}
