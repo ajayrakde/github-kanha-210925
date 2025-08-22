@@ -92,7 +92,7 @@ export default function Admin() {
         </TabsList>
 
         <TabsContent value="products" className="mt-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-6 min-h-[600px]">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-semibold text-gray-900">Product Management</h3>
               <Button 
@@ -107,7 +107,7 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="orders" className="mt-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-6 min-h-[600px]">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-semibold text-gray-900">Order Management</h3>
               <Button 
@@ -143,7 +143,7 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="offers" className="mt-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-6 min-h-[600px]">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-semibold text-gray-900">Offer Management</h3>
               <Button 
@@ -158,7 +158,7 @@ export default function Admin() {
         </TabsContent>
 
         <TabsContent value="users" className="mt-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-6 min-h-[600px]">
             <UserManagement />
           </div>
         </TabsContent>

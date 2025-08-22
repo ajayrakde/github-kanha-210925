@@ -10,6 +10,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Product } from "@/lib/types";
+import { ObjectUploader } from "@/components/ObjectUploader";
+import type { UploadResult } from "@uppy/core";
 
 const productSchema = z.object({
   name: z.string().min(1, "Product name is required"),
@@ -18,7 +20,7 @@ const productSchema = z.object({
   category: z.string().optional(),
   description: z.string().optional(),
   price: z.string().min(1, "Price is required").refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Price must be a positive number"),
-  imageUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+  imageUrl: z.string().optional().or(z.literal("")),
   images: z.array(z.string().url("Must be a valid URL")).max(5, "Maximum 5 images allowed").optional(),
   isActive: z.boolean().default(true),
 });
@@ -188,14 +190,49 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
         </div>
 
         <div>
-          <Label htmlFor="imageUrl">Image URL</Label>
-          <Input
-            id="imageUrl"
-            {...form.register("imageUrl")}
-            placeholder="https://example.com/image.jpg"
-            className="mt-2"
-            data-testid="input-product-image"
-          />
+          <Label htmlFor="imageUrl">Product Image</Label>
+          <div className="mt-2 space-y-3">
+            <div className="flex gap-3">
+              <Input
+                id="imageUrl"
+                {...form.register("imageUrl")}
+                placeholder="Image URL or upload an image"
+                className="flex-1"
+                data-testid="input-product-image"
+              />
+              <ObjectUploader
+                maxNumberOfFiles={1}
+                maxFileSize={5242880} // 5MB
+                onGetUploadParameters={async () => {
+                  const response = await apiRequest("POST", "/api/objects/upload");
+                  const data = await response.json();
+                  return {
+                    method: "PUT" as const,
+                    url: data.uploadURL,
+                  };
+                }}
+                onComplete={(result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
+                  if (result.successful && result.successful[0]) {
+                    // Convert the upload URL to our object serving URL
+                    const uploadUrl = result.successful[0].uploadURL as string;
+                    const url = new URL(uploadUrl);
+                    const pathParts = url.pathname.split('/');
+                    const objectId = pathParts[pathParts.length - 1];
+                    const objectPath = `/objects/uploads/${objectId}`;
+                    form.setValue("imageUrl", objectPath);
+                  }
+                }}
+                buttonClassName="bg-gray-600 hover:bg-gray-700"
+              >
+                📁 Upload Image
+              </ObjectUploader>
+            </div>
+            {form.watch("imageUrl") && (
+              <div className="text-sm text-gray-600">
+                Current image: {form.watch("imageUrl")}
+              </div>
+            )}
+          </div>
           {form.formState.errors.imageUrl && (
             <p className="text-sm text-red-600 mt-1">{form.formState.errors.imageUrl.message}</p>
           )}

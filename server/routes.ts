@@ -62,6 +62,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/products', async (req, res) => {
     try {
+      // Check product limit (max 10 products)
+      const existingProducts = await storage.getProducts();
+      if (existingProducts.length >= 10) {
+        return res.status(400).json({ message: 'Maximum 10 products allowed. Please delete existing products to add new ones.' });
+      }
+      
       const productData = insertProductSchema.parse(req.body);
       const product = await storage.createProduct(productData);
       res.json(product);
@@ -381,6 +387,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     req.session.adminId = undefined;
     req.session.userRole = undefined;
     res.json({ message: 'Logged out successfully' });
+  });
+
+  // Object storage routes for product images
+  app.post('/api/objects/upload', async (req, res) => {
+    try {
+      const { ObjectStorageService } = await import('./objectStorage');
+      const objectStorageService = new ObjectStorageService();
+      const uploadURL = await objectStorageService.getObjectEntityUploadURL();
+      res.json({ uploadURL });
+    } catch (error) {
+      console.error("Error generating upload URL:", error);
+      res.status(500).json({ message: "Failed to generate upload URL" });
+    }
+  });
+
+  app.get('/objects/:objectPath(*)', async (req, res) => {
+    try {
+      const { ObjectStorageService } = await import('./objectStorage');
+      const objectStorageService = new ObjectStorageService();
+      const objectFile = await objectStorageService.getObjectEntityFile(req.path);
+      // Simple download without ACL checks for product images
+      const stream = objectFile.createReadStream();
+      stream.pipe(res);
+    } catch (error) {
+      console.error("Error serving object:", error);
+      res.status(404).json({ message: "Object not found" });
+    }
   });
 
   // Influencer routes
