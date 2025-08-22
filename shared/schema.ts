@@ -29,25 +29,34 @@ export const products = pgTable("products", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Influencers table
+// Influencers table - now using phone for OTP authentication
 export const influencers = pgTable("influencers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name", { length: 255 }).notNull(),
-  phone: varchar("phone", { length: 15 }).notNull().unique(), // Phone is now the username
-  password: varchar("password", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 15 }).notNull().unique(),
   email: varchar("email", { length: 255 }),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Admin table
+// Admin table - now using phone for OTP authentication
 export const admins = pgTable("admins", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: varchar("username", { length: 100 }).notNull().unique(),
-  password: varchar("password", { length: 255 }).notNull(),
-  name: varchar("name", { length: 255 }),
+  name: varchar("name", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 15 }).notNull().unique(),
   email: varchar("email", { length: 255 }),
   isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// OTP table for authentication
+export const otps = pgTable("otps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  phone: varchar("phone", { length: 15 }).notNull(),
+  otp: varchar("otp", { length: 6 }).notNull(),
+  userType: varchar("user_type", { length: 20 }).notNull(), // 'buyer', 'influencer', 'admin'
+  expiresAt: timestamp("expires_at").notNull(),
+  isUsed: boolean("is_used").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -194,6 +203,7 @@ export const insertOfferSchema = createInsertSchema(offers).omit({ id: true, cre
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: true });
 export const insertCartItemSchema = createInsertSchema(cartItems).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertOtpSchema = createInsertSchema(otps).omit({ id: true, createdAt: true });
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -213,3 +223,5 @@ export type InsertOrderItem = z.infer<typeof insertOrderItemSchema>;
 export type CartItem = typeof cartItems.$inferSelect;
 export type InsertCartItem = z.infer<typeof insertCartItemSchema>;
 export type OfferRedemption = typeof offerRedemptions.$inferSelect;
+export type Otp = typeof otps.$inferSelect;
+export type InsertOtp = z.infer<typeof insertOtpSchema>;

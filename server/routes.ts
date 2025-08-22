@@ -1,6 +1,7 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { otpService } from "./otp-service";
 import session from "express-session";
 import { insertProductSchema, insertOfferSchema, insertInfluencerSchema } from "@shared/schema";
 import { z } from "zod";
@@ -20,6 +21,7 @@ interface SessionRequest extends Request {
     sessionId?: string;
     adminId?: string;
     influencerId?: string;
+    userId?: string;
     userRole?: string;
   };
 }
@@ -550,6 +552,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error resetting password:', error);
       res.status(500).json({ message: 'Failed to reset password' });
+    }
+  });
+
+  // OTP Authentication routes
+  app.post('/api/auth/send-otp', async (req, res) => {
+    try {
+      const { phone, userType } = req.body;
+      
+      if (!phone || !userType) {
+        return res.status(400).json({ message: 'Phone number and user type are required' });
+      }
+
+      if (!['admin', 'influencer', 'buyer'].includes(userType)) {
+        return res.status(400).json({ message: 'Invalid user type' });
+      }
+
+      const result = await otpService.sendOtp(phone, userType);
+      
+      if (result.success) {
+        res.json({ message: result.message, otpId: result.otpId });
+      } else {
+        res.status(400).json({ message: result.message });
+      }
+    } catch (error) {
+      console.error('Error sending OTP:', error);
+      res.status(500).json({ message: 'Failed to send OTP' });
+    }
+  });
+
+  app.post('/api/auth/verify-otp', async (req, res) => {
+    try {
+      const { phone, otp, userType } = req.body;
+      
+      if (!phone || !otp || !userType) {
+        return res.status(400).json({ message: 'Phone number, OTP, and user type are required' });
+      }
+
+      const result = await otpService.verifyOtp(phone, otp, userType);
+      
+      if (result.success && result.user) {
+        // Set session based on user type
+        switch (userType) {
+          case 'admin':
+            req.session.adminId = result.user.id;
+            req.session.userRole = 'admin';
+            break;
+          case 'influencer':
+            req.session.influencerId = result.user.id;
+            req.session.userRole = 'influencer';
+            break;
+          case 'buyer':
+            req.session.userId = result.user.id;
+            req.session.userRole = 'buyer';
+            break;
+        }
+
+        res.json({ 
+          message: result.message, 
+          user: result.user,
+          isNewUser: result.isNewUser 
+        });
+      } else {
+        res.status(400).json({ message: result.message });
+      }
+    } catch (error) {
+      console.error('Error verifying OTP:', error);
+      res.status(500).json({ message: 'Failed to verify OTP' });
     }
   });
 
