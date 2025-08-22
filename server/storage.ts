@@ -46,9 +46,10 @@ export interface IStorage {
   // Influencer operations
   getInfluencers(): Promise<Influencer[]>;
   getInfluencer(id: string): Promise<Influencer | undefined>;
-  getInfluencerByUsername(username: string): Promise<Influencer | undefined>;
+  getInfluencerByPhone(phone: string): Promise<Influencer | undefined>;
   createInfluencer(influencer: InsertInfluencer): Promise<Influencer>;
-  validateInfluencerLogin(username: string, password: string): Promise<Influencer | null>;
+  validateInfluencerLogin(phone: string, password: string): Promise<Influencer | null>;
+  updateInfluencerPassword(id: string, newPassword: string): Promise<Influencer>;
 
   // Admin operations
   getAdmins(): Promise<Admin[]>;
@@ -158,8 +159,8 @@ export class DatabaseStorage implements IStorage {
     return influencer;
   }
 
-  async getInfluencerByUsername(username: string): Promise<Influencer | undefined> {
-    const [influencer] = await db.select().from(influencers).where(eq(influencers.username, username));
+  async getInfluencerByPhone(phone: string): Promise<Influencer | undefined> {
+    const [influencer] = await db.select().from(influencers).where(eq(influencers.phone, phone));
     return influencer;
   }
 
@@ -168,12 +169,21 @@ export class DatabaseStorage implements IStorage {
     return createdInfluencer;
   }
 
-  async validateInfluencerLogin(username: string, password: string): Promise<Influencer | null> {
-    const influencer = await this.getInfluencerByUsername(username);
+  async validateInfluencerLogin(phone: string, password: string): Promise<Influencer | null> {
+    const influencer = await this.getInfluencerByPhone(phone);
     if (influencer && influencer.password === password && influencer.isActive) {
       return influencer;
     }
     return null;
+  }
+
+  async updateInfluencerPassword(id: string, newPassword: string): Promise<Influencer> {
+    const [updatedInfluencer] = await db
+      .update(influencers)
+      .set({ password: newPassword })
+      .where(eq(influencers.id, id))
+      .returning();
+    return updatedInfluencer;
   }
 
   // Admin operations

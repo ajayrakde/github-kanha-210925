@@ -33,10 +33,9 @@ export const products = pgTable("products", {
 export const influencers = pgTable("influencers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name", { length: 255 }).notNull(),
-  username: varchar("username", { length: 100 }).notNull().unique(),
+  phone: varchar("phone", { length: 15 }).notNull().unique(), // Phone is now the username
   password: varchar("password", { length: 255 }).notNull(),
   email: varchar("email", { length: 255 }),
-  phone: varchar("phone", { length: 15 }),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });

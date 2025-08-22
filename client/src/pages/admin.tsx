@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProductTable from "@/components/admin/product-table";
 import OrderTable from "@/components/admin/order-table";
 import OfferTable from "@/components/admin/offer-table";
+import InfluencerManagement from "@/components/admin/influencer-management";
 import ProductForm from "@/components/forms/product-form";
 import OfferForm from "@/components/forms/offer-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -85,10 +86,11 @@ export default function Admin() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="products" data-testid="tab-products">Products</TabsTrigger>
           <TabsTrigger value="orders" data-testid="tab-orders">Orders</TabsTrigger>
           <TabsTrigger value="offers" data-testid="tab-offers">Offers</TabsTrigger>
+          <TabsTrigger value="influencers" data-testid="tab-influencers">Influencers</TabsTrigger>
           <TabsTrigger value="carts" data-testid="tab-carts">Abandoned Carts</TabsTrigger>
         </TabsList>
 
@@ -155,6 +157,12 @@ export default function Admin() {
               </Button>
             </div>
             <OfferTable onEdit={handleOfferEdit} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="influencers" className="mt-6">
+          <div className="bg-white rounded-lg shadow-sm p-6">
+            <InfluencerManagement />
           </div>
         </TabsContent>
 

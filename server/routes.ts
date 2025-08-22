@@ -18,6 +18,9 @@ const sessionConfig = session({
 interface SessionRequest extends Request {
   session: session.Session & {
     sessionId?: string;
+    adminId?: string;
+    influencerId?: string;
+    userRole?: string;
   };
 }
 
@@ -443,12 +446,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/influencer/login', async (req, res) => {
     try {
-      const { username, password } = req.body;
-      const influencer = await storage.validateInfluencerLogin(username, password);
+      const { phone, password } = req.body;
+      const influencer = await storage.validateInfluencerLogin(phone, password);
       if (influencer) {
         req.session.influencerId = influencer.id;
         req.session.userRole = 'influencer';
-        res.json({ success: true, influencer: { id: influencer.id, username: influencer.username, name: influencer.name } });
+        res.json({ success: true, influencer: { id: influencer.id, phone: influencer.phone, name: influencer.name } });
       } else {
         res.status(401).json({ message: 'Invalid credentials' });
       }
@@ -472,6 +475,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Password generation utility
+  const generatePassword = () => {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    let password = '';
+    for (let i = 0; i < 8; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  };
+
+  // Authentication middleware
+  const requireAdmin = (req: SessionRequest, res: any, next: any) => {
+    if (req.session.adminId && req.session.userRole === 'admin') {
+      next();
+    } else {
+      res.status(401).json({ message: 'Admin access required' });
+    }
+  };
+
+  // Admin routes for managing influencers
+  app.get('/api/admin/influencers', requireAdmin, async (req, res) => {
+    try {
+      const influencers = await storage.getInfluencers();
+      res.json(influencers);
+    } catch (error) {
+      console.error('Error fetching influencers:', error);
+      res.status(500).json({ message: 'Failed to fetch influencers' });
+    }
+  });
+
+  app.post('/api/admin/influencers', requireAdmin, async (req, res) => {
+    try {
+      const { name, phone, email } = req.body;
+      const password = generatePassword();
+      
+      const influencer = await storage.createInfluencer({
+        name,
+        phone,
+        email,
+        password
+      });
+      
+      res.json({ 
+        influencer: { 
+          id: influencer.id, 
+          name: influencer.name, 
+          phone: influencer.phone, 
+          email: influencer.email 
+        },
+        password // Return generated password
+      });
+    } catch (error) {
+      console.error('Error creating influencer:', error);
+      res.status(500).json({ message: 'Failed to create influencer' });
+    }
+  });
+
+  app.patch('/api/admin/influencers/:id/reset-password', requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const newPassword = generatePassword();
+      
+      const influencer = await storage.updateInfluencerPassword(id, newPassword);
+      res.json({ 
+        message: 'Password reset successfully',
+        password: newPassword,
+        influencer: { 
+          id: influencer.id, 
+          name: influencer.name, 
+          phone: influencer.phone 
+        }
+      });
+    } catch (error) {
+      console.error('Error resetting password:', error);
+      res.status(500).json({ message: 'Failed to reset password' });
+    }
+  });
+
   // Seed route for creating test accounts
   app.post('/api/seed-accounts', async (req, res) => {
     try {
@@ -485,7 +566,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Create test influencer  
       const influencer = await storage.createInfluencer({
-        username: 'influencer1',
+        phone: '9876543210',
         password: 'password123',
         name: 'Test Influencer',
         email: 'influencer@example.com'
@@ -494,7 +575,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ 
         message: 'Test accounts created successfully!',
         admin: { username: 'admin', password: 'password123' },
-        influencer: { username: 'influencer1', password: 'password123' }
+        influencer: { phone: '9876543210', password: 'password123' }
       });
     } catch (error) {
       console.error('Error creating accounts:', error);

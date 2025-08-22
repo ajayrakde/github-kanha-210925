@@ -11,11 +11,13 @@ export function useAdminAuth() {
 
   const loginMutation = useMutation({
     mutationFn: async (credentials: { username: string; password: string }) => {
-      return apiRequest("/api/admin/login", {
+      const response = await fetch("/api/admin/login", {
         method: "POST",
         body: JSON.stringify(credentials),
         headers: { "Content-Type": "application/json" },
       });
+      if (!response.ok) throw new Error('Login failed');
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/me"] });
@@ -24,7 +26,8 @@ export function useAdminAuth() {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("/api/admin/logout", { method: "POST" });
+      const response = await fetch("/api/admin/logout", { method: "POST" });
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/me"] });
@@ -32,7 +35,7 @@ export function useAdminAuth() {
   });
 
   return {
-    isAuthenticated: authStatus?.authenticated || false,
+    isAuthenticated: (authStatus as any)?.authenticated || false,
     isLoading,
     login: loginMutation.mutate,
     logout: logoutMutation.mutate,
@@ -50,12 +53,14 @@ export function useInfluencerAuth() {
   });
 
   const loginMutation = useMutation({
-    mutationFn: async (credentials: { username: string; password: string }) => {
-      return apiRequest("/api/influencer/login", {
+    mutationFn: async (credentials: { phone: string; password: string }) => {
+      const response = await fetch("/api/influencer/login", {
         method: "POST",
         body: JSON.stringify(credentials),
         headers: { "Content-Type": "application/json" },
       });
+      if (!response.ok) throw new Error('Login failed');
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/influencer/me"] });
@@ -64,7 +69,8 @@ export function useInfluencerAuth() {
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest("/api/influencer/logout", { method: "POST" });
+      const response = await fetch("/api/influencer/logout", { method: "POST" });
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/influencer/me"] });
@@ -72,7 +78,7 @@ export function useInfluencerAuth() {
   });
 
   return {
-    isAuthenticated: authStatus?.authenticated || false,
+    isAuthenticated: (authStatus as any)?.authenticated || false,
     isLoading,
     login: loginMutation.mutate,
     logout: logoutMutation.mutate,

@@ -6,23 +6,23 @@ import { useInfluencerAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 
 export default function InfluencerLogin() {
-  const [username, setUsername] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const { login, loginLoading, loginError } = useInfluencerAuth();
   const { toast } = useToast();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username || !password) {
+    if (!phone || !password) {
       toast({
         title: "Error",
-        description: "Please enter both username and password",
+        description: "Please enter both phone number and password",
         variant: "destructive",
       });
       return;
     }
 
-    login({ username, password }, {
+    login({ phone, password }, {
       onError: () => {
         toast({
           title: "Login Failed",
@@ -49,12 +49,12 @@ export default function InfluencerLogin() {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <Input
-                type="text"
-                placeholder="Username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                type="tel"
+                placeholder="Phone Number"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
                 disabled={loginLoading}
-                data-testid="input-influencer-username"
+                data-testid="input-influencer-phone"
               />
             </div>
             <div>
