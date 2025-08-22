@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { otpService } from "./otp-service";
 import session from "express-session";
-import { insertProductSchema, insertOfferSchema, insertInfluencerSchema } from "@shared/schema";
+import { insertProductSchema, insertOfferSchema } from "@shared/schema";
 import { z } from "zod";
 
 const sessionConfig = session({
@@ -20,7 +20,6 @@ interface SessionRequest extends Request {
   session: session.Session & {
     sessionId?: string;
     adminId?: string;
-    influencerId?: string;
     userId?: string;
     userRole?: string;
   };
@@ -313,60 +312,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/admin/abandoned-carts', async (req, res) => {
-    try {
-      const abandonedCarts = await storage.getAbandonedCarts();
-      res.json(abandonedCarts);
-    } catch (error) {
-      console.error('Error fetching abandoned carts:', error);
-      res.status(500).json({ message: 'Failed to fetch abandoned carts' });
-    }
-  });
-
-  // Influencer routes
-  app.get('/api/influencers', async (req, res) => {
-    try {
-      const influencers = await storage.getInfluencers();
-      res.json(influencers);
-    } catch (error) {
-      console.error('Error fetching influencers:', error);
-      res.status(500).json({ message: 'Failed to fetch influencers' });
-    }
-  });
-
-  app.post('/api/influencers', async (req, res) => {
-    try {
-      const influencerData = insertInfluencerSchema.parse(req.body);
-      const influencer = await storage.createInfluencer(influencerData);
-      res.json(influencer);
-    } catch (error) {
-      console.error('Error creating influencer:', error);
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: 'Invalid influencer data', errors: error.errors });
-      }
-      res.status(500).json({ message: 'Failed to create influencer' });
-    }
-  });
-
-  app.get('/api/influencers/:id/stats', async (req, res) => {
-    try {
-      const stats = await storage.getInfluencerStats(req.params.id);
-      res.json(stats);
-    } catch (error) {
-      console.error('Error fetching influencer stats:', error);
-      res.status(500).json({ message: 'Failed to fetch influencer stats' });
-    }
-  });
-
-  app.get('/api/influencers/:id/offers', async (req, res) => {
-    try {
-      const offers = await storage.getOffersByInfluencer(req.params.id);
-      res.json(offers);
-    } catch (error) {
-      console.error('Error fetching influencer offers:', error);
-      res.status(500).json({ message: 'Failed to fetch influencer offers' });
-    }
-  });
 
   // Offer management routes
   app.get('/api/offers', async (req, res) => {
@@ -446,36 +391,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/influencer/login', async (req, res) => {
-    try {
-      const { phone, password } = req.body;
-      const influencer = await storage.validateInfluencerLogin(phone, password);
-      if (influencer) {
-        req.session.influencerId = influencer.id;
-        req.session.userRole = 'influencer';
-        res.json({ success: true, influencer: { id: influencer.id, phone: influencer.phone, name: influencer.name } });
-      } else {
-        res.status(401).json({ message: 'Invalid credentials' });
-      }
-    } catch (error) {
-      console.error('Influencer login error:', error);
-      res.status(500).json({ message: 'Login failed' });
-    }
-  });
-
-  app.post('/api/influencer/logout', (req, res) => {
-    req.session.influencerId = undefined;
-    req.session.userRole = undefined;
-    res.json({ message: 'Logged out successfully' });
-  });
-
-  app.get('/api/influencer/me', (req, res) => {
-    if (req.session.influencerId && req.session.userRole === 'influencer') {
-      res.json({ authenticated: true, role: 'influencer', id: req.session.influencerId });
-    } else {
-      res.status(401).json({ authenticated: false });
-    }
-  });
 
   // Password generation utility
   const generatePassword = () => {
@@ -496,99 +411,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   };
 
-  // Admin routes for managing influencers
-  app.get('/api/admin/influencers', requireAdmin, async (req, res) => {
-    try {
-      const influencers = await storage.getInfluencers();
-      res.json(influencers);
-    } catch (error) {
-      console.error('Error fetching influencers:', error);
-      res.status(500).json({ message: 'Failed to fetch influencers' });
-    }
-  });
-
-  app.post('/api/admin/influencers', requireAdmin, async (req, res) => {
-    try {
-      const { name, phone, email } = req.body;
-      const password = generatePassword();
-      
-      const influencer = await storage.createInfluencer({
-        name,
-        phone,
-        email,
-        password
-      });
-      
-      res.json({ 
-        influencer: { 
-          id: influencer.id, 
-          name: influencer.name, 
-          phone: influencer.phone, 
-          email: influencer.email 
-        },
-        password // Return generated password
-      });
-    } catch (error) {
-      console.error('Error creating influencer:', error);
-      res.status(500).json({ message: 'Failed to create influencer' });
-    }
-  });
-
-  app.patch('/api/admin/influencers/:id/reset-password', requireAdmin, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const newPassword = generatePassword();
-      
-      const influencer = await storage.updateInfluencerPassword(id, newPassword);
-      res.json({ 
-        message: 'Password reset successfully',
-        password: newPassword,
-        influencer: { 
-          id: influencer.id, 
-          name: influencer.name, 
-          phone: influencer.phone 
-        }
-      });
-    } catch (error) {
-      console.error('Error resetting password:', error);
-      res.status(500).json({ message: 'Failed to reset password' });
-    }
-  });
-
-  // Enhanced admin management routes for influencers
-  app.patch("/api/admin/influencers/:id", requireAdmin, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const updateData = req.body;
-      const influencer = await storage.updateInfluencer(id, updateData);
-      res.json({ influencer });
-    } catch (error: any) {
-      console.error("Error updating influencer:", error);
-      res.status(500).json({ error: error.message || "Failed to update influencer" });
-    }
-  });
-
-  app.patch("/api/admin/influencers/:id/deactivate", requireAdmin, async (req, res) => {
-    try {
-      const { id } = req.params;
-      await storage.deactivateInfluencer(id);
-      res.json({ message: "Influencer deactivated successfully" });
-    } catch (error: any) {
-      console.error("Error deactivating influencer:", error);
-      res.status(500).json({ error: error.message || "Failed to deactivate influencer" });
-    }
-  });
-
-  app.delete("/api/admin/influencers/:id", requireAdmin, async (req, res) => {
-    try {
-      const { id } = req.params;
-      await storage.deleteInfluencer(id);
-      res.json({ message: "Influencer removed successfully" });
-    } catch (error: any) {
-      console.error("Error removing influencer:", error);
-      res.status(500).json({ error: error.message || "Failed to remove influencer" });
-    }
-  });
 
   // Admin management of other admins
   app.get("/api/admin/admins", requireAdmin, async (req, res) => {
@@ -650,7 +472,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Phone number and user type are required' });
       }
 
-      if (!['admin', 'influencer', 'buyer'].includes(userType)) {
+      if (!['admin', 'buyer'].includes(userType)) {
         return res.status(400).json({ message: 'Invalid user type' });
       }
 
@@ -684,10 +506,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             req.session.adminId = result.user.id;
             req.session.userRole = 'admin';
             break;
-          case 'influencer':
-            req.session.influencerId = result.user.id;
-            req.session.userRole = 'influencer';
-            break;
           case 'buyer':
             req.session.userId = result.user.id;
             req.session.userRole = 'buyer';
@@ -717,7 +535,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Phone number, password, and user type are required' });
       }
 
-      if (!['admin', 'influencer', 'buyer'].includes(userType)) {
+      if (!['admin', 'buyer'].includes(userType)) {
         return res.status(400).json({ message: 'Invalid user type' });
       }
 
@@ -740,14 +558,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           break;
         
-        case 'influencer':
-          const influencer = await storage.authenticateInfluencer(cleanPhone, password);
-          if (influencer) {
-            user = influencer;
-            req.session.influencerId = influencer.id;
-            req.session.userRole = 'influencer';
-          }
-          break;
         
         case 'buyer':
           const buyer = await storage.authenticateUser(cleanPhone, password);
@@ -785,18 +595,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         email: 'admin@example.com'
       });
       
-      // Create test influencer  
-      const influencer = await storage.createInfluencer({
-        phone: '9876543210',
-        password: 'password123',
-        name: 'Test Influencer',
-        email: 'influencer@example.com'
-      });
-      
       res.json({ 
         message: 'Test accounts created successfully!',
-        admin: { username: 'admin', password: 'password123' },
-        influencer: { phone: '9876543210', password: 'password123' }
+        admin: { username: 'admin', password: 'password123' }
       });
     } catch (error) {
       console.error('Error creating accounts:', error);

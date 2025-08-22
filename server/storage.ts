@@ -1,7 +1,6 @@
 import {
   users,
   products,
-  influencers,
   admins,
   offers,
   orders,
@@ -12,8 +11,6 @@ import {
   type InsertUser,
   type Product,
   type InsertProduct,
-  type Influencer,
-  type InsertInfluencer,
   type Admin,
   type InsertAdmin,
   type Offer,
@@ -44,17 +41,6 @@ export interface IStorage {
   updateProduct(id: string, product: Partial<InsertProduct>): Promise<Product>;
   deleteProduct(id: string): Promise<void>;
 
-  // Influencer operations
-  getInfluencers(): Promise<Influencer[]>;
-  getInfluencer(id: string): Promise<Influencer | undefined>;
-  getInfluencerByPhone(phone: string): Promise<Influencer | undefined>;
-  createInfluencer(influencer: InsertInfluencer): Promise<Influencer>;
-  updateInfluencer(id: string, influencer: Partial<InsertInfluencer>): Promise<Influencer>;
-  deactivateInfluencer(id: string): Promise<void>;
-  deleteInfluencer(id: string): Promise<void>;
-  validateInfluencerLogin(phone: string, password: string): Promise<Influencer | null>;
-  authenticateInfluencer(phone: string, password: string): Promise<Influencer | null>;
-  updateInfluencerPassword(id: string, newPassword: string): Promise<Influencer>;
 
   // Admin operations
   getAdmins(): Promise<Admin[]>;
@@ -70,7 +56,6 @@ export interface IStorage {
   // Offer operations
   getOffers(): Promise<Offer[]>;
   getOfferByCode(code: string): Promise<Offer | undefined>;
-  getOffersByInfluencer(influencerId: string): Promise<Offer[]>;
   createOffer(offer: InsertOffer): Promise<Offer>;
   updateOffer(id: string, offer: Partial<InsertOffer>): Promise<Offer>;
   deleteOffer(id: string): Promise<void>;
@@ -83,7 +68,6 @@ export interface IStorage {
   updateCartItem(sessionId: string, productId: string, quantity: number): Promise<CartItem>;
   removeFromCart(sessionId: string, productId: string): Promise<void>;
   clearCart(sessionId: string): Promise<void>;
-  getAbandonedCarts(hoursOld: number): Promise<{ sessionId: string; items: number; totalValue: number; lastActivity: Date }[]>;
 
   // Order operations
   getOrders(): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer })[]>;
@@ -96,12 +80,6 @@ export interface IStorage {
   // Offer redemption operations
   createOfferRedemption(redemption: Omit<OfferRedemption, 'id' | 'createdAt'>): Promise<OfferRedemption>;
   getOfferRedemptionsByUser(userId: string, offerId: string): Promise<OfferRedemption[]>;
-  getInfluencerStats(influencerId: string): Promise<{
-    totalOrders: number;
-    totalSales: number;
-    totalDiscount: number;
-    conversionRate: number;
-  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -172,73 +150,6 @@ export class DatabaseStorage implements IStorage {
     await db.update(products).set({ isActive: false }).where(eq(products.id, id));
   }
 
-  // Influencer operations
-  async getInfluencers(): Promise<Influencer[]> {
-    return await db.select().from(influencers).orderBy(influencers.name);
-  }
-
-  async getInfluencer(id: string): Promise<Influencer | undefined> {
-    const [influencer] = await db.select().from(influencers).where(eq(influencers.id, id));
-    return influencer;
-  }
-
-  async getInfluencerByPhone(phone: string): Promise<Influencer | undefined> {
-    const [influencer] = await db.select().from(influencers).where(eq(influencers.phone, phone));
-    return influencer;
-  }
-
-  async createInfluencer(influencer: InsertInfluencer): Promise<Influencer> {
-    const [createdInfluencer] = await db.insert(influencers).values(influencer).returning();
-    return createdInfluencer;
-  }
-
-  async authenticateInfluencer(phone: string, password: string): Promise<Influencer | null> {
-    if (!password) return null;
-    try {
-      const [influencer] = await db.select().from(influencers).where(eq(influencers.phone, phone));
-      if (influencer && influencer.password === password && influencer.isActive) {
-        return influencer;
-      }
-      return null;
-    } catch (error) {
-      console.error('Error authenticating influencer:', error);
-      return null;
-    }
-  }
-
-  async validateInfluencerLogin(phone: string, password: string): Promise<Influencer | null> {
-    const influencer = await this.getInfluencerByPhone(phone);
-    if (influencer && influencer.password === password && influencer.isActive) {
-      return influencer;
-    }
-    return null;
-  }
-
-  async updateInfluencerPassword(id: string, newPassword: string): Promise<Influencer> {
-    const [updatedInfluencer] = await db
-      .update(influencers)
-      .set({ password: newPassword })
-      .where(eq(influencers.id, id))
-      .returning();
-    return updatedInfluencer;
-  }
-
-  async updateInfluencer(id: string, influencer: Partial<InsertInfluencer>): Promise<Influencer> {
-    const [updatedInfluencer] = await db
-      .update(influencers)
-      .set({ ...influencer, updatedAt: new Date() })
-      .where(eq(influencers.id, id))
-      .returning();
-    return updatedInfluencer;
-  }
-
-  async deactivateInfluencer(id: string): Promise<void> {
-    await db.update(influencers).set({ isActive: false }).where(eq(influencers.id, id));
-  }
-
-  async deleteInfluencer(id: string): Promise<void> {
-    await db.delete(influencers).where(eq(influencers.id, id));
-  }
 
   // Admin operations
   async getAdmins(): Promise<Admin[]> {
@@ -310,9 +221,6 @@ export class DatabaseStorage implements IStorage {
     return offer;
   }
 
-  async getOffersByInfluencer(influencerId: string): Promise<Offer[]> {
-    return await db.select().from(offers).where(eq(offers.influencerId, influencerId));
-  }
 
   async createOffer(offer: InsertOffer): Promise<Offer> {
     const [createdOffer] = await db.insert(offers).values({
@@ -457,24 +365,6 @@ export class DatabaseStorage implements IStorage {
     await db.delete(cartItems).where(eq(cartItems.sessionId, sessionId));
   }
 
-  async getAbandonedCarts(hoursOld: number = 2): Promise<{ sessionId: string; items: number; totalValue: number; lastActivity: Date }[]> {
-    const cutoffTime = new Date(Date.now() - hoursOld * 60 * 60 * 1000);
-    
-    const result = await db
-      .select({
-        sessionId: cartItems.sessionId,
-        items: sql<number>`count(*)::int`,
-        totalValue: sql<number>`sum(${cartItems.quantity} * ${products.price})::float`,
-        lastActivity: sql<Date>`max(${cartItems.updatedAt})`,
-      })
-      .from(cartItems)
-      .innerJoin(products, eq(cartItems.productId, products.id))
-      .where(lt(cartItems.updatedAt, cutoffTime))
-      .groupBy(cartItems.sessionId)
-      .having(sql`max(${cartItems.updatedAt}) < ${cutoffTime}`);
-
-    return result;
-  }
 
   // Order operations
   async getOrders(): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer })[]> {
@@ -554,37 +444,6 @@ export class DatabaseStorage implements IStorage {
       ));
   }
 
-  async getInfluencerStats(influencerId: string): Promise<{
-    totalOrders: number;
-    totalSales: number;
-    totalDiscount: number;
-    conversionRate: number;
-  }> {
-    const stats = await db
-      .select({
-        totalOrders: sql<number>`count(distinct ${orders.id})::int`,
-        totalSales: sql<number>`sum(${orders.total})::float`,
-        totalDiscount: sql<number>`sum(${orders.discountAmount})::float`,
-      })
-      .from(orders)
-      .innerJoin(offers, eq(orders.offerId, offers.id))
-      .where(and(
-        eq(offers.influencerId, influencerId),
-        eq(orders.status, 'delivered')
-      ));
-
-    const result = stats[0] || { totalOrders: 0, totalSales: 0, totalDiscount: 0 };
-    
-    // Calculate conversion rate (simplified - would need more data for accurate calculation)
-    const conversionRate = result.totalOrders > 0 ? (result.totalOrders / 100) * 12.4 : 0;
-
-    return {
-      totalOrders: result.totalOrders,
-      totalSales: result.totalSales || 0,
-      totalDiscount: result.totalDiscount || 0,
-      conversionRate: Math.round(conversionRate * 100) / 100,
-    };
-  }
 }
 
 export const storage = new DatabaseStorage();

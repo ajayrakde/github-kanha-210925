@@ -4,7 +4,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProductTable from "@/components/admin/product-table";
 import OrderTable from "@/components/admin/order-table";
 import OfferTable from "@/components/admin/offer-table";
-import InfluencerManagement from "@/components/admin/influencer-management";
 import AdminManagement from "@/components/admin/admin-management";
 import ProductForm from "@/components/forms/product-form";
 import OfferForm from "@/components/forms/offer-form";
@@ -21,11 +20,6 @@ export default function Admin() {
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [editingOffer, setEditingOffer] = useState<any>(null);
 
-  // Always call hooks before any early returns
-  const { data: abandonedCarts } = useQuery({
-    queryKey: ["/api/admin/abandoned-carts"],
-    enabled: isAuthenticated,
-  });
 
   const { data: orders } = useQuery({
     queryKey: ["/api/orders"],
@@ -90,13 +84,11 @@ export default function Admin() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="products" data-testid="tab-products">Products</TabsTrigger>
           <TabsTrigger value="orders" data-testid="tab-orders">Orders</TabsTrigger>
           <TabsTrigger value="offers" data-testid="tab-offers">Offers</TabsTrigger>
-          <TabsTrigger value="influencers" data-testid="tab-influencers">Influencers</TabsTrigger>
-          <TabsTrigger value="management" data-testid="tab-management">Management</TabsTrigger>
-          <TabsTrigger value="carts" data-testid="tab-carts">Abandoned Carts</TabsTrigger>
+          <TabsTrigger value="users" data-testid="tab-users">Users</TabsTrigger>
         </TabsList>
 
         <TabsContent value="products" className="mt-6">
@@ -165,61 +157,9 @@ export default function Admin() {
           </div>
         </TabsContent>
 
-        <TabsContent value="influencers" className="mt-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <InfluencerManagement />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="management" className="mt-6">
+        <TabsContent value="users" className="mt-6">
           <div className="bg-white rounded-lg shadow-sm p-6">
             <AdminManagement />
-          </div>
-        </TabsContent>
-
-        <TabsContent value="carts" className="mt-6">
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Abandoned Carts</h3>
-              <div className="text-sm text-gray-500">Last 30 days</div>
-            </div>
-
-            {!abandonedCarts || !Array.isArray(abandonedCarts) || abandonedCarts.length === 0 ? (
-              <div className="text-center py-8">
-                <div className="text-gray-500">No abandoned carts found</div>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Session ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cart Value</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Activity</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {Array.isArray(abandonedCarts) && abandonedCarts.map((cart: any) => (
-                      <tr key={cart.sessionId}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 font-mono" data-testid={`cart-session-${cart.sessionId}`}>
-                          {cart.sessionId}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900" data-testid={`cart-items-${cart.sessionId}`}>
-                          {cart.items} items
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900" data-testid={`cart-value-${cart.sessionId}`}>
-                          ₹{cart.totalValue?.toFixed(2)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" data-testid={`cart-activity-${cart.sessionId}`}>
-                          {new Date(cart.lastActivity).toLocaleDateString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
           </div>
         </TabsContent>
       </Tabs>
