@@ -262,7 +262,7 @@ export class OtpService {
   // Clean up expired OTPs (can be called periodically)
   async cleanupExpiredOtps(): Promise<void> {
     try {
-      await db.delete(otps).where(gt(otps.expiresAt, new Date()));
+      await db.delete(otps).where(lt(otps.expiresAt, new Date()));
     } catch (error) {
       console.error('Error cleaning up expired OTPs:', error);
     }

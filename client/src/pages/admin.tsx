@@ -187,13 +187,13 @@ export default function AdminPage() {
     enabled: isAuthenticated,
   });
 
-  const handleProductEdit = (product: Product) => {
-    setEditingProduct(product);
+  const handleProductEdit = (product: any) => {
+    setEditingProduct(product as Product);
     setShowProductForm(true);
   };
 
-  const handleOfferEdit = (offer: Offer) => {
-    setEditingOffer(offer);
+  const handleOfferEdit = (offer: any) => {
+    setEditingOffer(offer as Offer);
     setShowOfferForm(true);
   };
 
@@ -229,15 +229,15 @@ export default function AdminPage() {
   return (
     <>
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 py-6">
-          <div className="mb-6 flex justify-between items-center">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+          <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h2 className="text-2xl font-semibold text-gray-900 mb-2">Admin Dashboard</h2>
               <p className="text-gray-600">Manage your store and track performance</p>
             </div>
             <Button 
               variant="outline" 
-              onClick={logout}
+              onClick={() => logout()}
               data-testid="button-admin-logout"
             >
               <i className="fas fa-sign-out-alt mr-2"></i>
@@ -245,8 +245,8 @@ export default function AdminPage() {
             </Button>
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-5 mb-6">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 mb-4 sm:mb-6">
               <TabsTrigger value="products" data-testid="tab-products">Products</TabsTrigger>
               <TabsTrigger value="orders" data-testid="tab-orders">Orders</TabsTrigger>
               <TabsTrigger value="offers" data-testid="tab-offers">Offers</TabsTrigger>
@@ -255,8 +255,8 @@ export default function AdminPage() {
             </TabsList>
 
             <TabsContent value="products">
-              <div className="bg-white rounded-lg shadow-sm p-6 h-[700px] overflow-y-auto">
-                <div className="flex justify-between items-center mb-6">
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 min-h-[60vh] max-h-[80vh] overflow-y-auto">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-6">
                   <h3 className="text-lg font-semibold text-gray-900">Product Management</h3>
                   <Button 
                     onClick={() => setShowProductForm(true)}
@@ -270,8 +270,8 @@ export default function AdminPage() {
             </TabsContent>
 
             <TabsContent value="orders">
-              <div className="bg-white rounded-lg shadow-sm p-6 h-[700px] overflow-y-auto">
-                <div className="flex justify-between items-center mb-6">
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 min-h-[60vh] max-h-[80vh] overflow-y-auto">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-6">
                   <h3 className="text-lg font-semibold text-gray-900">Order Management</h3>
                   <Button 
                     onClick={exportOrders}
@@ -306,7 +306,7 @@ export default function AdminPage() {
             </TabsContent>
 
             <TabsContent value="offers">
-              <div className="bg-white rounded-lg shadow-sm p-6 h-[700px] overflow-y-auto">
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 min-h-[60vh] max-h-[80vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-lg font-semibold text-gray-900">Offer Management</h3>
                   <Button 
@@ -321,13 +321,13 @@ export default function AdminPage() {
             </TabsContent>
 
             <TabsContent value="users">
-              <div className="bg-white rounded-lg shadow-sm p-6 h-[700px] overflow-y-auto">
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 min-h-[60vh] max-h-[80vh] overflow-y-auto">
                 <UserManagement />
               </div>
             </TabsContent>
 
             <TabsContent value="analytics">
-              <div className="bg-white rounded-lg shadow-sm p-6 h-[700px] overflow-y-auto">
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 min-h-[60vh] max-h-[80vh] overflow-y-auto">
                 <AnalyticsTab abandonedCarts={abandonedCarts} />
               </div>
             </TabsContent>

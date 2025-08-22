@@ -1,5 +1,6 @@
 import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
+import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
 import { otpService } from "./otp-service";
 import session from "express-session";
@@ -26,7 +27,60 @@ interface SessionRequest extends Request {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Rate limiting configuration
+  const generalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    message: { message: 'Too many requests from this IP, please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 10, // limit each IP to 10 auth attempts per windowMs
+    message: { message: 'Too many authentication attempts, please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const uploadLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 5, // limit each IP to 5 uploads per minute
+    message: { message: 'Too many file uploads, please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  const otpLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // limit each IP to 5 OTP requests per windowMs
+    message: { message: 'Too many OTP requests, please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  // Trust proxy for rate limiting when behind proxy (production)
+  app.set('trust proxy', 1);
+
+  // Apply rate limiting
+  app.use('/api', generalLimiter);
+  app.use('/api/auth', authLimiter);
+  app.use('/api/objects/upload', uploadLimiter);
+  app.use('/api/otp', otpLimiter);
+  app.use('/api/auth/send-otp', otpLimiter);
+  app.use('/api/auth/verify-otp', otpLimiter);
+
   app.use(sessionConfig);
+
+  // Admin middleware
+  const requireAdmin = (req: SessionRequest, res: any, next: any) => {
+    if (req.session.adminId && req.session.userRole === 'admin') {
+      next();
+    } else {
+      res.status(401).json({ message: 'Admin access required' });
+    }
+  };
 
   // Ensure session has a sessionId
   app.use((req: SessionRequest, res, next) => {
@@ -60,7 +114,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/products', async (req, res) => {
+  app.post('/api/products', requireAdmin, async (req, res) => {
     try {
       // Check product limit (max 10 products)
       const existingProducts = await storage.getProducts();
@@ -80,7 +134,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/products/:id', async (req, res) => {
+  app.patch('/api/products/:id', requireAdmin, async (req, res) => {
     try {
       const productData = insertProductSchema.partial().parse(req.body);
       const product = await storage.updateProduct(req.params.id, productData);
@@ -91,7 +145,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/products/:id', async (req, res) => {
+  app.delete('/api/products/:id', requireAdmin, async (req, res) => {
     try {
       await storage.deleteProduct(req.params.id);
       res.json({ message: 'Product deleted successfully' });
@@ -330,7 +384,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/offers', async (req, res) => {
+  app.post('/api/offers', requireAdmin, async (req, res) => {
     try {
       const offerData = insertOfferSchema.parse(req.body);
       const offer = await storage.createOffer(offerData);
@@ -344,7 +398,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/offers/:id', async (req, res) => {
+  app.patch('/api/offers/:id', requireAdmin, async (req, res) => {
     try {
       const offerData = insertOfferSchema.partial().parse(req.body);
       const offer = await storage.updateOffer(req.params.id, offerData);
@@ -355,7 +409,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete('/api/offers/:id', async (req, res) => {
+  app.delete('/api/offers/:id', requireAdmin, async (req, res) => {
     try {
       await storage.deleteOffer(req.params.id);
       res.json({ message: 'Offer deleted successfully' });
@@ -392,6 +446,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Object storage routes for product images
   app.post('/api/objects/upload', async (req, res) => {
     try {
+      // Server-side file size validation (5MB limit)
+      const maxFileSize = 5 * 1024 * 1024; // 5MB in bytes
+      const contentLength = parseInt(req.headers['content-length'] || '0');
+      
+      if (contentLength > maxFileSize) {
+        return res.status(400).json({ 
+          message: `File too large. Maximum size allowed is ${Math.round(maxFileSize / (1024 * 1024))}MB` 
+        });
+      }
+
       const { ObjectStorageService } = await import('./objectStorage');
       const objectStorageService = new ObjectStorageService();
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
@@ -508,14 +572,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return password;
   };
 
-  // Authentication middleware
-  const requireAdmin = (req: SessionRequest, res: any, next: any) => {
-    if (req.session.adminId && req.session.userRole === 'admin') {
-      next();
-    } else {
-      res.status(401).json({ message: 'Admin access required' });
-    }
-  };
 
 
   // Admin management of other admins
