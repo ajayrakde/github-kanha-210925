@@ -14,13 +14,12 @@ import TermsOfService from "@/pages/terms-of-service";
 import RefundPolicy from "@/pages/refund-policy";
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
-import MobileNav from "@/components/layout/mobile-nav";
 
 function Router() {
   return (
     <div className="min-h-screen flex flex-col">
       <Header />
-      <main className="max-w-4xl mx-auto px-4 py-6 flex-1 mb-16 md:mb-0">
+      <main className="max-w-4xl mx-auto px-4 py-6 flex-1">
         <Switch>
           <Route path="/" component={Products} />
           <Route path="/cart" component={Cart} />
@@ -34,7 +33,6 @@ function Router() {
         </Switch>
       </main>
       <Footer />
-      <MobileNav />
     </div>
   );
 }

@@ -20,6 +20,17 @@ export default function Admin() {
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [editingOffer, setEditingOffer] = useState<any>(null);
 
+  // Always call hooks before any early returns
+  const { data: abandonedCarts } = useQuery({
+    queryKey: ["/api/admin/abandoned-carts"],
+    enabled: isAuthenticated,
+  });
+
+  const { data: orders } = useQuery({
+    queryKey: ["/api/orders"],
+    enabled: isAuthenticated,
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -31,14 +42,6 @@ export default function Admin() {
   if (!isAuthenticated) {
     return <AdminLogin />;
   }
-
-  const { data: abandonedCarts } = useQuery({
-    queryKey: ["/api/admin/abandoned-carts"],
-  });
-
-  const { data: orders } = useQuery({
-    queryKey: ["/api/orders"],
-  });
 
   const stats = {
     totalOrders: Array.isArray(orders) ? orders.length : 0,
@@ -173,7 +176,7 @@ export default function Admin() {
               <div className="text-sm text-gray-500">Last 30 days</div>
             </div>
 
-            {!abandonedCarts || abandonedCarts.length === 0 ? (
+            {!abandonedCarts || !Array.isArray(abandonedCarts) || abandonedCarts.length === 0 ? (
               <div className="text-center py-8">
                 <div className="text-gray-500">No abandoned carts found</div>
               </div>
@@ -189,7 +192,7 @@ export default function Admin() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {abandonedCarts.map((cart: any) => (
+                    {Array.isArray(abandonedCarts) && abandonedCarts.map((cart: any) => (
                       <tr key={cart.sessionId}>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 font-mono" data-testid={`cart-session-${cart.sessionId}`}>
                           {cart.sessionId}
@@ -215,12 +218,15 @@ export default function Admin() {
 
       {/* Product Form Dialog */}
       <Dialog open={showProductForm} onOpenChange={handleFormClose}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px]" aria-describedby="product-form-description">
           <DialogHeader>
             <DialogTitle>
               {editingProduct ? 'Edit Product' : 'Add New Product'}
             </DialogTitle>
           </DialogHeader>
+          <div id="product-form-description" className="sr-only">
+            {editingProduct ? 'Form to edit existing product details' : 'Form to add a new product to the store'}
+          </div>
           <ProductForm 
             product={editingProduct}
             onClose={handleFormClose}
@@ -230,12 +236,15 @@ export default function Admin() {
 
       {/* Offer Form Dialog */}
       <Dialog open={showOfferForm} onOpenChange={handleFormClose}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px]" aria-describedby="offer-form-description">
           <DialogHeader>
             <DialogTitle>
               {editingOffer ? 'Edit Offer' : 'Create New Offer'}
             </DialogTitle>
           </DialogHeader>
+          <div id="offer-form-description" className="sr-only">
+            {editingOffer ? 'Form to edit existing offer details' : 'Form to create a new discount offer'}
+          </div>
           <OfferForm 
             offer={editingOffer}
             onClose={handleFormClose}

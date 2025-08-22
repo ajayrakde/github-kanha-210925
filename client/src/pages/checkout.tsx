@@ -148,12 +148,12 @@ export default function Checkout() {
               </h3>
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="otp">6-Digit OTP</Label>
+                  <Label htmlFor="otp">4-Digit OTP</Label>
                   <Input
                     id="otp"
                     type="text"
-                    placeholder="123456"
-                    maxLength={6}
+                    placeholder="1234"
+                    maxLength={4}
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
                     className="w-32 text-center font-mono text-lg mt-2"
