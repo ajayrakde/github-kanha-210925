@@ -274,62 +274,58 @@ export default function Admin() {
         </header>
         
         {/* Page content */}
-        <main className="h-[calc(100vh-64px)]">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)} className="h-full">
-            <TabsContent value="products" className="h-full">
-              <div className="h-full flex flex-col">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 p-4 border-b border-gray-200 bg-white">
-                  <h3 className="text-lg font-semibold text-gray-900">Product Management</h3>
-                  <Button 
-                    onClick={() => setShowProductForm(true)}
-                    data-testid="button-add-product"
-                  >
-                    <i className="fas fa-plus mr-2"></i>Add Product
-                  </Button>
-                </div>
-                <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
-                  <ProductTable onEdit={handleProductEdit} />
-                </div>
+        <main>
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>
+            <TabsContent value="products">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 p-4 border-b border-gray-200 bg-white">
+                <h3 className="text-lg font-semibold text-gray-900">Product Management</h3>
+                <Button 
+                  onClick={() => setShowProductForm(true)}
+                  data-testid="button-add-product"
+                >
+                  <i className="fas fa-plus mr-2"></i>Add Product
+                </Button>
+              </div>
+              <div className="bg-gray-50 p-4">
+                <ProductTable onEdit={handleProductEdit} />
               </div>
             </TabsContent>
 
-            <TabsContent value="orders" className="h-full">
-              <div className="h-full flex flex-col">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 p-4 border-b border-gray-200 bg-white">
-                  <h3 className="text-lg font-semibold text-gray-900">Order Management</h3>
-                  <Button 
-                    onClick={exportOrders}
-                    className="bg-green-600 hover:bg-green-700"
-                    data-testid="button-export-csv"
-                  >
-                    <i className="fas fa-download mr-2"></i>Export CSV
-                  </Button>
-                </div>
-                
-                <div className="p-4 bg-white border-b border-gray-200">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <div className="text-2xl font-bold text-blue-600" data-testid="stat-total-orders">{stats.totalOrders}</div>
-                      <div className="text-sm text-gray-600">Total Orders</div>
-                    </div>
-                    <div className="bg-green-50 p-4 rounded-lg">
-                      <div className="text-2xl font-bold text-green-600" data-testid="stat-revenue">₹{stats.revenue.toFixed(2)}</div>
-                      <div className="text-sm text-gray-600">Total Revenue</div>
-                    </div>
-                    <div className="bg-yellow-50 p-4 rounded-lg">
-                      <div className="text-2xl font-bold text-yellow-600" data-testid="stat-pending-orders">{stats.pendingOrders}</div>
-                      <div className="text-sm text-gray-600">Pending Orders</div>
-                    </div>
-                    <div className="bg-red-50 p-4 rounded-lg">
-                      <div className="text-2xl font-bold text-red-600" data-testid="stat-cancelled-orders">{stats.cancelledOrders}</div>
-                      <div className="text-sm text-gray-600">Cancelled Orders</div>
-                    </div>
+            <TabsContent value="orders">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 p-4 border-b border-gray-200 bg-white">
+                <h3 className="text-lg font-semibold text-gray-900">Order Management</h3>
+                <Button 
+                  onClick={exportOrders}
+                  className="bg-green-600 hover:bg-green-700"
+                  data-testid="button-export-csv"
+                >
+                  <i className="fas fa-download mr-2"></i>Export CSV
+                </Button>
+              </div>
+              
+              <div className="p-4 bg-white border-b border-gray-200">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600" data-testid="stat-total-orders">{stats.totalOrders}</div>
+                    <div className="text-sm text-gray-600">Total Orders</div>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600" data-testid="stat-revenue">₹{stats.revenue.toFixed(2)}</div>
+                    <div className="text-sm text-gray-600">Total Revenue</div>
+                  </div>
+                  <div className="bg-yellow-50 p-4 rounded-lg">
+                    <div className="text-2xl font-bold text-yellow-600" data-testid="stat-pending-orders">{stats.pendingOrders}</div>
+                    <div className="text-sm text-gray-600">Pending Orders</div>
+                  </div>
+                  <div className="bg-red-50 p-4 rounded-lg">
+                    <div className="text-2xl font-bold text-red-600" data-testid="stat-cancelled-orders">{stats.cancelledOrders}</div>
+                    <div className="text-sm text-gray-600">Cancelled Orders</div>
                   </div>
                 </div>
+              </div>
 
-                <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
-                  <OrderTable />
-                </div>
+              <div className="bg-gray-50 p-4">
+                <OrderTable />
               </div>
             </TabsContent>
 
