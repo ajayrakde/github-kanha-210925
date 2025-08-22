@@ -4,7 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ProductTable from "@/components/admin/product-table";
 import OrderTable from "@/components/admin/order-table";
 import OfferTable from "@/components/admin/offer-table";
-import AdminManagement from "@/components/admin/admin-management";
+import UserManagement from "@/components/admin/user-management";
 import ProductForm from "@/components/forms/product-form";
 import OfferForm from "@/components/forms/offer-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -159,7 +159,7 @@ export default function Admin() {
 
         <TabsContent value="users" className="mt-6">
           <div className="bg-white rounded-lg shadow-sm p-6">
-            <AdminManagement />
+            <UserManagement />
           </div>
         </TabsContent>
       </Tabs>

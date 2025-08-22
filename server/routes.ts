@@ -383,6 +383,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ message: 'Logged out successfully' });
   });
 
+  // Influencer routes
+  app.get('/api/influencers', async (req, res) => {
+    try {
+      const influencers = await storage.getInfluencers();
+      res.json(influencers);
+    } catch (error) {
+      console.error("Error fetching influencers:", error);
+      res.status(500).json({ message: "Failed to fetch influencers" });
+    }
+  });
+
+  app.post('/api/influencers', async (req, res) => {
+    try {
+      const newInfluencer = await storage.createInfluencer(req.body);
+      res.status(201).json(newInfluencer);
+    } catch (error) {
+      console.error("Error creating influencer:", error);
+      res.status(500).json({ message: "Failed to create influencer" });
+    }
+  });
+
+  app.patch('/api/influencers/:id/deactivate', async (req, res) => {
+    try {
+      await storage.deactivateInfluencer(req.params.id);
+      res.json({ message: "Influencer deactivated successfully" });
+    } catch (error) {
+      console.error("Error deactivating influencer:", error);
+      res.status(500).json({ message: "Failed to deactivate influencer" });
+    }
+  });
+
   app.get('/api/admin/me', (req, res) => {
     if (req.session.adminId && req.session.userRole === 'admin') {
       res.json({ authenticated: true, role: 'admin', id: req.session.adminId });

@@ -1,4 +1,4 @@
-import { otps, admins, users, type Otp, type InsertOtp } from "@shared/schema";
+import { otps, admins, influencers, users, type Otp, type InsertOtp } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt } from "drizzle-orm";
 import { createHash } from "crypto";
@@ -61,6 +61,9 @@ export class OtpService {
       case 'admin':
         const admin = await db.select().from(admins).where(eq(admins.phone, phone)).limit(1);
         return admin.length > 0;
+      case 'influencer':
+        const influencer = await db.select().from(influencers).where(eq(influencers.phone, phone)).limit(1);
+        return influencer.length > 0;
       case 'buyer':
         // For buyers, we allow new registrations
         return true;
@@ -70,7 +73,7 @@ export class OtpService {
   }
 
   // Send OTP to phone number
-  async sendOtp(phone: string, userType: 'admin' | 'buyer'): Promise<{ success: boolean; message: string; otpId?: string }> {
+  async sendOtp(phone: string, userType: 'admin' | 'influencer' | 'buyer'): Promise<{ success: boolean; message: string; otpId?: string }> {
     try {
       // Validate Indian phone number
       const phoneValidation = this.validateIndianPhone(phone);

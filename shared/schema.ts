@@ -34,6 +34,18 @@ export const products = pgTable("products", {
 });
 
 
+// Influencers table - supporting both OTP and password authentication
+export const influencers = pgTable("influencers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 15 }).notNull().unique(),
+  email: varchar("email", { length: 255 }),
+  password: varchar("password", { length: 255 }), // Optional for password login
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Admin table - supporting both OTP and password authentication
 export const admins = pgTable("admins", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -73,6 +85,7 @@ export const offers = pgTable("offers", {
   isActive: boolean("is_active").default(true),
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
+  influencerId: varchar("influencer_id").references(() => influencers.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -133,7 +146,15 @@ export const productsRelations = relations(products, ({ many }) => ({
 }));
 
 
-export const offersRelations = relations(offers, ({ many }) => ({
+export const influencersRelations = relations(influencers, ({ many }) => ({
+  offers: many(offers),
+}));
+
+export const offersRelations = relations(offers, ({ one, many }) => ({
+  influencer: one(influencers, {
+    fields: [offers.influencerId],
+    references: [influencers.id],
+  }),
   orders: many(orders),
   redemptions: many(offerRedemptions),
 }));
@@ -187,7 +208,8 @@ export const offerRedemptionsRelations = relations(offerRedemptions, ({ one }) =
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertAdminSchema = createInsertSchema(admins).omit({ id: true, createdAt: true });
+export const insertInfluencerSchema = createInsertSchema(influencers).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAdminSchema = createInsertSchema(admins).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOfferSchema = createInsertSchema(offers).omit({ id: true, createdAt: true, currentUsage: true });
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: true });
@@ -199,6 +221,8 @@ export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type Product = typeof products.$inferSelect;
 export type InsertProduct = z.infer<typeof insertProductSchema>;
+export type Influencer = typeof influencers.$inferSelect;
+export type InsertInfluencer = z.infer<typeof insertInfluencerSchema>;
 export type Admin = typeof admins.$inferSelect;
 export type InsertAdmin = z.infer<typeof insertAdminSchema>;
 export type Offer = typeof offers.$inferSelect;

@@ -2,6 +2,7 @@ import {
   users,
   products,
   admins,
+  influencers,
   offers,
   orders,
   orderItems,
@@ -13,6 +14,8 @@ import {
   type InsertProduct,
   type Admin,
   type InsertAdmin,
+  type Influencer,
+  type InsertInfluencer,
   type Offer,
   type InsertOffer,
   type Order,
@@ -50,8 +53,19 @@ export interface IStorage {
   createAdmin(admin: InsertAdmin): Promise<Admin>;
   updateAdmin(id: string, admin: Partial<InsertAdmin>): Promise<Admin>;
   deleteAdmin(id: string): Promise<void>;
+  deactivateAdmin(id: string): Promise<void>;
   validateAdminLogin(username: string, password: string): Promise<Admin | null>;
   authenticateAdmin(phone: string, password: string): Promise<Admin | null>;
+
+  // Influencer operations
+  getInfluencers(): Promise<Influencer[]>;
+  getInfluencer(id: string): Promise<Influencer | undefined>;
+  getInfluencerByPhone(phone: string): Promise<Influencer | undefined>;
+  createInfluencer(influencer: InsertInfluencer): Promise<Influencer>;
+  updateInfluencer(id: string, influencer: Partial<InsertInfluencer>): Promise<Influencer>;
+  deleteInfluencer(id: string): Promise<void>;
+  deactivateInfluencer(id: string): Promise<void>;
+  authenticateInfluencer(phone: string, password: string): Promise<Influencer | null>;
 
   // Offer operations
   getOffers(): Promise<Offer[]>;
@@ -203,12 +217,67 @@ export class DatabaseStorage implements IStorage {
     await db.update(admins).set({ isActive: false }).where(eq(admins.id, id));
   }
 
+  async deactivateAdmin(id: string): Promise<void> {
+    await db.update(admins).set({ isActive: false }).where(eq(admins.id, id));
+  }
+
   async validateAdminLogin(username: string, password: string): Promise<Admin | null> {
     const admin = await this.getAdminByUsername(username);
     if (admin && admin.password === password && admin.isActive) {
       return admin;
     }
     return null;
+  }
+
+  // Influencer operations
+  async getInfluencers(): Promise<Influencer[]> {
+    return await db.select().from(influencers).orderBy(desc(influencers.createdAt));
+  }
+
+  async getInfluencer(id: string): Promise<Influencer | undefined> {
+    const [influencer] = await db.select().from(influencers).where(eq(influencers.id, id));
+    return influencer;
+  }
+
+  async getInfluencerByPhone(phone: string): Promise<Influencer | undefined> {
+    const [influencer] = await db.select().from(influencers).where(eq(influencers.phone, phone));
+    return influencer;
+  }
+
+  async createInfluencer(influencer: InsertInfluencer): Promise<Influencer> {
+    const [createdInfluencer] = await db.insert(influencers).values(influencer).returning();
+    return createdInfluencer;
+  }
+
+  async updateInfluencer(id: string, influencer: Partial<InsertInfluencer>): Promise<Influencer> {
+    const [updatedInfluencer] = await db
+      .update(influencers)
+      .set({ ...influencer, updatedAt: new Date() })
+      .where(eq(influencers.id, id))
+      .returning();
+    return updatedInfluencer;
+  }
+
+  async deleteInfluencer(id: string): Promise<void> {
+    await db.update(influencers).set({ isActive: false }).where(eq(influencers.id, id));
+  }
+
+  async deactivateInfluencer(id: string): Promise<void> {
+    await db.update(influencers).set({ isActive: false }).where(eq(influencers.id, id));
+  }
+
+  async authenticateInfluencer(phone: string, password: string): Promise<Influencer | null> {
+    if (!password) return null;
+    try {
+      const [influencer] = await db.select().from(influencers).where(eq(influencers.phone, phone));
+      if (influencer && influencer.password === password && influencer.isActive) {
+        return influencer;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error authenticating influencer:', error);
+      return null;
+    }
   }
 
   // Offer operations
