@@ -15,8 +15,8 @@
   --primary-foreground: hsl(0, 0%, 100%);
   --secondary: hsl(159.6, 100%, 20%);
   --secondary-foreground: hsl(0, 0%, 100%);
-  --muted: hsl(215.4, 16.3%, 46.9%);
-  --muted-foreground: hsl(215.4, 16.3%, 46.9%);
+  --muted: hsl(215.4, 16.3%, 85%);
+  --muted-foreground: hsl(215.4, 16.3%, 40%);
   --accent: hsl(0, 84.2%, 56.9%);
   --accent-foreground: hsl(0, 0%, 100%);
   --destructive: hsl(0, 84.2%, 60.2%);
@@ -178,7 +178,7 @@
   }
 
   .tab-inactive {
-    color: hsl(215.4, 16.3%, 46.9%);
+    color: hsl(215.4, 16.3%, 35%);
     @apply border-b-2 border-transparent font-medium text-sm hover:text-gray-700;
   }
 
@@ -258,7 +258,7 @@
   }
 
   .text-muted {
-    color: hsl(215.4, 16.3%, 46.9%);
+    color: hsl(215.4, 16.3%, 40%);
   }
 
   /* Background color utilities */
@@ -313,7 +313,7 @@
   }
 
   .text-gray-600 {
-    color: hsl(215.4, 16.3%, 46.9%);
+    color: hsl(215.4, 16.3%, 40%);
   }
 
   .bg-blue-600 {
@@ -484,7 +484,7 @@
 .step-indicator .step {
   @apply w-8 h-8 rounded-full flex items-center justify-center font-medium mr-2;
   background-color: hsl(210, 40%, 90%);
-  color: hsl(215.4, 16.3%, 46.9%);
+  color: hsl(215.4, 16.3%, 35%);
 }
 
 .step-indicator .step.active {
@@ -509,7 +509,7 @@ textarea:focus {
 /* High contrast mode support */
 @media (prefers-contrast: high) {
   .text-muted {
-    color: hsl(215.4, 16.3%, 35%);
+    color: hsl(215.4, 16.3%, 25%);
   }
   
   .border-gray-200 {
