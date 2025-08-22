@@ -9,6 +9,7 @@ export const users = pgTable("users", {
   phone: varchar("phone", { length: 15 }).notNull().unique(),
   name: varchar("name", { length: 255 }),
   email: varchar("email", { length: 255 }),
+  password: varchar("password", { length: 255 }), // Optional for password login
   address: text("address"),
   city: varchar("city", { length: 100 }),
   pincode: varchar("pincode", { length: 10 }),
@@ -29,22 +30,25 @@ export const products = pgTable("products", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Influencers table - now using phone for OTP authentication
+// Influencers table - supporting both OTP and password authentication
 export const influencers = pgTable("influencers", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name", { length: 255 }).notNull(),
   phone: varchar("phone", { length: 15 }).notNull().unique(),
   email: varchar("email", { length: 255 }),
+  password: varchar("password", { length: 255 }), // Optional for password login
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Admin table - now using phone for OTP authentication
+// Admin table - supporting both OTP and password authentication
 export const admins = pgTable("admins", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name", { length: 255 }).notNull(),
+  username: varchar("username", { length: 100 }), // Optional for legacy support
   phone: varchar("phone", { length: 15 }).notNull().unique(),
   email: varchar("email", { length: 255 }),
+  password: varchar("password", { length: 255 }), // Optional for password login
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });

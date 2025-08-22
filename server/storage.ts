@@ -127,10 +127,16 @@ export class DatabaseStorage implements IStorage {
 
   async authenticateUser(phone: string, password: string): Promise<User | null> {
     if (!password) return null;
-    const [user] = await db.select().from(users).where(
-      and(eq(users.phone, phone), eq(users.password, password))
-    );
-    return user || null;
+    try {
+      const [user] = await db.select().from(users).where(eq(users.phone, phone));
+      if (user && user.password === password) {
+        return user;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error authenticating user:', error);
+      return null;
+    }
   }
 
   // Product operations
@@ -183,10 +189,16 @@ export class DatabaseStorage implements IStorage {
 
   async authenticateInfluencer(phone: string, password: string): Promise<Influencer | null> {
     if (!password) return null;
-    const [influencer] = await db.select().from(influencers).where(
-      and(eq(influencers.phone, phone), eq(influencers.password, password))
-    );
-    return influencer || null;
+    try {
+      const [influencer] = await db.select().from(influencers).where(eq(influencers.phone, phone));
+      if (influencer && influencer.password === password && influencer.isActive) {
+        return influencer;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error authenticating influencer:', error);
+      return null;
+    }
   }
 
   async validateInfluencerLogin(phone: string, password: string): Promise<Influencer | null> {
@@ -233,10 +245,16 @@ export class DatabaseStorage implements IStorage {
 
   async authenticateAdmin(phone: string, password: string): Promise<Admin | null> {
     if (!password) return null;
-    const [admin] = await db.select().from(admins).where(
-      and(eq(admins.phone, phone), eq(admins.password, password), eq(admins.isActive, true))
-    );
-    return admin || null;
+    try {
+      const [admin] = await db.select().from(admins).where(eq(admins.phone, phone));
+      if (admin && admin.password === password && admin.isActive) {
+        return admin;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error authenticating admin:', error);
+      return null;
+    }
   }
 
   async validateAdminLogin(username: string, password: string): Promise<Admin | null> {
