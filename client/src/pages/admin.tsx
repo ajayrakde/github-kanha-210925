@@ -8,13 +8,28 @@ import ProductForm from "@/components/forms/product-form";
 import OfferForm from "@/components/forms/offer-form";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useQuery } from "@tanstack/react-query";
+import { useAdminAuth } from "@/hooks/use-auth";
+import AdminLogin from "@/components/auth/admin-login";
 
 export default function Admin() {
+  const { isAuthenticated, isLoading, logout } = useAdminAuth();
   const [activeTab, setActiveTab] = useState("products");
   const [showProductForm, setShowProductForm] = useState(false);
   const [showOfferForm, setShowOfferForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [editingOffer, setEditingOffer] = useState<any>(null);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <AdminLogin />;
+  }
 
   const { data: abandonedCarts } = useQuery({
     queryKey: ["/api/admin/abandoned-carts"],
@@ -54,9 +69,19 @@ export default function Admin() {
 
   return (
     <div className="space-y-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-2">Admin Dashboard</h2>
-        <p className="text-gray-600">Manage your store and track performance</p>
+      <div className="mb-6 flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-2">Admin Dashboard</h2>
+          <p className="text-gray-600">Manage your store and track performance</p>
+        </div>
+        <Button 
+          variant="outline" 
+          onClick={() => logout()}
+          data-testid="button-admin-logout"
+        >
+          <i className="fas fa-sign-out-alt mr-2"></i>
+          Logout
+        </Button>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>

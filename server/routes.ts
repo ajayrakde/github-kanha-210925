@@ -409,6 +409,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Authentication routes
+  app.post('/api/admin/login', async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      const admin = await storage.validateAdminLogin(username, password);
+      if (admin) {
+        req.session.adminId = admin.id;
+        req.session.userRole = 'admin';
+        res.json({ success: true, admin: { id: admin.id, username: admin.username, name: admin.name } });
+      } else {
+        res.status(401).json({ message: 'Invalid credentials' });
+      }
+    } catch (error) {
+      console.error('Admin login error:', error);
+      res.status(500).json({ message: 'Login failed' });
+    }
+  });
+
+  app.post('/api/admin/logout', (req, res) => {
+    req.session.adminId = undefined;
+    req.session.userRole = undefined;
+    res.json({ message: 'Logged out successfully' });
+  });
+
+  app.get('/api/admin/me', (req, res) => {
+    if (req.session.adminId && req.session.userRole === 'admin') {
+      res.json({ authenticated: true, role: 'admin', id: req.session.adminId });
+    } else {
+      res.status(401).json({ authenticated: false });
+    }
+  });
+
+  app.post('/api/influencer/login', async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      const influencer = await storage.validateInfluencerLogin(username, password);
+      if (influencer) {
+        req.session.influencerId = influencer.id;
+        req.session.userRole = 'influencer';
+        res.json({ success: true, influencer: { id: influencer.id, username: influencer.username, name: influencer.name } });
+      } else {
+        res.status(401).json({ message: 'Invalid credentials' });
+      }
+    } catch (error) {
+      console.error('Influencer login error:', error);
+      res.status(500).json({ message: 'Login failed' });
+    }
+  });
+
+  app.post('/api/influencer/logout', (req, res) => {
+    req.session.influencerId = undefined;
+    req.session.userRole = undefined;
+    res.json({ message: 'Logged out successfully' });
+  });
+
+  app.get('/api/influencer/me', (req, res) => {
+    if (req.session.influencerId && req.session.userRole === 'influencer') {
+      res.json({ authenticated: true, role: 'influencer', id: req.session.influencerId });
+    } else {
+      res.status(401).json({ authenticated: false });
+    }
+  });
+
+  // Seed route for creating test accounts
+  app.post('/api/seed-accounts', async (req, res) => {
+    try {
+      // Create test admin
+      const admin = await storage.createAdmin({
+        username: 'admin',
+        password: 'password123',
+        name: 'Admin User',
+        email: 'admin@example.com'
+      });
+      
+      // Create test influencer  
+      const influencer = await storage.createInfluencer({
+        username: 'influencer1',
+        password: 'password123',
+        name: 'Test Influencer',
+        email: 'influencer@example.com'
+      });
+      
+      res.json({ 
+        message: 'Test accounts created successfully!',
+        admin: { username: 'admin', password: 'password123' },
+        influencer: { username: 'influencer1', password: 'password123' }
+      });
+    } catch (error) {
+      console.error('Error creating accounts:', error);
+      res.status(500).json({ message: 'Failed to create accounts' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

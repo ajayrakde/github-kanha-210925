@@ -2,6 +2,7 @@ import {
   users,
   products,
   influencers,
+  admins,
   offers,
   orders,
   orderItems,
@@ -13,6 +14,8 @@ import {
   type InsertProduct,
   type Influencer,
   type InsertInfluencer,
+  type Admin,
+  type InsertAdmin,
   type Offer,
   type InsertOffer,
   type Order,
@@ -43,7 +46,16 @@ export interface IStorage {
   // Influencer operations
   getInfluencers(): Promise<Influencer[]>;
   getInfluencer(id: string): Promise<Influencer | undefined>;
+  getInfluencerByUsername(username: string): Promise<Influencer | undefined>;
   createInfluencer(influencer: InsertInfluencer): Promise<Influencer>;
+  validateInfluencerLogin(username: string, password: string): Promise<Influencer | null>;
+
+  // Admin operations
+  getAdmins(): Promise<Admin[]>;
+  getAdmin(id: string): Promise<Admin | undefined>;
+  getAdminByUsername(username: string): Promise<Admin | undefined>;
+  createAdmin(admin: InsertAdmin): Promise<Admin>;
+  validateAdminLogin(username: string, password: string): Promise<Admin | null>;
 
   // Offer operations
   getOffers(): Promise<Offer[]>;
@@ -146,9 +158,50 @@ export class DatabaseStorage implements IStorage {
     return influencer;
   }
 
+  async getInfluencerByUsername(username: string): Promise<Influencer | undefined> {
+    const [influencer] = await db.select().from(influencers).where(eq(influencers.username, username));
+    return influencer;
+  }
+
   async createInfluencer(influencer: InsertInfluencer): Promise<Influencer> {
     const [createdInfluencer] = await db.insert(influencers).values(influencer).returning();
     return createdInfluencer;
+  }
+
+  async validateInfluencerLogin(username: string, password: string): Promise<Influencer | null> {
+    const influencer = await this.getInfluencerByUsername(username);
+    if (influencer && influencer.password === password && influencer.isActive) {
+      return influencer;
+    }
+    return null;
+  }
+
+  // Admin operations
+  async getAdmins(): Promise<Admin[]> {
+    return await db.select().from(admins).where(eq(admins.isActive, true));
+  }
+
+  async getAdmin(id: string): Promise<Admin | undefined> {
+    const [admin] = await db.select().from(admins).where(eq(admins.id, id));
+    return admin;
+  }
+
+  async getAdminByUsername(username: string): Promise<Admin | undefined> {
+    const [admin] = await db.select().from(admins).where(eq(admins.username, username));
+    return admin;
+  }
+
+  async createAdmin(admin: InsertAdmin): Promise<Admin> {
+    const [createdAdmin] = await db.insert(admins).values(admin).returning();
+    return createdAdmin;
+  }
+
+  async validateAdminLogin(username: string, password: string): Promise<Admin | null> {
+    const admin = await this.getAdminByUsername(username);
+    if (admin && admin.password === password && admin.isActive) {
+      return admin;
+    }
+    return null;
   }
 
   // Offer operations
