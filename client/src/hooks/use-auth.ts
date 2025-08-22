@@ -19,7 +19,9 @@ export function useAdminAuth() {
       if (!response.ok) throw new Error('Login failed');
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Set auth data immediately to avoid loading flash
+      queryClient.setQueryData(["/api/admin/me"], { authenticated: true, role: 'admin', id: data.admin.id });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/me"] });
     },
   });

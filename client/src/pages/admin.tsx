@@ -255,7 +255,7 @@ export default function AdminPage() {
             </TabsList>
 
             <TabsContent value="products">
-              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 min-h-[60vh] max-h-[80vh] overflow-y-auto">
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[70vh] overflow-y-auto">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-6">
                   <h3 className="text-lg font-semibold text-gray-900">Product Management</h3>
                   <Button 
@@ -270,7 +270,7 @@ export default function AdminPage() {
             </TabsContent>
 
             <TabsContent value="orders">
-              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 min-h-[60vh] max-h-[80vh] overflow-y-auto">
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[70vh] overflow-y-auto">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-6">
                   <h3 className="text-lg font-semibold text-gray-900">Order Management</h3>
                   <Button 
@@ -306,7 +306,7 @@ export default function AdminPage() {
             </TabsContent>
 
             <TabsContent value="offers">
-              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 min-h-[60vh] max-h-[80vh] overflow-y-auto">
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[70vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-lg font-semibold text-gray-900">Offer Management</h3>
                   <Button 
@@ -321,13 +321,13 @@ export default function AdminPage() {
             </TabsContent>
 
             <TabsContent value="users">
-              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 min-h-[60vh] max-h-[80vh] overflow-y-auto">
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[70vh] overflow-y-auto">
                 <UserManagement />
               </div>
             </TabsContent>
 
             <TabsContent value="analytics">
-              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 min-h-[60vh] max-h-[80vh] overflow-y-auto">
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[70vh] overflow-y-auto">
                 <AnalyticsTab abandonedCarts={abandonedCarts} />
               </div>
             </TabsContent>
