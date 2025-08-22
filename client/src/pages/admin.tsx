@@ -42,42 +42,51 @@ function AnalyticsTab({ abandonedCarts }: { abandonedCarts: AbandonedCart[] }) {
       <h3 className="text-lg font-semibold text-gray-900">Analytics Dashboard</h3>
       
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-blue-50 p-4 rounded-lg">
-          <div className="text-2xl font-bold text-blue-600" data-testid="stat-total-sessions">{conversionMetrics.totalSessions}</div>
-          <div className="text-sm text-gray-600">Total Sessions</div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+          <div className="text-xl lg:text-2xl font-bold text-blue-600" data-testid="stat-total-sessions">{conversionMetrics.totalSessions}</div>
+          <div className="text-xs lg:text-sm text-gray-600">Total Sessions</div>
         </div>
-        <div className="bg-green-50 p-4 rounded-lg">
-          <div className="text-2xl font-bold text-green-600" data-testid="stat-orders-completed">{conversionMetrics.ordersCompleted}</div>
-          <div className="text-sm text-gray-600">Orders Completed</div>
+        <div className="bg-green-50 p-3 rounded-lg border border-green-100">
+          <div className="text-xl lg:text-2xl font-bold text-green-600" data-testid="stat-orders-completed">{conversionMetrics.ordersCompleted}</div>
+          <div className="text-xs lg:text-sm text-gray-600">Orders Completed</div>
         </div>
-        <div className="bg-purple-50 p-4 rounded-lg">
-          <div className="text-2xl font-bold text-purple-600" data-testid="stat-conversion-rate">{conversionMetrics.conversionRate}</div>
-          <div className="text-sm text-gray-600">Conversion Rate</div>
+        <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
+          <div className="text-xl lg:text-2xl font-bold text-purple-600" data-testid="stat-conversion-rate">{conversionMetrics.conversionRate}</div>
+          <div className="text-xs lg:text-sm text-gray-600">Conversion Rate</div>
         </div>
-        <div className="bg-yellow-50 p-4 rounded-lg">
-          <div className="text-2xl font-bold text-yellow-600" data-testid="stat-avg-order-value">₹{conversionMetrics.averageOrderValue}</div>
-          <div className="text-sm text-gray-600">Avg Order Value</div>
+        <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100">
+          <div className="text-xl lg:text-2xl font-bold text-yellow-600" data-testid="stat-avg-order-value">₹{(conversionMetrics as any).averageOrderValue || '0'}</div>
+          <div className="text-xs lg:text-sm text-gray-600">Avg Order Value</div>
         </div>
       </div>
 
       {/* Popular Products */}
-      <div className="bg-white p-6 rounded-lg border">
-        <h4 className="text-md font-semibold text-gray-800 mb-4">Popular Products</h4>
+      <div className="bg-white p-4 rounded-lg border">
+        <h4 className="text-md font-semibold text-gray-800 mb-3">Popular Products</h4>
         {popularProducts.length === 0 ? (
-          <div className="text-gray-500 text-center py-8">
-            No product data available yet. Check back after some orders! 📈
+          <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+            <div className="mx-auto w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mb-3">
+              <i className="fas fa-chart-line text-gray-400 text-xl"></i>
+            </div>
+            <div className="text-gray-600 font-medium">No Product Data Available</div>
+            <div className="text-sm text-gray-500 mt-1">Start getting orders to see popular products here</div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {popularProducts.slice(0, 5).map((product, index) => (
-              <div key={product.productId} className="flex justify-between items-center bg-gray-50 p-3 rounded" data-testid={`popular-product-${index}`}>
-                <div>
-                  <div className="font-medium">{product.name}</div>
-                  <div className="text-sm text-gray-600">{product.orderCount} orders</div>
+              <div key={(product as any).productId || index} className="flex justify-between items-center bg-gray-50 p-2 rounded border" data-testid={`popular-product-${index}`}>
+                <div className="flex items-center">
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-sm mr-3">
+                    {index + 1}
+                  </div>
+                  <div>
+                    <div className="font-medium text-sm">{(product as any).name || 'Unknown Product'}</div>
+                    <div className="text-xs text-gray-600">{(product as any).orderCount || 0} orders</div>
+                  </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-semibold text-green-600">₹{product.totalRevenue.toFixed(2)}</div>
+                  <div className="font-semibold text-green-600 text-sm">₹{((product as any).totalRevenue || 0).toFixed(2)}</div>
                 </div>
               </div>
             ))}
@@ -86,20 +95,29 @@ function AnalyticsTab({ abandonedCarts }: { abandonedCarts: AbandonedCart[] }) {
       </div>
 
       {/* Sales Trends */}
-      <div className="bg-white p-6 rounded-lg border">
-        <h4 className="text-md font-semibold text-gray-800 mb-4">Sales Trends (Last 7 Days)</h4>
+      <div className="bg-white p-4 rounded-lg border">
+        <h4 className="text-md font-semibold text-gray-800 mb-3">Sales Trends (Last 7 Days)</h4>
         {salesTrends.length === 0 ? (
-          <div className="text-gray-500 text-center py-8">
-            No sales data available yet. Start making sales to see trends! 📊
+          <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+            <div className="mx-auto w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mb-3">
+              <i className="fas fa-chart-bar text-gray-400 text-xl"></i>
+            </div>
+            <div className="text-gray-600 font-medium">No Sales Data Available</div>
+            <div className="text-sm text-gray-500 mt-1">Start making sales to see trends here</div>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {salesTrends.map((trend, index) => (
-              <div key={trend.date} className="flex justify-between items-center bg-gray-50 p-3 rounded" data-testid={`sales-trend-${index}`}>
-                <div className="font-medium">{new Date(trend.date).toLocaleDateString()}</div>
+              <div key={(trend as any).date || index} className="flex justify-between items-center bg-gray-50 p-2 rounded border" data-testid={`sales-trend-${index}`}>
+                <div className="flex items-center">
+                  <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 text-xs mr-3">
+                    <i className="fas fa-calendar-alt"></i>
+                  </div>
+                  <div className="font-medium text-sm">{new Date((trend as any).date || new Date()).toLocaleDateString()}</div>
+                </div>
                 <div className="text-right">
-                  <div className="font-semibold">{trend.orderCount} orders</div>
-                  <div className="text-sm text-green-600">₹{trend.revenue.toFixed(2)}</div>
+                  <div className="font-semibold text-sm">{(trend as any).orderCount || 0} orders</div>
+                  <div className="text-xs text-green-600">₹{((trend as any).revenue || 0).toFixed(2)}</div>
                 </div>
               </div>
             ))}
@@ -108,26 +126,35 @@ function AnalyticsTab({ abandonedCarts }: { abandonedCarts: AbandonedCart[] }) {
       </div>
 
       {/* Abandoned Carts */}
-      <div className="bg-white p-6 rounded-lg border">
-        <h4 className="text-md font-semibold text-gray-800 mb-4">Recent Abandoned Carts</h4>
+      <div className="bg-white p-4 rounded-lg border">
+        <h4 className="text-md font-semibold text-gray-800 mb-3">Recent Abandoned Carts</h4>
         {abandonedCarts.length === 0 ? (
-          <div className="text-gray-500 text-center py-8">
-            No abandoned carts found. This means customers are completing their purchases! 🎉
+          <div className="text-center py-8 bg-green-50 rounded-lg border-2 border-dashed border-green-200">
+            <div className="mx-auto w-12 h-12 bg-green-200 rounded-full flex items-center justify-center mb-3">
+              <i className="fas fa-check-circle text-green-500 text-xl"></i>
+            </div>
+            <div className="text-green-700 font-medium">Great News!</div>
+            <div className="text-sm text-green-600 mt-1">No abandoned carts - customers are completing purchases!</div>
           </div>
         ) : (
-          <div className="space-y-3 max-h-60 overflow-y-auto">
+          <div className="space-y-2 max-h-60 overflow-y-auto">
             {abandonedCarts.slice(0, 10).map((cart, index) => (
-              <div key={cart.sessionId} className="bg-white p-4 rounded border" data-testid={`abandoned-cart-${index}`}>
+              <div key={cart.sessionId} className="bg-amber-50 p-2 rounded border border-amber-200" data-testid={`abandoned-cart-${index}`}>
                 <div className="flex justify-between items-center">
-                  <div>
-                    <div className="font-medium">Session: {cart.sessionId.slice(0, 8)}...</div>
-                    <div className="text-sm text-gray-600">{cart.items} items • ₹{cart.totalValue.toFixed(2)}</div>
+                  <div className="flex items-center">
+                    <div className="w-8 h-8 bg-amber-200 rounded-full flex items-center justify-center text-amber-700 text-xs mr-3">
+                      <i className="fas fa-shopping-cart"></i>
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm">Session: {cart.sessionId.slice(0, 8)}...</div>
+                      <div className="text-xs text-gray-600">{cart.items} items • ₹{cart.totalValue.toFixed(2)}</div>
+                    </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm text-gray-500">
+                    <div className="text-xs text-gray-500">
                       {new Date(cart.lastActivity).toLocaleDateString()}
                     </div>
-                    <div className="text-sm text-gray-500">
+                    <div className="text-xs text-gray-500">
                       {new Date(cart.lastActivity).toLocaleTimeString()}
                     </div>
                   </div>
@@ -225,21 +252,41 @@ export default function Admin() {
           </div>
           
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-4 space-y-2">
-            {sidebarItems.map((item) => (
+          <nav className="flex-1 px-4 py-4 space-y-1">
+            {sidebarItems.map((item, index) => (
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id as TabValue)}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    const nextIndex = (index + 1) % sidebarItems.length;
+                    setActiveTab(sidebarItems[nextIndex].id as TabValue);
+                  } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    const prevIndex = index === 0 ? sidebarItems.length - 1 : index - 1;
+                    setActiveTab(sidebarItems[prevIndex].id as TabValue);
+                  } else if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setActiveTab(item.id as TabValue);
+                  }
+                }}
                 className={cn(
-                  "w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                  "w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1",
                   activeTab === item.id
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                    ? "bg-blue-600 text-white shadow-md border-l-4 border-blue-800"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 hover:shadow-sm"
                 )}
                 data-testid={`nav-${item.id}`}
+                tabIndex={0}
+                role="tab"
+                aria-selected={activeTab === item.id}
               >
                 <i className={cn(item.icon, "mr-3 text-lg")}></i>
                 {item.label}
+                {activeTab === item.id && (
+                  <div className="absolute right-2 w-2 h-2 bg-white rounded-full"></div>
+                )}
               </button>
             ))}
           </nav>
@@ -278,70 +325,93 @@ export default function Admin() {
           <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>
             <TabsContent value="products">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 p-4 border-b border-gray-200 bg-white">
-                <h3 className="text-lg font-semibold text-gray-900">Product Management</h3>
-                <Button 
-                  onClick={() => setShowProductForm(true)}
-                  data-testid="button-add-product"
-                >
-                  <i className="fas fa-plus mr-2"></i>Add Product
-                </Button>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Product Management</h3>
+                  <p className="text-sm text-gray-600 mt-1">Manage your product catalog and inventory</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={() => setShowProductForm(true)}
+                    data-testid="button-add-product"
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <i className="fas fa-plus mr-2"></i>Add Product
+                  </Button>
+                </div>
               </div>
-              <div className="bg-gray-50 p-4">
-                <ProductTable onEdit={handleProductEdit} />
+              <div className="bg-gray-50 p-4 overflow-hidden">
+                <div className="w-full overflow-x-auto">
+                  <ProductTable onEdit={handleProductEdit} />
+                </div>
               </div>
             </TabsContent>
 
             <TabsContent value="orders">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 p-4 border-b border-gray-200 bg-white">
-                <h3 className="text-lg font-semibold text-gray-900">Order Management</h3>
-                <Button 
-                  onClick={exportOrders}
-                  className="bg-green-600 hover:bg-green-700"
-                  data-testid="button-export-csv"
-                >
-                  <i className="fas fa-download mr-2"></i>Export CSV
-                </Button>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Order Management</h3>
+                  <p className="text-sm text-gray-600 mt-1">Track and manage customer orders</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    onClick={exportOrders}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                    data-testid="button-export-csv"
+                  >
+                    <i className="fas fa-download mr-2"></i>Export CSV
+                  </Button>
+                </div>
               </div>
               
-              <div className="p-4 bg-white border-b border-gray-200">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600" data-testid="stat-total-orders">{stats.totalOrders}</div>
-                    <div className="text-sm text-gray-600">Total Orders</div>
+              <div className="p-3 bg-white border-b border-gray-200">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                    <div className="text-xl lg:text-2xl font-bold text-blue-600" data-testid="stat-total-orders">{stats.totalOrders}</div>
+                    <div className="text-xs lg:text-sm text-gray-600">Total Orders</div>
                   </div>
-                  <div className="bg-green-50 p-4 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600" data-testid="stat-revenue">₹{stats.revenue.toFixed(2)}</div>
-                    <div className="text-sm text-gray-600">Total Revenue</div>
+                  <div className="bg-green-50 p-3 rounded-lg border border-green-100">
+                    <div className="text-xl lg:text-2xl font-bold text-green-600" data-testid="stat-revenue">₹{stats.revenue.toFixed(2)}</div>
+                    <div className="text-xs lg:text-sm text-gray-600">Total Revenue</div>
                   </div>
-                  <div className="bg-yellow-50 p-4 rounded-lg">
-                    <div className="text-2xl font-bold text-yellow-600" data-testid="stat-pending-orders">{stats.pendingOrders}</div>
-                    <div className="text-sm text-gray-600">Pending Orders</div>
+                  <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100">
+                    <div className="text-xl lg:text-2xl font-bold text-yellow-600" data-testid="stat-pending-orders">{stats.pendingOrders}</div>
+                    <div className="text-xs lg:text-sm text-gray-600">Pending Orders</div>
                   </div>
-                  <div className="bg-red-50 p-4 rounded-lg">
-                    <div className="text-2xl font-bold text-red-600" data-testid="stat-cancelled-orders">{stats.cancelledOrders}</div>
-                    <div className="text-sm text-gray-600">Cancelled Orders</div>
+                  <div className="bg-red-50 p-3 rounded-lg border border-red-100">
+                    <div className="text-xl lg:text-2xl font-bold text-red-600" data-testid="stat-cancelled-orders">{stats.cancelledOrders}</div>
+                    <div className="text-xs lg:text-sm text-gray-600">Cancelled Orders</div>
                   </div>
                 </div>
               </div>
 
-              <div className="bg-gray-50 p-4">
-                <OrderTable />
+              <div className="bg-gray-50 p-4 overflow-hidden">
+                <div className="w-full overflow-x-auto">
+                  <OrderTable />
+                </div>
               </div>
             </TabsContent>
 
             <TabsContent value="offers" className="h-full">
               <div className="h-full flex flex-col">
                 <div className="flex justify-between items-center mb-4 p-4 border-b border-gray-200 bg-white">
-                  <h3 className="text-lg font-semibold text-gray-900">Offer Management</h3>
-                  <Button 
-                    onClick={() => setShowOfferForm(true)}
-                    data-testid="button-create-offer"
-                  >
-                    <i className="fas fa-plus mr-2"></i>Create Offer
-                  </Button>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Offer Management</h3>
+                    <p className="text-sm text-gray-600 mt-1">Create and manage discount codes and promotions</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      onClick={() => setShowOfferForm(true)}
+                      data-testid="button-create-offer"
+                      className="bg-purple-600 hover:bg-purple-700 text-white"
+                    >
+                      <i className="fas fa-plus mr-2"></i>Create Offer
+                    </Button>
+                  </div>
                 </div>
-                <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
-                  <OfferTable onEdit={handleOfferEdit} />
+                <div className="flex-1 bg-gray-50 p-4 overflow-hidden">
+                  <div className="w-full overflow-x-auto">
+                    <OfferTable onEdit={handleOfferEdit} />
+                  </div>
                 </div>
               </div>
             </TabsContent>
