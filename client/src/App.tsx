@@ -3,6 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ErrorBoundary } from "@/components/error-boundary";
 import NotFound from "@/pages/not-found";
 import Products from "@/pages/products";
 import Cart from "@/pages/cart";
@@ -18,33 +19,41 @@ import Footer from "@/components/layout/footer";
 function Router() {
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
+      <ErrorBoundary>
+        <Header />
+      </ErrorBoundary>
       <main className="max-w-4xl mx-auto px-4 py-6 flex-1">
-        <Switch>
-          <Route path="/" component={Products} />
-          <Route path="/cart" component={Cart} />
-          <Route path="/checkout" component={Checkout} />
-          <Route path="/admin" component={Admin} />
-          <Route path="/influencer" component={Influencer} />
-          <Route path="/thank-you" component={ThankYou} />
-          <Route path="/terms-of-service" component={TermsOfService} />
-          <Route path="/refund-policy" component={RefundPolicy} />
-          <Route component={NotFound} />
-        </Switch>
+        <ErrorBoundary>
+          <Switch>
+            <Route path="/" component={Products} />
+            <Route path="/cart" component={Cart} />
+            <Route path="/checkout" component={Checkout} />
+            <Route path="/admin" component={Admin} />
+            <Route path="/influencer" component={Influencer} />
+            <Route path="/thank-you" component={ThankYou} />
+            <Route path="/terms-of-service" component={TermsOfService} />
+            <Route path="/refund-policy" component={RefundPolicy} />
+            <Route component={NotFound} />
+          </Switch>
+        </ErrorBoundary>
       </main>
-      <Footer />
+      <ErrorBoundary>
+        <Footer />
+      </ErrorBoundary>
     </div>
   );
 }
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 

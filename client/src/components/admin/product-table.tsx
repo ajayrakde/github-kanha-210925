@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { ApiErrorMessage } from "@/components/ui/error-message";
+import { ButtonLoadingSpinner } from "@/components/ui/loading-spinner";
 import { Product } from "@/lib/types";
 
 interface ProductTableProps {
@@ -13,7 +15,7 @@ export default function ProductTable({ onEdit }: ProductTableProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: products, isLoading } = useQuery<Product[]>({
+  const { data: products, isLoading, error, refetch } = useQuery<Product[]>({
     queryKey: ["/api/products"],
   });
 
@@ -47,21 +49,21 @@ export default function ProductTable({ onEdit }: ProductTableProps) {
             <div key={i} className="bg-white border rounded-lg p-4 shadow-sm">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center">
-                  <div className="h-12 w-12 bg-gray-200 rounded-md"></div>
+                  <div className="h-12 w-12 bg-gray-200 rounded-md animate-pulse"></div>
                   <div className="ml-3 space-y-2">
-                    <div className="h-4 bg-gray-200 rounded w-32"></div>
-                    <div className="h-3 bg-gray-200 rounded w-20"></div>
+                    <div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div>
+                    <div className="h-3 bg-gray-200 rounded w-20 animate-pulse"></div>
                   </div>
                 </div>
-                <div className="h-6 bg-gray-200 rounded w-16"></div>
+                <div className="h-6 bg-gray-200 rounded w-16 animate-pulse"></div>
               </div>
               <div className="grid grid-cols-2 gap-4 mb-3">
-                <div className="h-4 bg-gray-200 rounded w-20"></div>
-                <div className="h-4 bg-gray-200 rounded w-16"></div>
+                <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
+                <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
               </div>
               <div className="flex space-x-2">
-                <div className="h-8 bg-gray-200 rounded flex-1"></div>
-                <div className="h-8 bg-gray-200 rounded flex-1"></div>
+                <div className="h-8 bg-gray-200 rounded flex-1 animate-pulse"></div>
+                <div className="h-8 bg-gray-200 rounded flex-1 animate-pulse"></div>
               </div>
             </div>
           ))}
@@ -84,17 +86,17 @@ export default function ProductTable({ onEdit }: ProductTableProps) {
                 <tr key={i}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="h-10 w-10 bg-gray-200 rounded-md"></div>
+                      <div className="h-10 w-10 bg-gray-200 rounded-md animate-pulse"></div>
                       <div className="ml-4 space-y-2">
-                        <div className="h-4 bg-gray-200 rounded w-32"></div>
-                        <div className="h-3 bg-gray-200 rounded w-20"></div>
+                        <div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div>
+                        <div className="h-3 bg-gray-200 rounded w-20 animate-pulse"></div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-16"></div></td>
-                  <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-8"></div></td>
-                  <td className="px-6 py-4 whitespace-nowrap"><div className="h-6 bg-gray-200 rounded w-16"></div></td>
-                  <td className="px-6 py-4 whitespace-nowrap"><div className="h-8 bg-gray-200 rounded w-16"></div></td>
+                  <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div></td>
+                  <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-8 animate-pulse"></div></td>
+                  <td className="px-6 py-4 whitespace-nowrap"><div className="h-6 bg-gray-200 rounded w-16 animate-pulse"></div></td>
+                  <td className="px-6 py-4 whitespace-nowrap"><div className="h-8 bg-gray-200 rounded w-16 animate-pulse"></div></td>
                 </tr>
               ))}
             </tbody>
@@ -102,6 +104,10 @@ export default function ProductTable({ onEdit }: ProductTableProps) {
         </div>
       </div>
     );
+  }
+
+  if (error) {
+    return <ApiErrorMessage error={error as Error} onRetry={() => refetch()} />;
   }
 
   if (!products || products.length === 0) {
@@ -167,7 +173,12 @@ export default function ProductTable({ onEdit }: ProductTableProps) {
                 className="text-red-600 hover:text-red-700 flex-1"
                 data-testid={`button-delete-product-${product.id}`}
               >
-                <i className="fas fa-trash mr-1"></i>Delete
+                {deleteProductMutation.isPending ? (
+                  <ButtonLoadingSpinner />
+                ) : (
+                  <i className="fas fa-trash mr-1"></i>
+                )}
+                Delete
               </Button>
             </div>
           </div>
@@ -234,7 +245,11 @@ export default function ProductTable({ onEdit }: ProductTableProps) {
                       className="text-red-600 hover:text-red-700"
                       data-testid={`button-delete-product-${product.id}`}
                     >
-                      <i className="fas fa-trash"></i>
+                      {deleteProductMutation.isPending ? (
+                        <ButtonLoadingSpinner />
+                      ) : (
+                        <i className="fas fa-trash"></i>
+                      )}
                     </Button>
                   </div>
                 </td>

@@ -211,18 +211,23 @@ export default function AdminPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className="text-lg text-gray-600">Loading admin portal...</div>
+        </div>
       </div>
     );
   }
 
   if (!isAuthenticated) {
     return (
-      <HybridLogin 
-        userType="admin"
-        title="Admin Portal"
-        onSuccess={() => window.location.reload()}
-      />
+      <div className="min-h-screen bg-gray-50">
+        <HybridLogin 
+          userType="admin"
+          title="Admin Portal"
+          onSuccess={() => window.location.reload()}
+        />
+      </div>
     );
   }
 
@@ -347,7 +352,7 @@ export default function AdminPage() {
             {editingProduct ? 'Form to edit existing product details' : 'Form to add a new product to the store'}
           </div>
           <ProductForm 
-            product={editingProduct}
+            product={editingProduct as any}
             onClose={handleFormClose}
           />
         </DialogContent>
@@ -365,7 +370,7 @@ export default function AdminPage() {
             {editingOffer ? 'Form to edit existing offer details' : 'Form to create a new discount offer'}
           </div>
           <OfferForm 
-            offer={editingOffer}
+            offer={editingOffer as any}
             onClose={handleFormClose}
           />
         </DialogContent>

@@ -24,22 +24,27 @@ export default function Influencer() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Loading...</div>
+        <div className="flex flex-col items-center gap-3">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+          <div className="text-lg text-gray-600">Loading influencer portal...</div>
+        </div>
       </div>
     );
   }
 
   if (!isAuthenticated) {
     return (
-      <HybridLogin 
-        userType="influencer"
-        title="Influencer Portal"
-        onSuccess={() => window.location.reload()}
-      />
+      <div className="min-h-screen bg-gray-50">
+        <HybridLogin 
+          userType="influencer"
+          title="Influencer Portal"
+          onSuccess={() => window.location.reload()}
+        />
+      </div>
     );
   }
 
-  const influencer = influencerData?.influencer;
+  const influencer = (influencerData as any)?.influencer;
 
   // Filter offers assigned to this influencer
   const myOffers = Array.isArray(offers) ? offers.filter((offer: any) => 
