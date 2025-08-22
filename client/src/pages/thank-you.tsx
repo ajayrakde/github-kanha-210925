@@ -46,6 +46,20 @@ export default function ThankYou() {
         </div>
       </div>
 
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 mb-6 text-left">
+        <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
+          <i className="fas fa-exclamation-triangle text-yellow-600 mr-2"></i>
+          Important Policy Information
+        </h3>
+        <div className="space-y-3 text-sm text-gray-700">
+          <p><strong>All products are non-returnable and non-cancellable once ordered.</strong></p>
+          <p>Refunds are issued only if the product is damaged, defective, or wrong item delivered.</p>
+          <p>Please accept the delivery and raise a refund request on the same day of delivery with photo/video proof.</p>
+          <p>Refunds are processed in a minimum of 3 working days or at the earliest possible time.</p>
+          <p><strong>Please track courier messages/calls and be available on the delivery day.</strong></p>
+        </div>
+      </div>
+
       <div className="space-y-3">
         <Button 
           className="w-full"

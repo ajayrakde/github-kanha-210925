@@ -33,7 +33,7 @@ export default function Influencer() {
               type="text"
               placeholder="Enter Influencer ID"
               value={influencerId}
-              onChange={(e) => setInflencerId(e.target.value)}
+              onChange={(e) => setInfluencerId(e.target.value)}
               className="flex-1"
               data-testid="input-influencer-id"
             />
@@ -86,7 +86,7 @@ export default function Influencer() {
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Active Coupons</h3>
             
-            {!offers || offers.length === 0 ? (
+            {!Array.isArray(offers) || offers.length === 0 ? (
               <div className="text-center py-8">
                 <div className="text-gray-500">No coupons assigned yet</div>
                 <p className="text-gray-400 mt-2">Contact admin to get your coupons</p>

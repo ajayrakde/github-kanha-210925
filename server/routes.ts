@@ -218,13 +218,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         deliveryAddress: `${userInfo?.address}, ${userInfo?.city} - ${userInfo?.pincode}`,
       };
 
+      const order = await storage.createOrder(orderData);
+
       const orderItems = cartItems.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
         price: item.product.price,
+        orderId: order.id,
       }));
 
-      const order = await storage.createOrder(orderData, orderItems);
+      await storage.createOrderItems(orderItems);
 
       // Create offer redemption if offer was used
       if (offerId && userId) {

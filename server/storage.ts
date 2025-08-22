@@ -66,7 +66,8 @@ export interface IStorage {
   // Order operations
   getOrders(): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer })[]>;
   getOrder(id: string): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer }) | undefined>;
-  createOrder(order: InsertOrder, items: InsertOrderItem[]): Promise<Order>;
+  createOrder(order: InsertOrder): Promise<Order>;
+  createOrderItems(items: InsertOrderItem[]): Promise<OrderItem[]>;
   updateOrderStatus(id: string, status: string): Promise<Order>;
   getOrdersByUser(userId: string): Promise<Order[]>;
 
@@ -213,7 +214,7 @@ export class DatabaseStorage implements IStorage {
       return { valid: false, message: `Minimum cart value of ₹${offer.minCartValue} required` };
     }
 
-    if (offer.globalUsageLimit && offer.currentUsage >= offer.globalUsageLimit) {
+    if (offer.globalUsageLimit && (offer.currentUsage || 0) >= offer.globalUsageLimit) {
       return { valid: false, message: "Coupon usage limit reached" };
     }
 
@@ -340,7 +341,10 @@ export class DatabaseStorage implements IStorage {
       },
       orderBy: desc(orders.createdAt),
     });
-    return ordersData;
+    return ordersData.map(order => ({
+      ...order,
+      offer: order.offer || undefined
+    }));
   }
 
   async getOrder(id: string): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer }) | undefined> {
@@ -356,17 +360,20 @@ export class DatabaseStorage implements IStorage {
         offer: true,
       },
     });
-    return orderData;
+    return orderData ? {
+      ...orderData,
+      offer: orderData.offer || undefined
+    } : undefined;
   }
 
-  async createOrder(order: InsertOrder, items: InsertOrderItem[]): Promise<Order> {
+  async createOrder(order: InsertOrder): Promise<Order> {
     const [createdOrder] = await db.insert(orders).values(order).returning();
-    
-    await db.insert(orderItems).values(
-      items.map(item => ({ ...item, orderId: createdOrder.id }))
-    );
-    
     return createdOrder;
+  }
+
+  async createOrderItems(items: InsertOrderItem[]): Promise<OrderItem[]> {
+    const createdItems = await db.insert(orderItems).values(items).returning();
+    return createdItems;
   }
 
   async updateOrderStatus(id: string, status: string): Promise<Order> {

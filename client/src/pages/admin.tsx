@@ -25,10 +25,10 @@ export default function Admin() {
   });
 
   const stats = {
-    totalOrders: orders?.length || 0,
-    revenue: orders?.reduce((sum: number, order: any) => sum + parseFloat(order.total), 0) || 0,
-    pendingOrders: orders?.filter((o: any) => o.status === 'pending').length || 0,
-    cancelledOrders: orders?.filter((o: any) => o.status === 'cancelled').length || 0,
+    totalOrders: Array.isArray(orders) ? orders.length : 0,
+    revenue: Array.isArray(orders) ? orders.reduce((sum: number, order: any) => sum + parseFloat(order.total), 0) : 0,
+    pendingOrders: Array.isArray(orders) ? orders.filter((o: any) => o.status === 'pending').length : 0,
+    cancelledOrders: Array.isArray(orders) ? orders.filter((o: any) => o.status === 'cancelled').length : 0,
   };
 
   const handleProductEdit = (product: any) => {

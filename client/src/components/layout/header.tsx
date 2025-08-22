@@ -29,24 +29,6 @@ export default function Header() {
                 </span>
               )}
             </button>
-            <div className="hidden md:flex space-x-2">
-              <Button
-                variant={location === "/admin" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setLocation("/admin")}
-                data-testid="button-admin"
-              >
-                Admin
-              </Button>
-              <Button
-                variant={location === "/influencer" ? "default" : "ghost"}
-                size="sm"
-                onClick={() => setLocation("/influencer")}
-                data-testid="button-influencer"
-              >
-                Influencer
-              </Button>
-            </div>
           </div>
         </div>
       </div>
