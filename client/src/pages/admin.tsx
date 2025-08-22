@@ -216,33 +216,12 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-      
-      {/* Sidebar */}
-      <div className={cn(
-        "fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0",
-        sidebarOpen ? "translate-x-0" : "-translate-x-full"
-      )}>
+      {/* Sidebar - Always visible */}
+      <div className="w-64 bg-white shadow-lg">
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
-            <div className="flex items-center">
-              <h1 className="text-xl font-semibold text-gray-900">Admin Panel</h1>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="lg:hidden"
-              onClick={() => setSidebarOpen(false)}
-            >
-              <i className="fas fa-times"></i>
-            </Button>
+          <div className="flex items-center h-16 px-4 border-b border-gray-200">
+            <h1 className="text-xl font-semibold text-gray-900">Admin Panel</h1>
           </div>
           
           {/* Navigation */}
@@ -250,10 +229,7 @@ export default function Admin() {
             {sidebarItems.map((item) => (
               <button
                 key={item.id}
-                onClick={() => {
-                  setActiveTab(item.id as TabValue);
-                  setSidebarOpen(false);
-                }}
+                onClick={() => setActiveTab(item.id as TabValue)}
                 className={cn(
                   "w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
                   activeTab === item.id
@@ -284,35 +260,25 @@ export default function Admin() {
       </div>
       
       {/* Main content */}
-      <div className="flex-1 lg:ml-0">
+      <div className="flex-1">
         {/* Header */}
         <header className="bg-white shadow-sm border-b border-gray-200">
-          <div className="flex items-center justify-between h-16 px-4 sm:px-6">
-            <div className="flex items-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="lg:hidden mr-3"
-                onClick={() => setSidebarOpen(true)}
-              >
-                <i className="fas fa-bars"></i>
-              </Button>
-              <div>
-                <h2 className="text-xl font-semibold text-gray-900">
-                  {sidebarItems.find(item => item.id === activeTab)?.label || 'Dashboard'}
-                </h2>
-                <p className="text-sm text-gray-600">Manage your store and track performance</p>
-              </div>
+          <div className="flex items-center h-16 px-4 sm:px-6">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900">
+                {sidebarItems.find(item => item.id === activeTab)?.label || 'Dashboard'}
+              </h2>
+              <p className="text-sm text-gray-600">Manage your store and track performance</p>
             </div>
           </div>
         </header>
         
         {/* Page content */}
-        <main className="p-4 sm:p-6">
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>
-            <TabsContent value="products">
-              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[calc(100vh-200px)] overflow-y-auto">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-6">
+        <main className="h-[calc(100vh-64px)]">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)} className="h-full">
+            <TabsContent value="products" className="h-full">
+              <div className="h-full flex flex-col">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 p-4 border-b border-gray-200 bg-white">
                   <h3 className="text-lg font-semibold text-gray-900">Product Management</h3>
                   <Button 
                     onClick={() => setShowProductForm(true)}
@@ -321,13 +287,15 @@ export default function Admin() {
                     <i className="fas fa-plus mr-2"></i>Add Product
                   </Button>
                 </div>
-                <ProductTable onEdit={handleProductEdit} />
+                <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
+                  <ProductTable onEdit={handleProductEdit} />
+                </div>
               </div>
             </TabsContent>
 
-            <TabsContent value="orders">
-              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[calc(100vh-200px)] overflow-y-auto">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-6">
+            <TabsContent value="orders" className="h-full">
+              <div className="h-full flex flex-col">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 p-4 border-b border-gray-200 bg-white">
                   <h3 className="text-lg font-semibold text-gray-900">Order Management</h3>
                   <Button 
                     onClick={exportOrders}
@@ -337,33 +305,37 @@ export default function Admin() {
                     <i className="fas fa-download mr-2"></i>Export CSV
                   </Button>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600" data-testid="stat-total-orders">{stats.totalOrders}</div>
-                    <div className="text-sm text-gray-600">Total Orders</div>
-                  </div>
-                  <div className="bg-green-50 p-4 rounded-lg">
-                    <div className="text-2xl font-bold text-green-600" data-testid="stat-revenue">₹{stats.revenue.toFixed(2)}</div>
-                    <div className="text-sm text-gray-600">Total Revenue</div>
-                  </div>
-                  <div className="bg-yellow-50 p-4 rounded-lg">
-                    <div className="text-2xl font-bold text-yellow-600" data-testid="stat-pending-orders">{stats.pendingOrders}</div>
-                    <div className="text-sm text-gray-600">Pending Orders</div>
-                  </div>
-                  <div className="bg-red-50 p-4 rounded-lg">
-                    <div className="text-2xl font-bold text-red-600" data-testid="stat-cancelled-orders">{stats.cancelledOrders}</div>
-                    <div className="text-sm text-gray-600">Cancelled Orders</div>
+                
+                <div className="p-4 bg-white border-b border-gray-200">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <div className="text-2xl font-bold text-blue-600" data-testid="stat-total-orders">{stats.totalOrders}</div>
+                      <div className="text-sm text-gray-600">Total Orders</div>
+                    </div>
+                    <div className="bg-green-50 p-4 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600" data-testid="stat-revenue">₹{stats.revenue.toFixed(2)}</div>
+                      <div className="text-sm text-gray-600">Total Revenue</div>
+                    </div>
+                    <div className="bg-yellow-50 p-4 rounded-lg">
+                      <div className="text-2xl font-bold text-yellow-600" data-testid="stat-pending-orders">{stats.pendingOrders}</div>
+                      <div className="text-sm text-gray-600">Pending Orders</div>
+                    </div>
+                    <div className="bg-red-50 p-4 rounded-lg">
+                      <div className="text-2xl font-bold text-red-600" data-testid="stat-cancelled-orders">{stats.cancelledOrders}</div>
+                      <div className="text-sm text-gray-600">Cancelled Orders</div>
+                    </div>
                   </div>
                 </div>
 
-                <OrderTable />
+                <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
+                  <OrderTable />
+                </div>
               </div>
             </TabsContent>
 
-            <TabsContent value="offers">
-              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[calc(100vh-200px)] overflow-y-auto">
-                <div className="flex justify-between items-center mb-6">
+            <TabsContent value="offers" className="h-full">
+              <div className="h-full flex flex-col">
+                <div className="flex justify-between items-center mb-4 p-4 border-b border-gray-200 bg-white">
                   <h3 className="text-lg font-semibold text-gray-900">Offer Management</h3>
                   <Button 
                     onClick={() => setShowOfferForm(true)}
@@ -372,19 +344,25 @@ export default function Admin() {
                     <i className="fas fa-plus mr-2"></i>Create Offer
                   </Button>
                 </div>
-                <OfferTable onEdit={handleOfferEdit} />
+                <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
+                  <OfferTable onEdit={handleOfferEdit} />
+                </div>
               </div>
             </TabsContent>
 
-            <TabsContent value="users">
-              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[calc(100vh-200px)] overflow-y-auto">
-                <UserManagement />
+            <TabsContent value="users" className="h-full">
+              <div className="h-full flex flex-col bg-gray-50">
+                <div className="flex-1 overflow-y-auto p-4">
+                  <UserManagement />
+                </div>
               </div>
             </TabsContent>
 
-            <TabsContent value="analytics">
-              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[calc(100vh-200px)] overflow-y-auto">
-                <AnalyticsTab abandonedCarts={abandonedCarts} />
+            <TabsContent value="analytics" className="h-full">
+              <div className="h-full flex flex-col bg-gray-50">
+                <div className="flex-1 overflow-y-auto p-4">
+                  <AnalyticsTab abandonedCarts={abandonedCarts} />
+                </div>
               </div>
             </TabsContent>
           </Tabs>
