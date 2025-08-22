@@ -35,6 +35,7 @@ export interface IStorage {
   getUserByPhone(phone: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, user: Partial<InsertUser>): Promise<User>;
+  authenticateUser(phone: string, password: string): Promise<User | null>;
 
   // Product operations
   getProducts(): Promise<Product[]>;
@@ -49,14 +50,17 @@ export interface IStorage {
   getInfluencerByPhone(phone: string): Promise<Influencer | undefined>;
   createInfluencer(influencer: InsertInfluencer): Promise<Influencer>;
   validateInfluencerLogin(phone: string, password: string): Promise<Influencer | null>;
+  authenticateInfluencer(phone: string, password: string): Promise<Influencer | null>;
   updateInfluencerPassword(id: string, newPassword: string): Promise<Influencer>;
 
   // Admin operations
   getAdmins(): Promise<Admin[]>;
   getAdmin(id: string): Promise<Admin | undefined>;
   getAdminByUsername(username: string): Promise<Admin | undefined>;
+  getAdminByPhone(phone: string): Promise<Admin | undefined>;
   createAdmin(admin: InsertAdmin): Promise<Admin>;
   validateAdminLogin(username: string, password: string): Promise<Admin | null>;
+  authenticateAdmin(phone: string, password: string): Promise<Admin | null>;
 
   // Offer operations
   getOffers(): Promise<Offer[]>;
@@ -121,6 +125,14 @@ export class DatabaseStorage implements IStorage {
     return updatedUser;
   }
 
+  async authenticateUser(phone: string, password: string): Promise<User | null> {
+    if (!password) return null;
+    const [user] = await db.select().from(users).where(
+      and(eq(users.phone, phone), eq(users.password, password))
+    );
+    return user || null;
+  }
+
   // Product operations
   async getProducts(): Promise<Product[]> {
     return await db.select().from(products).where(eq(products.isActive, true)).orderBy(products.createdAt);
@@ -169,6 +181,14 @@ export class DatabaseStorage implements IStorage {
     return createdInfluencer;
   }
 
+  async authenticateInfluencer(phone: string, password: string): Promise<Influencer | null> {
+    if (!password) return null;
+    const [influencer] = await db.select().from(influencers).where(
+      and(eq(influencers.phone, phone), eq(influencers.password, password))
+    );
+    return influencer || null;
+  }
+
   async validateInfluencerLogin(phone: string, password: string): Promise<Influencer | null> {
     const influencer = await this.getInfluencerByPhone(phone);
     if (influencer && influencer.password === password && influencer.isActive) {
@@ -201,9 +221,22 @@ export class DatabaseStorage implements IStorage {
     return admin;
   }
 
+  async getAdminByPhone(phone: string): Promise<Admin | undefined> {
+    const [admin] = await db.select().from(admins).where(eq(admins.phone, phone));
+    return admin;
+  }
+
   async createAdmin(admin: InsertAdmin): Promise<Admin> {
     const [createdAdmin] = await db.insert(admins).values(admin).returning();
     return createdAdmin;
+  }
+
+  async authenticateAdmin(phone: string, password: string): Promise<Admin | null> {
+    if (!password) return null;
+    const [admin] = await db.select().from(admins).where(
+      and(eq(admins.phone, phone), eq(admins.password, password), eq(admins.isActive, true))
+    );
+    return admin || null;
   }
 
   async validateAdminLogin(username: string, password: string): Promise<Admin | null> {

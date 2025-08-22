@@ -622,6 +622,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Password Authentication Route
+  app.post('/api/auth/login-password', async (req, res) => {
+    try {
+      const { phone, password, userType } = req.body;
+      
+      if (!phone || !password || !userType) {
+        return res.status(400).json({ message: 'Phone number, password, and user type are required' });
+      }
+
+      if (!['admin', 'influencer', 'buyer'].includes(userType)) {
+        return res.status(400).json({ message: 'Invalid user type' });
+      }
+
+      // Validate Indian phone number
+      const cleanPhone = phone.replace(/\D/g, '');
+      if (cleanPhone.length !== 10 || !cleanPhone.match(/^[6-9]\d{9}$/)) {
+        return res.status(400).json({ message: 'Please enter a valid Indian phone number' });
+      }
+
+      let user = null;
+
+      // Authenticate based on user type
+      switch (userType) {
+        case 'admin':
+          const admin = await storage.authenticateAdmin(cleanPhone, password);
+          if (admin) {
+            user = admin;
+            req.session.adminId = admin.id;
+            req.session.userRole = 'admin';
+          }
+          break;
+        
+        case 'influencer':
+          const influencer = await storage.authenticateInfluencer(cleanPhone, password);
+          if (influencer) {
+            user = influencer;
+            req.session.influencerId = influencer.id;
+            req.session.userRole = 'influencer';
+          }
+          break;
+        
+        case 'buyer':
+          const buyer = await storage.authenticateUser(cleanPhone, password);
+          if (buyer) {
+            user = buyer;
+            req.session.userId = buyer.id;
+            req.session.userRole = 'buyer';
+          }
+          break;
+      }
+
+      if (!user) {
+        return res.status(401).json({ message: 'Invalid phone number or password' });
+      }
+
+      res.json({ 
+        message: 'Login successful', 
+        user: user
+      });
+
+    } catch (error) {
+      console.error('Error during password login:', error);
+      res.status(500).json({ message: 'Login failed. Please try again.' });
+    }
+  });
+
   // Seed route for creating test accounts
   app.post('/api/seed-accounts', async (req, res) => {
     try {

@@ -53,7 +53,7 @@ export const admins = pgTable("admins", {
 export const otps = pgTable("otps", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   phone: varchar("phone", { length: 15 }).notNull(),
-  otp: varchar("otp", { length: 6 }).notNull(),
+  otp: varchar("otp", { length: 64 }).notNull(), // Hashed OTP
   userType: varchar("user_type", { length: 20 }).notNull(), // 'buyer', 'influencer', 'admin'
   expiresAt: timestamp("expires_at").notNull(),
   isUsed: boolean("is_used").default(false),

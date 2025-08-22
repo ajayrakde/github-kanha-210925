@@ -1,5 +1,5 @@
-import OtpLogin from "./otp-login";
+import HybridLogin from "./hybrid-login";
 
 export default function InfluencerLogin() {
-  return <OtpLogin userType="influencer" title="Influencer Login" />;
+  return <HybridLogin userType="influencer" title="Influencer Login" />;
 }

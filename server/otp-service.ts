@@ -1,11 +1,34 @@
 import { otps, admins, influencers, users, type Otp, type InsertOtp } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gt } from "drizzle-orm";
+import { createHash } from "crypto";
 
 export class OtpService {
-  // Generate 6-digit OTP
+  // Generate 4-digit OTP
   private generateOtp(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    return Math.floor(1000 + Math.random() * 9000).toString();
+  }
+
+  // Hash OTP for secure storage
+  private hashOtp(otp: string): string {
+    return createHash('sha256').update(otp).digest('hex');
+  }
+
+  // Validate Indian phone number
+  private validateIndianPhone(phone: string): { isValid: boolean; cleanPhone: string } {
+    // Remove all non-digits
+    const digits = phone.replace(/\D/g, '');
+    
+    // Check if it's a valid Indian number
+    if (digits.length === 10 && digits.match(/^[6-9]\d{9}$/)) {
+      return { isValid: true, cleanPhone: digits };
+    } else if (digits.length === 12 && digits.startsWith('91') && digits.substring(2).match(/^[6-9]\d{9}$/)) {
+      return { isValid: true, cleanPhone: digits.substring(2) };
+    } else if (digits.length === 13 && digits.startsWith('091') && digits.substring(3).match(/^[6-9]\d{9}$/)) {
+      return { isValid: true, cleanPhone: digits.substring(3) };
+    }
+    
+    return { isValid: false, cleanPhone: '' };
   }
 
   // Send OTP (mock implementation - in production, integrate with SMS service)
@@ -35,8 +58,16 @@ export class OtpService {
   // Send OTP to phone number
   async sendOtp(phone: string, userType: 'admin' | 'influencer' | 'buyer'): Promise<{ success: boolean; message: string; otpId?: string }> {
     try {
-      // Clean phone number (remove spaces, dashes, etc.)
-      const cleanPhone = phone.replace(/[^\d]/g, '');
+      // Validate Indian phone number
+      const phoneValidation = this.validateIndianPhone(phone);
+      if (!phoneValidation.isValid) {
+        return {
+          success: false,
+          message: 'Please enter a valid Indian phone number'
+        };
+      }
+      
+      const cleanPhone = phoneValidation.cleanPhone;
       
       // Rate limiting: Check if OTP was sent in last 60 seconds
       const recentOtp = await db.select()
@@ -74,19 +105,21 @@ export class OtpService {
 
       // Generate OTP and set expiry (5 minutes)
       const otp = this.generateOtp();
+      const hashedOtp = this.hashOtp(otp);
       const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
 
-      // Save OTP to database
+      // Save hashed OTP to database
       const [otpRecord] = await db.insert(otps).values({
         phone: cleanPhone,
-        otp,
+        otp: hashedOtp,
         userType,
         expiresAt,
         isUsed: false
       }).returning();
 
-      // Send SMS
+      // Send SMS (log only first 2 digits for security)
       const smsSent = await this.sendSms(cleanPhone, otp);
+      console.log(`[OTP] Sent OTP ${otp.substring(0, 2)}** to +91${cleanPhone}`);
       
       if (!smsSent) {
         return {
@@ -118,7 +151,17 @@ export class OtpService {
     isNewUser?: boolean;
   }> {
     try {
-      const cleanPhone = phone.replace(/[^\d]/g, '');
+      // Validate phone number format
+      const phoneValidation = this.validateIndianPhone(phone);
+      if (!phoneValidation.isValid) {
+        return {
+          success: false,
+          message: 'Invalid phone number format'
+        };
+      }
+      
+      const cleanPhone = phoneValidation.cleanPhone;
+      const hashedInputOtp = this.hashOtp(otp);
 
       // Find valid OTP
       const [otpRecord] = await db.select()
@@ -126,7 +169,7 @@ export class OtpService {
         .where(
           and(
             eq(otps.phone, cleanPhone),
-            eq(otps.otp, otp),
+            eq(otps.otp, hashedInputOtp),
             eq(otps.userType, userType),
             eq(otps.isUsed, false),
             gt(otps.expiresAt, new Date())
@@ -135,6 +178,7 @@ export class OtpService {
         .limit(1);
 
       if (!otpRecord) {
+        console.log(`[OTP] Failed verification for ${otp.substring(0, 2)}** on +91${cleanPhone}`);
         return {
           success: false,
           message: 'Invalid or expired OTP'
@@ -181,6 +225,7 @@ export class OtpService {
         };
       }
 
+      console.log(`[OTP] Successful verification for ${userType} +91${cleanPhone}`);
       return {
         success: true,
         message: 'OTP verified successfully',

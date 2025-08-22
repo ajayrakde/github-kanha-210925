@@ -1,5 +1,5 @@
-import OtpLogin from "./otp-login";
+import HybridLogin from "./hybrid-login";
 
 export default function AdminLogin() {
-  return <OtpLogin userType="admin" title="Admin Login" />;
+  return <HybridLogin userType="admin" title="Admin Login" />;
 }
