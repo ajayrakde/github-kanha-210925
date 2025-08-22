@@ -49,6 +49,9 @@ export interface IStorage {
   getInfluencer(id: string): Promise<Influencer | undefined>;
   getInfluencerByPhone(phone: string): Promise<Influencer | undefined>;
   createInfluencer(influencer: InsertInfluencer): Promise<Influencer>;
+  updateInfluencer(id: string, influencer: Partial<InsertInfluencer>): Promise<Influencer>;
+  deactivateInfluencer(id: string): Promise<void>;
+  deleteInfluencer(id: string): Promise<void>;
   validateInfluencerLogin(phone: string, password: string): Promise<Influencer | null>;
   authenticateInfluencer(phone: string, password: string): Promise<Influencer | null>;
   updateInfluencerPassword(id: string, newPassword: string): Promise<Influencer>;
@@ -59,6 +62,8 @@ export interface IStorage {
   getAdminByUsername(username: string): Promise<Admin | undefined>;
   getAdminByPhone(phone: string): Promise<Admin | undefined>;
   createAdmin(admin: InsertAdmin): Promise<Admin>;
+  updateAdmin(id: string, admin: Partial<InsertAdmin>): Promise<Admin>;
+  deleteAdmin(id: string): Promise<void>;
   validateAdminLogin(username: string, password: string): Promise<Admin | null>;
   authenticateAdmin(phone: string, password: string): Promise<Admin | null>;
 
@@ -218,6 +223,23 @@ export class DatabaseStorage implements IStorage {
     return updatedInfluencer;
   }
 
+  async updateInfluencer(id: string, influencer: Partial<InsertInfluencer>): Promise<Influencer> {
+    const [updatedInfluencer] = await db
+      .update(influencers)
+      .set({ ...influencer, updatedAt: new Date() })
+      .where(eq(influencers.id, id))
+      .returning();
+    return updatedInfluencer;
+  }
+
+  async deactivateInfluencer(id: string): Promise<void> {
+    await db.update(influencers).set({ isActive: false }).where(eq(influencers.id, id));
+  }
+
+  async deleteInfluencer(id: string): Promise<void> {
+    await db.delete(influencers).where(eq(influencers.id, id));
+  }
+
   // Admin operations
   async getAdmins(): Promise<Admin[]> {
     return await db.select().from(admins).where(eq(admins.isActive, true));
@@ -255,6 +277,19 @@ export class DatabaseStorage implements IStorage {
       console.error('Error authenticating admin:', error);
       return null;
     }
+  }
+
+  async updateAdmin(id: string, admin: Partial<InsertAdmin>): Promise<Admin> {
+    const [updatedAdmin] = await db
+      .update(admins)
+      .set({ ...admin, updatedAt: new Date() })
+      .where(eq(admins.id, id))
+      .returning();
+    return updatedAdmin;
+  }
+
+  async deleteAdmin(id: string): Promise<void> {
+    await db.update(admins).set({ isActive: false }).where(eq(admins.id, id));
   }
 
   async validateAdminLogin(username: string, password: string): Promise<Admin | null> {

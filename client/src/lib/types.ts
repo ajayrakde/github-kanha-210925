@@ -2,9 +2,13 @@
 export interface Product {
   id: string;
   name: string;
+  brand?: string | null;
+  classification?: string | null;
+  category?: string | null;
   description: string | null;
   price: string;
   imageUrl: string | null;
+  images?: string[] | null;
   stock: number;
   isActive: boolean;
   createdAt: string;

@@ -555,6 +555,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Enhanced admin management routes for influencers
+  app.patch("/api/admin/influencers/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+      const influencer = await storage.updateInfluencer(id, updateData);
+      res.json({ influencer });
+    } catch (error: any) {
+      console.error("Error updating influencer:", error);
+      res.status(500).json({ error: error.message || "Failed to update influencer" });
+    }
+  });
+
+  app.patch("/api/admin/influencers/:id/deactivate", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deactivateInfluencer(id);
+      res.json({ message: "Influencer deactivated successfully" });
+    } catch (error: any) {
+      console.error("Error deactivating influencer:", error);
+      res.status(500).json({ error: error.message || "Failed to deactivate influencer" });
+    }
+  });
+
+  app.delete("/api/admin/influencers/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteInfluencer(id);
+      res.json({ message: "Influencer removed successfully" });
+    } catch (error: any) {
+      console.error("Error removing influencer:", error);
+      res.status(500).json({ error: error.message || "Failed to remove influencer" });
+    }
+  });
+
+  // Admin management of other admins
+  app.get("/api/admin/admins", requireAdmin, async (req, res) => {
+    try {
+      const admins = await storage.getAdmins();
+      res.json(admins);
+    } catch (error: any) {
+      console.error("Error fetching admins:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch admins" });
+    }
+  });
+
+  app.post("/api/admin/admins", requireAdmin, async (req, res) => {
+    try {
+      const { name, phone, email, password, username } = req.body;
+      const admin = await storage.createAdmin({
+        name,
+        phone,
+        email,
+        password: password || undefined,
+        username: username || undefined,
+      });
+      res.json({ admin });
+    } catch (error: any) {
+      console.error("Error creating admin:", error);
+      res.status(500).json({ error: error.message || "Failed to create admin" });
+    }
+  });
+
+  app.patch("/api/admin/admins/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+      const admin = await storage.updateAdmin(id, updateData);
+      res.json({ admin });
+    } catch (error: any) {
+      console.error("Error updating admin:", error);
+      res.status(500).json({ error: error.message || "Failed to update admin" });
+    }
+  });
+
+  app.delete("/api/admin/admins/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteAdmin(id);
+      res.json({ message: "Admin removed successfully" });
+    } catch (error: any) {
+      console.error("Error removing admin:", error);
+      res.status(500).json({ error: error.message || "Failed to remove admin" });
+    }
+  });
+
   // OTP Authentication routes
   app.post('/api/auth/send-otp', async (req, res) => {
     try {

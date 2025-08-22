@@ -17,13 +17,17 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Products table - max 10 products
+// Products table - max 10 products with enhanced fields
 export const products = pgTable("products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name", { length: 255 }).notNull(),
+  brand: varchar("brand", { length: 255 }),
+  classification: varchar("classification", { length: 255 }),
+  category: varchar("category", { length: 255 }),
   description: text("description"),
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
-  imageUrl: text("image_url"),
+  imageUrl: text("image_url"), // Primary image for backward compatibility
+  images: text("images").array().default([]), // Array of image URLs (max 5)
   stock: integer("stock").default(0),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -39,6 +43,7 @@ export const influencers = pgTable("influencers", {
   password: varchar("password", { length: 255 }), // Optional for password login
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Admin table - supporting both OTP and password authentication
@@ -51,6 +56,7 @@ export const admins = pgTable("admins", {
   password: varchar("password", { length: 255 }), // Optional for password login
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // OTP table for authentication
