@@ -103,7 +103,7 @@ export default function AdminPage() {
             </TabsList>
 
             <TabsContent value="products">
-              <div className="bg-white rounded-lg shadow-sm p-6 min-h-[600px]">
+              <div className="bg-white rounded-lg shadow-sm p-6 h-[700px] overflow-y-auto">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-lg font-semibold text-gray-900">Product Management</h3>
                   <Button 
@@ -118,7 +118,7 @@ export default function AdminPage() {
             </TabsContent>
 
             <TabsContent value="orders">
-              <div className="bg-white rounded-lg shadow-sm p-6 min-h-[600px]">
+              <div className="bg-white rounded-lg shadow-sm p-6 h-[700px] overflow-y-auto">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-lg font-semibold text-gray-900">Order Management</h3>
                   <Button 
@@ -154,7 +154,7 @@ export default function AdminPage() {
             </TabsContent>
 
             <TabsContent value="offers">
-              <div className="bg-white rounded-lg shadow-sm p-6 min-h-[600px]">
+              <div className="bg-white rounded-lg shadow-sm p-6 h-[700px] overflow-y-auto">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-lg font-semibold text-gray-900">Offer Management</h3>
                   <Button 
@@ -169,7 +169,7 @@ export default function AdminPage() {
             </TabsContent>
 
             <TabsContent value="users">
-              <div className="bg-white rounded-lg shadow-sm p-6 min-h-[600px]">
+              <div className="bg-white rounded-lg shadow-sm p-6 h-[700px] overflow-y-auto">
                 <UserManagement />
               </div>
             </TabsContent>
