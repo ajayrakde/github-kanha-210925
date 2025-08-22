@@ -54,11 +54,16 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
   const createProductMutation = useMutation({
     mutationFn: async (data: ProductFormData) => {
       const payload = {
-        ...data,
+        name: data.name,
+        brand: data.brand || undefined,
+        classification: data.classification || undefined,
+        category: data.category || undefined,
+        description: data.description || undefined,
         price: data.price,
-        stock: parseInt(data.stock),
         imageUrl: data.imageUrl || undefined,
         images: data.images || [],
+        stock: parseInt(data.stock),
+        isActive: data.isActive,
       };
       
       const url = product ? `/api/products/${product.id}` : "/api/products";
@@ -75,16 +80,26 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
       });
       onClose();
     },
-    onError: (error) => {
+    onError: (error: any) => {
+      console.error('Product form error:', error);
+      let errorMessage = product ? "Failed to update product" : "Failed to create product";
+      
+      // Show specific validation errors if available
+      if (error?.message && error.message.includes('Invalid product data')) {
+        errorMessage = "Please check all required fields and try again.";
+      }
+      
       toast({
         title: "Error",
-        description: product ? "Failed to update product" : "Failed to create product",
+        description: errorMessage,
         variant: "destructive",
       });
     },
   });
 
   const onSubmit = (data: ProductFormData) => {
+    console.log('Form submitted with data:', data);
+    console.log('Form errors:', form.formState.errors);
     createProductMutation.mutate(data);
   };
 
