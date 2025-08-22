@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import ProductTable from "@/components/admin/product-table";
@@ -14,7 +15,7 @@ import { useAdminAuth } from "@/hooks/use-auth";
 import type { Product, Offer } from "@shared/schema";
 import type { AbandonedCart, PopularProduct, SalesTrend, ConversionMetrics } from "@/lib/types";
 
-type PageValue = 'products' | 'orders' | 'offers' | 'users' | 'analytics';
+type TabValue = 'products' | 'orders' | 'offers' | 'users' | 'analytics';
 
 interface OrderStats {
   totalOrders: number;
@@ -140,9 +141,9 @@ function AnalyticsTab({ abandonedCarts }: { abandonedCarts: AbandonedCart[] }) {
   );
 }
 
-export default function AdminPage() {
+export default function Admin() {
   const { isAuthenticated, isLoading, logout } = useAdminAuth();
-  const [activePage, setActivePage] = useState<PageValue>('products');
+  const [activeTab, setActiveTab] = useState<TabValue>('products');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
   const [showOfferForm, setShowOfferForm] = useState(false);
@@ -213,195 +214,181 @@ export default function AdminPage() {
     { id: 'analytics', label: 'Analytics', icon: 'fas fa-chart-bar' },
   ];
 
-  const renderPageContent = () => {
-    switch (activePage) {
-      case 'products':
-        return (
-          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[calc(100vh-200px)] overflow-y-auto">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Product Management</h3>
-              <Button 
-                onClick={() => setShowProductForm(true)}
-                data-testid="button-add-product"
-              >
-                <i className="fas fa-plus mr-2"></i>Add Product
-              </Button>
-            </div>
-            <ProductTable onEdit={handleProductEdit} />
-          </div>
-        );
-      
-      case 'orders':
-        return (
-          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[calc(100vh-200px)] overflow-y-auto">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Order Management</h3>
-              <Button 
-                onClick={exportOrders}
-                className="bg-green-600 hover:bg-green-700"
-                data-testid="button-export-csv"
-              >
-                <i className="fas fa-download mr-2"></i>Export CSV
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600" data-testid="stat-total-orders">{stats.totalOrders}</div>
-                <div className="text-sm text-gray-600">Total Orders</div>
-              </div>
-              <div className="bg-green-50 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-green-600" data-testid="stat-revenue">₹{stats.revenue.toFixed(2)}</div>
-                <div className="text-sm text-gray-600">Total Revenue</div>
-              </div>
-              <div className="bg-yellow-50 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-yellow-600" data-testid="stat-pending-orders">{stats.pendingOrders}</div>
-                <div className="text-sm text-gray-600">Pending Orders</div>
-              </div>
-              <div className="bg-red-50 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-red-600" data-testid="stat-cancelled-orders">{stats.cancelledOrders}</div>
-                <div className="text-sm text-gray-600">Cancelled Orders</div>
-              </div>
-            </div>
-
-            <OrderTable />
-          </div>
-        );
-      
-      case 'offers':
-        return (
-          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[calc(100vh-200px)] overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-lg font-semibold text-gray-900">Offer Management</h3>
-              <Button 
-                onClick={() => setShowOfferForm(true)}
-                data-testid="button-create-offer"
-              >
-                <i className="fas fa-plus mr-2"></i>Create Offer
-              </Button>
-            </div>
-            <OfferTable onEdit={handleOfferEdit} />
-          </div>
-        );
-      
-      case 'users':
-        return (
-          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[calc(100vh-200px)] overflow-y-auto">
-            <UserManagement />
-          </div>
-        );
-      
-      case 'analytics':
-        return (
-          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[calc(100vh-200px)] overflow-y-auto">
-            <AnalyticsTab abandonedCarts={abandonedCarts} />
-          </div>
-        );
-      
-      default:
-        return null;
-    }
-  };
-
   return (
-    <>
-      <div className="min-h-screen bg-gray-50 flex">
-        {/* Mobile sidebar overlay */}
-        {sidebarOpen && (
-          <div 
-            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
-        
-        {/* Sidebar */}
-        <div className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        )}>
-          <div className="flex flex-col h-full">
-            {/* Header */}
-            <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
-              <div className="flex items-center">
-                <h1 className="text-xl font-semibold text-gray-900">Admin Panel</h1>
-              </div>
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+      
+      {/* Sidebar */}
+      <div className={cn(
+        "fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="flex flex-col h-full">
+          {/* Header */}
+          <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
+            <div className="flex items-center">
+              <h1 className="text-xl font-semibold text-gray-900">Admin Panel</h1>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="lg:hidden"
+              onClick={() => setSidebarOpen(false)}
+            >
+              <i className="fas fa-times"></i>
+            </Button>
+          </div>
+          
+          {/* Navigation */}
+          <nav className="flex-1 px-4 py-4 space-y-2">
+            {sidebarItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => {
+                  setActiveTab(item.id as TabValue);
+                  setSidebarOpen(false);
+                }}
+                className={cn(
+                  "w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
+                  activeTab === item.id
+                    ? "bg-blue-100 text-blue-700"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                )}
+                data-testid={`nav-${item.id}`}
+              >
+                <i className={cn(item.icon, "mr-3 text-lg")}></i>
+                {item.label}
+              </button>
+            ))}
+          </nav>
+          
+          {/* Logout */}
+          <div className="p-4 border-t border-gray-200">
+            <Button 
+              variant="outline" 
+              className="w-full"
+              onClick={() => logout()}
+              data-testid="button-admin-logout"
+            >
+              <i className="fas fa-sign-out-alt mr-2"></i>
+              Logout
+            </Button>
+          </div>
+        </div>
+      </div>
+      
+      {/* Main content */}
+      <div className="flex-1 lg:ml-0">
+        {/* Header */}
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="flex items-center justify-between h-16 px-4 sm:px-6">
+            <div className="flex items-center">
               <Button
                 variant="ghost"
                 size="sm"
-                className="lg:hidden"
-                onClick={() => setSidebarOpen(false)}
+                className="lg:hidden mr-3"
+                onClick={() => setSidebarOpen(true)}
               >
-                <i className="fas fa-times"></i>
+                <i className="fas fa-bars"></i>
               </Button>
-            </div>
-            
-            {/* Navigation */}
-            <nav className="flex-1 px-4 py-4 space-y-2">
-              {sidebarItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setActivePage(item.id as PageValue);
-                    setSidebarOpen(false);
-                  }}
-                  className={cn(
-                    "w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors",
-                    activePage === item.id
-                      ? "bg-blue-100 text-blue-700"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                  )}
-                  data-testid={`nav-${item.id}`}
-                >
-                  <i className={cn(item.icon, "mr-3 text-lg")}></i>
-                  {item.label}
-                </button>
-              ))}
-            </nav>
-            
-            {/* Logout */}
-            <div className="p-4 border-t border-gray-200">
-              <Button 
-                variant="outline" 
-                className="w-full"
-                onClick={() => logout()}
-                data-testid="button-admin-logout"
-              >
-                <i className="fas fa-sign-out-alt mr-2"></i>
-                Logout
-              </Button>
-            </div>
-          </div>
-        </div>
-        
-        {/* Main content */}
-        <div className="flex-1 lg:ml-0">
-          {/* Header */}
-          <header className="bg-white shadow-sm border-b border-gray-200">
-            <div className="flex items-center justify-between h-16 px-4 sm:px-6">
-              <div className="flex items-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="lg:hidden mr-3"
-                  onClick={() => setSidebarOpen(true)}
-                >
-                  <i className="fas fa-bars"></i>
-                </Button>
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">
-                    {sidebarItems.find(item => item.id === activePage)?.label || 'Dashboard'}
-                  </h2>
-                  <p className="text-sm text-gray-600">Manage your store and track performance</p>
-                </div>
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {sidebarItems.find(item => item.id === activeTab)?.label || 'Dashboard'}
+                </h2>
+                <p className="text-sm text-gray-600">Manage your store and track performance</p>
               </div>
             </div>
-          </header>
-          
-          {/* Page content */}
-          <main className="p-4 sm:p-6">
-            {renderPageContent()}
-          </main>
-        </div>
+          </div>
+        </header>
+        
+        {/* Page content */}
+        <main className="p-4 sm:p-6">
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as TabValue)}>
+            <TabsContent value="products">
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[calc(100vh-200px)] overflow-y-auto">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900">Product Management</h3>
+                  <Button 
+                    onClick={() => setShowProductForm(true)}
+                    data-testid="button-add-product"
+                  >
+                    <i className="fas fa-plus mr-2"></i>Add Product
+                  </Button>
+                </div>
+                <ProductTable onEdit={handleProductEdit} />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="orders">
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[calc(100vh-200px)] overflow-y-auto">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900">Order Management</h3>
+                  <Button 
+                    onClick={exportOrders}
+                    className="bg-green-600 hover:bg-green-700"
+                    data-testid="button-export-csv"
+                  >
+                    <i className="fas fa-download mr-2"></i>Export CSV
+                  </Button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <div className="text-2xl font-bold text-blue-600" data-testid="stat-total-orders">{stats.totalOrders}</div>
+                    <div className="text-sm text-gray-600">Total Orders</div>
+                  </div>
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <div className="text-2xl font-bold text-green-600" data-testid="stat-revenue">₹{stats.revenue.toFixed(2)}</div>
+                    <div className="text-sm text-gray-600">Total Revenue</div>
+                  </div>
+                  <div className="bg-yellow-50 p-4 rounded-lg">
+                    <div className="text-2xl font-bold text-yellow-600" data-testid="stat-pending-orders">{stats.pendingOrders}</div>
+                    <div className="text-sm text-gray-600">Pending Orders</div>
+                  </div>
+                  <div className="bg-red-50 p-4 rounded-lg">
+                    <div className="text-2xl font-bold text-red-600" data-testid="stat-cancelled-orders">{stats.cancelledOrders}</div>
+                    <div className="text-sm text-gray-600">Cancelled Orders</div>
+                  </div>
+                </div>
+
+                <OrderTable />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="offers">
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[calc(100vh-200px)] overflow-y-auto">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900">Offer Management</h3>
+                  <Button 
+                    onClick={() => setShowOfferForm(true)}
+                    data-testid="button-create-offer"
+                  >
+                    <i className="fas fa-plus mr-2"></i>Create Offer
+                  </Button>
+                </div>
+                <OfferTable onEdit={handleOfferEdit} />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="users">
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[calc(100vh-200px)] overflow-y-auto">
+                <UserManagement />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="analytics">
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 h-[calc(100vh-200px)] overflow-y-auto">
+                <AnalyticsTab abandonedCarts={abandonedCarts} />
+              </div>
+            </TabsContent>
+          </Tabs>
+        </main>
       </div>
 
       {/* Product Form Dialog */}
@@ -439,6 +426,6 @@ export default function AdminPage() {
           />
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
