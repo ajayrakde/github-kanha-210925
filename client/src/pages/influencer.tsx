@@ -3,18 +3,22 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
 import HybridLogin from "@/components/auth/hybrid-login";
+import { useInfluencerAuth } from "@/hooks/use-auth";
 
 export default function Influencer() {
-  // Check if influencer is authenticated
-  const { data: influencer, isLoading } = useQuery({
+  const { isAuthenticated, isLoading, logout } = useInfluencerAuth();
+  const [activeTab, setActiveTab] = useState("dashboard");
+
+  // Check if influencer data exists after authentication
+  const { data: influencerData } = useQuery({
     queryKey: ['/api/influencer/me'],
+    enabled: isAuthenticated,
     retry: false,
   });
-  const [activeTab, setActiveTab] = useState("dashboard");
 
   const { data: offers } = useQuery({
     queryKey: ["/api/offers"],
-    enabled: !!influencer,
+    enabled: isAuthenticated,
   });
 
   if (isLoading) {
@@ -25,7 +29,7 @@ export default function Influencer() {
     );
   }
 
-  if (!influencer) {
+  if (!isAuthenticated) {
     return (
       <HybridLogin 
         userType="influencer"
@@ -35,14 +39,7 @@ export default function Influencer() {
     );
   }
 
-  const logout = async () => {
-    try {
-      await fetch('/api/influencer/logout', { method: 'POST' });
-      window.location.href = '/influencer';
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  };
+  const influencer = influencerData?.influencer;
 
   // Filter offers assigned to this influencer
   const myOffers = Array.isArray(offers) ? offers.filter((offer: any) => 

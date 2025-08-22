@@ -9,6 +9,8 @@ import OfferTable from "@/components/admin/offer-table";
 import UserManagement from "@/components/admin/user-management";
 import ProductForm from "@/components/forms/product-form";
 import OfferForm from "@/components/forms/offer-form";
+import HybridLogin from "@/components/auth/hybrid-login";
+import { useAdminAuth } from "@/hooks/use-auth";
 import type { Product, Offer } from "@shared/schema";
 
 type TabValue = 'products' | 'orders' | 'offers' | 'users';
@@ -21,6 +23,7 @@ interface OrderStats {
 }
 
 export default function AdminPage() {
+  const { isAuthenticated, isLoading, logout } = useAdminAuth();
   const [activeTab, setActiveTab] = useState<TabValue>('products');
   const [showProductForm, setShowProductForm] = useState(false);
   const [showOfferForm, setShowOfferForm] = useState(false);
@@ -30,6 +33,7 @@ export default function AdminPage() {
   // Order statistics
   const { data: stats = { totalOrders: 0, revenue: 0, pendingOrders: 0, cancelledOrders: 0 } } = useQuery<OrderStats>({
     queryKey: ['/api/admin/stats'],
+    enabled: isAuthenticated,
   });
 
   const handleProductEdit = (product: Product) => {
@@ -49,18 +53,27 @@ export default function AdminPage() {
     setEditingOffer(null);
   };
 
-  const logout = async () => {
-    try {
-      await fetch('/api/admin/logout', { method: 'POST' });
-      window.location.href = '/admin';
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  };
-
   const exportOrders = () => {
     window.open('/api/admin/orders/export', '_blank');
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <HybridLogin 
+        userType="admin"
+        title="Admin Portal"
+        onSuccess={() => window.location.reload()}
+      />
+    );
+  }
 
   return (
     <>
@@ -73,7 +86,7 @@ export default function AdminPage() {
             </div>
             <Button 
               variant="outline" 
-              onClick={() => logout()}
+              onClick={logout}
               data-testid="button-admin-logout"
             >
               <i className="fas fa-sign-out-alt mr-2"></i>
