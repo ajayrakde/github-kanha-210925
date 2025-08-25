@@ -13,6 +13,7 @@ export default function Cart() {
   const { toast } = useToast();
   const [couponCode, setCouponCode] = useState("");
   const [appliedOffer, setAppliedOffer] = useState<any>(null);
+  const [couponError, setCouponError] = useState("");
   const { cartItems, isLoading, subtotal } = useCart();
 
   const validateOfferMutation = useMutation({
@@ -26,12 +27,16 @@ export default function Cart() {
     },
     onSuccess: (result) => {
       if (result.valid) {
+        // Clear any previous coupon (single coupon logic)
         setAppliedOffer(result.offer);
+        setCouponError("");
+        setCouponCode("");
         toast({
           title: "Coupon Applied!",
           description: `You saved with ${result.offer.code}`,
         });
       } else {
+        setCouponError(result.message);
         toast({
           title: "Invalid Coupon",
           description: result.message,
@@ -39,11 +44,38 @@ export default function Cart() {
         });
       }
     },
+    onError: (error) => {
+      setCouponError("Failed to validate coupon");
+      toast({
+        title: "Error",
+        description: "Failed to validate coupon",
+        variant: "destructive",
+      });
+    },
   });
 
   const applyCoupon = () => {
     if (couponCode.trim()) {
+      setCouponError("");
       validateOfferMutation.mutate(couponCode.toUpperCase());
+    }
+  };
+
+  const removeCoupon = () => {
+    setAppliedOffer(null);
+    setCouponError("");
+    setCouponCode("");
+    toast({
+      title: "Coupon Removed",
+      description: "Coupon has been removed from your order",
+    });
+  };
+
+  const handleCouponChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setCouponCode(e.target.value);
+    // Reset error styling when user starts typing
+    if (couponError) {
+      setCouponError("");
     }
   };
 
@@ -140,27 +172,73 @@ export default function Cart() {
           {/* Coupon Section */}
           <div className="bg-white rounded-lg shadow-sm p-6">
             <h3 className="font-medium text-gray-900 mb-4">Apply Coupon</h3>
-            <div className="flex space-x-3">
-              <Input
-                type="text"
-                placeholder="Enter coupon code"
-                value={couponCode}
-                onChange={(e) => setCouponCode(e.target.value)}
-                className="flex-1"
-                data-testid="input-coupon-code"
-              />
-              <Button
-                onClick={applyCoupon}
-                disabled={!couponCode.trim() || validateOfferMutation.isPending}
-                data-testid="button-apply-coupon"
-              >
-                Apply
-              </Button>
-            </div>
-            {appliedOffer && (
-              <div className="mt-3 text-sm text-green-600">
-                <i className="fas fa-check-circle mr-1"></i>
-                Coupon "{appliedOffer.code}" applied! You saved ₹{discount.toFixed(2)}
+            {!appliedOffer ? (
+              <>
+                <div className="flex space-x-3">
+                  <Input
+                    type="text"
+                    placeholder="Enter coupon code"
+                    value={couponCode}
+                    onChange={handleCouponChange}
+                    className={`flex-1 ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+                    data-testid="input-coupon-code"
+                  />
+                  <Button
+                    onClick={applyCoupon}
+                    disabled={!couponCode.trim() || validateOfferMutation.isPending}
+                    data-testid="button-apply-coupon"
+                  >
+                    {validateOfferMutation.isPending ? "Applying..." : "Apply"}
+                  </Button>
+                </div>
+                {couponError && (
+                  <div className="mt-2 text-sm text-red-600" data-testid="coupon-error">
+                    {couponError}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-green-600">
+                    <i className="fas fa-check-circle mr-1"></i>
+                    Coupon "{appliedOffer.code}" applied! You saved ₹{discount.toFixed(2)}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={removeCoupon}
+                    data-testid="button-remove-coupon"
+                  >
+                    Remove
+                  </Button>
+                </div>
+                {/* Show input to apply a different coupon */}
+                <div className="pt-2 border-t">
+                  <p className="text-sm text-gray-600 mb-2">Want to try a different coupon?</p>
+                  <div className="flex space-x-3">
+                    <Input
+                      type="text"
+                      placeholder="Enter coupon code"
+                      value={couponCode}
+                      onChange={handleCouponChange}
+                      className={`flex-1 ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+                      data-testid="input-coupon-code-replace"
+                    />
+                    <Button
+                      onClick={applyCoupon}
+                      disabled={!couponCode.trim() || validateOfferMutation.isPending}
+                      data-testid="button-replace-coupon"
+                    >
+                      {validateOfferMutation.isPending ? "Applying..." : "Replace"}
+                    </Button>
+                  </div>
+                  {couponError && (
+                    <div className="mt-2 text-sm text-red-600" data-testid="coupon-error-replace">
+                      {couponError}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

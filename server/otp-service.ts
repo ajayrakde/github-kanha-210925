@@ -4,9 +4,9 @@ import { eq, and, gt } from "drizzle-orm";
 import { createHash } from "crypto";
 
 export class OtpService {
-  // Generate 4-digit OTP
+  // Generate 6-digit OTP
   private generateOtp(): string {
-    return Math.floor(1000 + Math.random() * 9000).toString();
+    return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
   // Hash OTP for secure storage

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -238,20 +239,39 @@ export default function OfferTable({ onEdit }: OfferTableProps) {
         <div className="mb-4 flex flex-wrap gap-4 items-center justify-between">
           <div className="flex flex-wrap gap-4">
             <div className="flex items-center gap-2">
-              <label className="text-sm font-medium text-gray-700">Influencer:</label>
-              <Select value={filterInfluencer} onValueChange={(value) => handleFilterChange('influencer', value)}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="All Influencers" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Influencers</SelectItem>
-                  {influencers?.map((influencer) => (
-                    <SelectItem key={influencer.id} value={influencer.id}>
-                      {influencer.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <label className="text-sm font-medium text-gray-700">Influencer Search:</label>
+              <div className="flex gap-2">
+                <Input
+                  type="text"
+                  placeholder="Search by influencer name..."
+                  value={filterInfluencer === 'all' ? '' : (influencers?.find(inf => inf.id === filterInfluencer)?.name || '')}
+                  onChange={(e) => {
+                    const searchTerm = e.target.value.toLowerCase();
+                    if (!searchTerm) {
+                      handleFilterChange('influencer', 'all');
+                    } else {
+                      const matchedInfluencer = influencers?.find(inf => 
+                        inf.name.toLowerCase().includes(searchTerm)
+                      );
+                      if (matchedInfluencer) {
+                        handleFilterChange('influencer', matchedInfluencer.id);
+                      } else {
+                        handleFilterChange('influencer', 'none');
+                      }
+                    }
+                  }}
+                  className="w-48"
+                  data-testid="input-influencer-search"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleFilterChange('influencer', 'all')}
+                  data-testid="button-clear-influencer-search"
+                >
+                  Clear
+                </Button>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-gray-700">Status:</label>
