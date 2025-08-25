@@ -146,7 +146,9 @@ export default function Checkout() {
       });
       return await response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
+      // Clear the cart after successful order
+      await apiRequest("DELETE", "/api/cart/clear", {});
       // Store order data in session storage for thank you page
       sessionStorage.setItem('lastOrder', JSON.stringify({
         orderId: data.order.id,
@@ -312,147 +314,249 @@ export default function Checkout() {
                 </div>
 
                 {/* Address Selection/Management */}
-                {addresses && addresses.length > 0 && !showNewAddressForm ? (
+                {addresses && addresses.length > 0 && (
                   <>
-                    <div className="mb-4">
-                      <Label>Select Delivery Address</Label>
-                      <div className="mt-2 space-y-2">
-                        {addresses.map((address) => (
+                    {/* Preferred Address Card (shown above form) */}
+                    {(() => {
+                      const preferredAddress = addresses.find(addr => addr.isPreferred);
+                      return preferredAddress && !showNewAddressForm ? (
+                        <div className="mb-6">
+                          <Label className="text-base font-medium">Preferred Address</Label>
                           <div
-                            key={address.id}
-                            className={`border rounded-lg p-4 cursor-pointer transition-colors ${
-                              selectedAddressId === address.id
+                            className={`mt-2 border rounded-lg p-4 cursor-pointer transition-colors ${
+                              selectedAddressId === preferredAddress.id
                                 ? 'border-blue-500 bg-blue-50'
                                 : 'border-gray-200 hover:border-gray-300'
                             }`}
                             onClick={() => {
-                              setSelectedAddressId(address.id);
+                              setSelectedAddressId(preferredAddress.id);
                               setUserInfo({
                                 ...userInfo,
-                                address: address.address,
-                                city: address.city,
-                                pincode: address.pincode,
+                                address: preferredAddress.address,
+                                city: preferredAddress.city,
+                                pincode: preferredAddress.pincode,
                               });
                             }}
-                            data-testid={`address-option-${address.id}`}
+                            data-testid={`preferred-address-${preferredAddress.id}`}
                           >
                             <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2">
-                                  <h4 className="font-medium">{address.name}</h4>
-                                  {address.isPreferred && (
+                              <div className="flex items-start gap-3">
+                                <input
+                                  type="radio"
+                                  name="addressSelection"
+                                  checked={selectedAddressId === preferredAddress.id}
+                                  onChange={() => {}}
+                                  className="mt-1"
+                                />
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-medium">{preferredAddress.name}</h4>
                                     <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
                                       Preferred
                                     </span>
-                                  )}
+                                  </div>
+                                  <p className="text-sm text-gray-600 mt-1">
+                                    {preferredAddress.address}, {preferredAddress.city} - {preferredAddress.pincode}
+                                  </p>
                                 </div>
-                                <p className="text-sm text-gray-600 mt-1">
-                                  {address.address}, {address.city} - {address.pincode}
-                                </p>
                               </div>
-                              <input
-                                type="radio"
-                                name="selectedAddress"
-                                checked={selectedAddressId === address.id}
-                                onChange={() => {}}
-                                className="mt-1"
-                              />
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {selectedAddressId && (
-                      <div className="flex items-center space-x-2 mb-4">
-                        <Checkbox
-                          id="makePreferred"
-                          checked={makePreferred}
-                          onCheckedChange={(checked) => setMakePreferred(checked as boolean)}
-                        />
-                        <Label htmlFor="makePreferred" className="text-sm">
-                          Set as preferred address
-                        </Label>
-                      </div>
-                    )}
-
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowNewAddressForm(true)}
-                      className="w-full"
-                      data-testid="button-add-new-address"
-                    >
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add New Address
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    {/* New Address Form */}
-                    <div className="space-y-4">
-                      <div className="md:col-span-2">
-                        <Label htmlFor="address">Address</Label>
-                        <Textarea
-                          id="address"
-                          placeholder="House/Building, Street, Area"
-                          rows={3}
-                          value={userInfo.address}
-                          onChange={(e) => setUserInfo({ ...userInfo, address: e.target.value })}
-                          className="mt-2"
-                          data-testid="input-address"
-                        />
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="city">City</Label>
-                          <Input
-                            id="city"
-                            type="text"
-                            placeholder="Mumbai"
-                            value={userInfo.city}
-                            onChange={(e) => setUserInfo({ ...userInfo, city: e.target.value })}
-                            className="mt-2"
-                            data-testid="input-city"
-                          />
                         </div>
-                        <div>
-                          <Label htmlFor="pincode">PIN Code</Label>
-                          <Input
-                            id="pincode"
-                            type="text"
-                            placeholder="400001"
-                            value={userInfo.pincode}
-                            onChange={(e) => setUserInfo({ ...userInfo, pincode: e.target.value })}
-                            className="mt-2"
-                            data-testid="input-pincode"
-                          />
-                        </div>
-                      </div>
+                      ) : null;
+                    })()}
 
-                      {authData?.authenticated && (
-                        <div className="flex items-center space-x-2">
-                          <Checkbox
-                            id="makePreferredNew"
-                            checked={makePreferred}
-                            onCheckedChange={(checked) => setMakePreferred(checked as boolean)}
-                          />
-                          <Label htmlFor="makePreferredNew" className="text-sm">
-                            Save this address and set as preferred
-                          </Label>
-                        </div>
-                      )}
-
-                      {addresses && addresses.length > 0 && (
+                    {/* Option to use different address or add new */}
+                    {!showNewAddressForm && (
+                      <div className="space-y-3">
                         <Button
                           variant="outline"
+                          onClick={() => setShowNewAddressForm(true)}
+                          className="w-full"
+                          data-testid="button-use-different-address"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Use Different Address
+                        </Button>
+                        
+                        {addresses.length > 1 && (
+                          <details className="group">
+                            <summary className="cursor-pointer text-sm text-blue-600 hover:text-blue-800">
+                              Choose from other saved addresses
+                            </summary>
+                            <div className="mt-2 space-y-2">
+                              {addresses.filter(addr => !addr.isPreferred).map((address) => (
+                                <div
+                                  key={address.id}
+                                  className={`border rounded-lg p-3 cursor-pointer transition-colors ${
+                                    selectedAddressId === address.id
+                                      ? 'border-blue-500 bg-blue-50'
+                                      : 'border-gray-200 hover:border-gray-300'
+                                  }`}
+                                  onClick={() => {
+                                    setSelectedAddressId(address.id);
+                                    setUserInfo({
+                                      ...userInfo,
+                                      address: address.address,
+                                      city: address.city,
+                                      pincode: address.pincode,
+                                    });
+                                  }}
+                                  data-testid={`address-option-${address.id}`}
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex items-start gap-3">
+                                      <input
+                                        type="radio"
+                                        name="addressSelection"
+                                        checked={selectedAddressId === address.id}
+                                        onChange={() => {}}
+                                        className="mt-1"
+                                      />
+                                      <div className="flex-1">
+                                        <h4 className="font-medium text-sm">{address.name}</h4>
+                                        <p className="text-xs text-gray-600 mt-1">
+                                          {address.address}, {address.city} - {address.pincode}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* New Address Form */}
+                {showNewAddressForm && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-base font-medium">Add New Address</Label>
+                      {addresses && addresses.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => setShowNewAddressForm(false)}
                           data-testid="button-cancel-new-address"
                         >
-                          Cancel - Use Existing Address
+                          Cancel
                         </Button>
                       )}
                     </div>
-                  </>
+                    
+                    <div className="md:col-span-2">
+                      <Label htmlFor="address">Address</Label>
+                      <Textarea
+                        id="address"
+                        placeholder="House/Building, Street, Area"
+                        rows={3}
+                        value={userInfo.address}
+                        onChange={(e) => setUserInfo({ ...userInfo, address: e.target.value })}
+                        className="mt-2"
+                        data-testid="input-address"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="city">City</Label>
+                        <Input
+                          id="city"
+                          type="text"
+                          placeholder="Mumbai"
+                          value={userInfo.city}
+                          onChange={(e) => setUserInfo({ ...userInfo, city: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-city"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="pincode">PIN Code</Label>
+                        <Input
+                          id="pincode"
+                          type="text"
+                          placeholder="400001"
+                          value={userInfo.pincode}
+                          onChange={(e) => setUserInfo({ ...userInfo, pincode: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-pincode"
+                        />
+                      </div>
+                    </div>
+
+                    {authData?.authenticated && (
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="makePreferredNew"
+                          checked={makePreferred}
+                          onCheckedChange={(checked) => setMakePreferred(checked as boolean)}
+                        />
+                        <Label htmlFor="makePreferredNew" className="text-sm">
+                          Save this address and set as preferred
+                        </Label>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Show address form for users with no saved addresses */}
+                {(!addresses || addresses.length === 0) && !showNewAddressForm && (
+                  <div className="space-y-4">
+                    <div className="md:col-span-2">
+                      <Label htmlFor="address">Address</Label>
+                      <Textarea
+                        id="address"
+                        placeholder="House/Building, Street, Area"
+                        rows={3}
+                        value={userInfo.address}
+                        onChange={(e) => setUserInfo({ ...userInfo, address: e.target.value })}
+                        className="mt-2"
+                        data-testid="input-address"
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="city">City</Label>
+                        <Input
+                          id="city"
+                          type="text"
+                          placeholder="Mumbai"
+                          value={userInfo.city}
+                          onChange={(e) => setUserInfo({ ...userInfo, city: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-city"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="pincode">PIN Code</Label>
+                        <Input
+                          id="pincode"
+                          type="text"
+                          placeholder="400001"
+                          value={userInfo.pincode}
+                          onChange={(e) => setUserInfo({ ...userInfo, pincode: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-pincode"
+                        />
+                      </div>
+                    </div>
+
+                    {authData?.authenticated && (
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="makePreferredFirst"
+                          checked={makePreferred}
+                          onCheckedChange={(checked) => setMakePreferred(checked as boolean)}
+                        />
+                        <Label htmlFor="makePreferredFirst" className="text-sm">
+                          Save this address as preferred
+                        </Label>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 

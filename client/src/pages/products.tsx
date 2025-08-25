@@ -1,20 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import ProductCard from "@/components/product/product-card";
 import { ApiErrorMessage } from "@/components/ui/error-message";
-import { Button } from "@/components/ui/button";
-import { Product, CartItemWithProduct } from "@/lib/types";
+import { Product } from "@/lib/types";
 
 export default function Products() {
-  const [, navigate] = useLocation();
-  
   const { data: products, isLoading, error, refetch } = useQuery<Product[]>({
     queryKey: ["/api/products"],
-  });
-
-  // Get cart data to show proceed to checkout button
-  const { data: cartItems } = useQuery<CartItemWithProduct[]>({
-    queryKey: ["/api/cart"],
   });
 
   if (isLoading) {
@@ -60,20 +51,6 @@ export default function Products() {
       <div className="mb-6">
         <h2 className="text-2xl font-semibold text-gray-900 mb-2">Our Products</h2>
         <p className="text-gray-600">Discover our carefully curated collection</p>
-        
-        {/* Proceed to Checkout Button - shown when cart has items */}
-        {cartItems && cartItems.length > 0 && (
-          <div className="mt-4">
-            <Button
-              onClick={() => navigate('/checkout')}
-              className="bg-green-600 hover:bg-green-700 text-white"
-              size="lg"
-              data-testid="button-proceed-checkout-top"
-            >
-              Proceed to Checkout ({cartItems.reduce((sum, item) => sum + item.quantity, 0)} items)
-            </Button>
-          </div>
-        )}
       </div>
 
       {!products || products.length === 0 ? (
