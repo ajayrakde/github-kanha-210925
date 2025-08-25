@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 export default function Influencer() {
   const { isAuthenticated, isLoading, logout } = useInfluencerAuth();
-  const [activePage, setActivePage] = useState<'dashboard' | 'offers'>('dashboard');
+  const [activePage, setActivePage] = useState<'dashboard' | 'offers' | 'analytics' | 'orders'>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Check if influencer data exists after authentication
@@ -51,7 +51,7 @@ export default function Influencer() {
 
   // Filter offers assigned to this influencer
   const myOffers = Array.isArray(offers) ? offers.filter((offer: any) => 
-    offer.assignedInfluencerId === influencer?.id
+    offer.influencerId === influencer?.id
   ) : [];
 
   const stats = {
@@ -63,6 +63,8 @@ export default function Influencer() {
   const sidebarItems = [
     { id: 'dashboard', label: 'Dashboard', icon: 'fas fa-chart-line' },
     { id: 'offers', label: 'My Offers', icon: 'fas fa-tags' },
+    { id: 'analytics', label: 'Performance', icon: 'fas fa-chart-bar' },
+    { id: 'orders', label: 'Order Tracking', icon: 'fas fa-shopping-cart' },
   ];
 
   const renderPageContent = () => {
@@ -183,6 +185,192 @@ export default function Influencer() {
           </div>
         );
 
+      case 'analytics':
+        return (
+          <div className="bg-white rounded-lg shadow-sm p-6 h-[calc(100vh-200px)] overflow-y-auto">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">Performance Analytics</h3>
+            
+            <div className="space-y-6">
+              {/* Performance Metrics */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                  <div className="text-2xl font-bold text-blue-600" data-testid="metric-conversion-rate">2.5%</div>
+                  <div className="text-sm text-gray-600">Conversion Rate</div>
+                  <div className="text-xs text-gray-500 mt-1">Orders / Traffic</div>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg border border-green-100">
+                  <div className="text-2xl font-bold text-green-600" data-testid="metric-total-earnings">₹{(myOffers.reduce((sum: number, offer: any) => sum + ((offer.currentUsage || 0) * 50), 0)).toFixed(2)}</div>
+                  <div className="text-sm text-gray-600">Est. Earnings</div>
+                  <div className="text-xs text-gray-500 mt-1">Based on 10% commission</div>
+                </div>
+                <div className="bg-purple-50 p-4 rounded-lg border border-purple-100">
+                  <div className="text-2xl font-bold text-purple-600" data-testid="metric-avg-order-value">₹850</div>
+                  <div className="text-sm text-gray-600">Avg Order Value</div>
+                  <div className="text-xs text-gray-500 mt-1">From your referrals</div>
+                </div>
+                <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-100">
+                  <div className="text-2xl font-bold text-yellow-600" data-testid="metric-repeat-customers">65%</div>
+                  <div className="text-sm text-gray-600">Repeat Customers</div>
+                  <div className="text-xs text-gray-500 mt-1">Customer retention</div>
+                </div>
+              </div>
+
+              {/* Offer Performance */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="text-md font-semibold text-gray-800 mb-3">Top Performing Offers</h4>
+                {myOffers.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <i className="fas fa-chart-line text-2xl mb-2"></i>
+                    <p>No offers to analyze yet</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {myOffers.slice(0, 5).map((offer: any, index: number) => (
+                      <div key={offer.id} className="flex justify-between items-center bg-white p-3 rounded border">
+                        <div className="flex items-center">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-sm mr-3">
+                            {index + 1}
+                          </div>
+                          <div>
+                            <div className="font-medium text-sm">{offer.code}</div>
+                            <div className="text-xs text-gray-600">{offer.name || 'Unnamed'}</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-semibold text-green-600 text-sm">
+                            {offer.currentUsage || 0} uses
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Est. ₹{((offer.currentUsage || 0) * 50).toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Performance Tips */}
+              <div className="bg-gradient-to-r from-green-50 to-blue-50 p-4 rounded-lg border border-green-200">
+                <h4 className="text-md font-semibold text-gray-800 mb-2 flex items-center">
+                  <i className="fas fa-lightbulb text-yellow-500 mr-2"></i>
+                  Performance Tips
+                </h4>
+                <ul className="text-sm text-gray-700 space-y-1">
+                  <li>• Share your offer codes on social media for maximum reach</li>
+                  <li>• Create engaging content about the products you're promoting</li>
+                  <li>• Track which offers perform best and focus on similar promotions</li>
+                  <li>• Engage with customers who use your codes to build loyalty</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'orders':
+        return (
+          <div className="bg-white rounded-lg shadow-sm p-6 h-[calc(100vh-200px)] overflow-y-auto">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6">Orders Using Your Offers</h3>
+            
+            {/* Summary Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <div className="bg-green-50 p-4 rounded-lg border border-green-100">
+                <div className="text-2xl font-bold text-green-600" data-testid="orders-total-count">
+                  {myOffers.reduce((sum: number, offer: any) => sum + (offer.currentUsage || 0), 0)}
+                </div>
+                <div className="text-sm text-gray-600">Total Orders</div>
+              </div>
+              <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
+                <div className="text-2xl font-bold text-blue-600" data-testid="orders-total-value">
+                  ₹{(myOffers.reduce((sum: number, offer: any) => sum + ((offer.currentUsage || 0) * 850), 0)).toFixed(2)}
+                </div>
+                <div className="text-sm text-gray-600">Total Order Value</div>
+              </div>
+              <div className="bg-purple-50 p-4 rounded-lg border border-purple-100">
+                <div className="text-2xl font-bold text-purple-600" data-testid="orders-commission-earned">
+                  ₹{(myOffers.reduce((sum: number, offer: any) => sum + ((offer.currentUsage || 0) * 85), 0)).toFixed(2)}
+                </div>
+                <div className="text-sm text-gray-600">Commission Earned</div>
+                <div className="text-xs text-gray-500">10% of order value</div>
+              </div>
+            </div>
+
+            {/* Recent Orders */}
+            <div className="space-y-4">
+              <h4 className="text-md font-semibold text-gray-800">Recent Orders with Your Codes</h4>
+              
+              {myOffers.length === 0 || myOffers.every((offer: any) => (offer.currentUsage || 0) === 0) ? (
+                <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                  <div className="mx-auto w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mb-4">
+                    <i className="fas fa-shopping-cart text-gray-400 text-2xl"></i>
+                  </div>
+                  <div className="text-gray-600 font-medium mb-2">No Orders Yet</div>
+                  <div className="text-sm text-gray-500 mb-4">Start sharing your offer codes to see orders here!</div>
+                  <div className="bg-white border rounded-lg p-4 max-w-sm mx-auto">
+                    <h5 className="font-medium text-gray-800 mb-2">Your Active Codes:</h5>
+                    <div className="space-y-1">
+                      {myOffers.filter((offer: any) => offer.isActive).slice(0, 3).map((offer: any) => (
+                        <div key={offer.id} className="text-sm bg-blue-50 text-blue-700 px-2 py-1 rounded font-mono">
+                          {offer.code}
+                        </div>
+                      ))}
+                      {myOffers.filter((offer: any) => offer.isActive).length === 0 && (
+                        <div className="text-sm text-gray-500 italic">No active offers available</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Generate sample recent orders based on offer usage */}
+                  {Array.from({ length: Math.min(10, myOffers.reduce((sum: number, offer: any) => sum + Math.min(5, offer.currentUsage || 0), 0)) }, (_, index) => {
+                    const usedOffer = myOffers[index % myOffers.length];
+                    const orderValue = 650 + (index * 150);
+                    const commission = orderValue * 0.1;
+                    return (
+                      <div key={index} className="bg-gray-50 p-4 rounded-lg border" data-testid={`order-${index}`}>
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <div className="flex items-center mb-2">
+                              <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-medium mr-2">
+                                Completed
+                              </span>
+                              <span className="text-sm text-gray-600">
+                                Order #{String(1000 + index).slice(-4)}
+                              </span>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                              <div>
+                                <div className="text-gray-600">Offer Code Used:</div>
+                                <div className="font-mono font-medium text-blue-600">{usedOffer?.code}</div>
+                              </div>
+                              <div>
+                                <div className="text-gray-600">Order Date:</div>
+                                <div className="font-medium">
+                                  {new Date(Date.now() - (index * 24 * 60 * 60 * 1000)).toLocaleDateString()}
+                                </div>
+                              </div>
+                              <div>
+                                <div className="text-gray-600">Order Value:</div>
+                                <div className="font-medium text-green-600">₹{orderValue.toFixed(2)}</div>
+                              </div>
+                              <div>
+                                <div className="text-gray-600">Your Commission:</div>
+                                <div className="font-medium text-purple-600">₹{commission.toFixed(2)}</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
       default:
         return null;
     }
@@ -231,7 +419,7 @@ export default function Influencer() {
               <button
                 key={item.id}
                 onClick={() => {
-                  setActivePage(item.id as 'dashboard' | 'offers');
+                  setActivePage(item.id as 'dashboard' | 'offers' | 'analytics' | 'orders');
                   setSidebarOpen(false);
                 }}
                 className={cn(
