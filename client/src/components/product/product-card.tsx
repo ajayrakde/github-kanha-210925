@@ -136,6 +136,7 @@ export default function ProductCard({ product }: ProductCardProps) {
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
+                    console.log('Product card decrease clicked, current quantity:', cartQuantity);
                     handleDecreaseQuantity();
                   }}
                   disabled={updateCartMutation.isPending || removeFromCartMutation.isPending}
@@ -152,6 +153,7 @@ export default function ProductCard({ product }: ProductCardProps) {
                   size="sm"
                   onClick={(e) => {
                     e.stopPropagation();
+                    console.log('Product card increase clicked, current quantity:', cartQuantity);
                     handleIncreaseQuantity();
                   }}
                   disabled={updateCartMutation.isPending}
