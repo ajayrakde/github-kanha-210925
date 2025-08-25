@@ -171,7 +171,7 @@ function AnalyticsTab({ abandonedCarts }: { abandonedCarts: AbandonedCart[] }) {
 export default function Admin() {
   const { isAuthenticated, isLoading, logout } = useAdminAuth();
   const [activeTab, setActiveTab] = useState<TabValue>('products');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [showProductForm, setShowProductForm] = useState(false);
   const [showOfferForm, setShowOfferForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -243,35 +243,30 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-      
       {/* Sidebar */}
       <div className={cn(
-        "w-64 bg-white shadow-lg fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 lg:inset-auto lg:z-auto",
-        sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        "bg-white shadow-lg transition-all duration-300 ease-in-out flex-shrink-0",
+        sidebarCollapsed ? "w-16" : "w-64"
       )}>
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
-            <h1 className="text-xl font-semibold text-gray-900">Admin Panel</h1>
+            {!sidebarCollapsed && (
+              <h1 className="text-xl font-semibold text-gray-900">Admin Panel</h1>
+            )}
             <Button
               variant="ghost"
               size="sm"
-              className="lg:hidden"
-              onClick={() => setSidebarOpen(false)}
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className={cn("ml-auto", sidebarCollapsed && "mx-auto")}
+              data-testid="toggle-sidebar"
             >
-              <i className="fas fa-times"></i>
+              <i className={cn("fas transition-transform", sidebarCollapsed ? "fa-chevron-right" : "fa-chevron-left")}></i>
             </Button>
           </div>
           
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-4 space-y-1">
+          <nav className={cn("flex-1 py-4 space-y-1", sidebarCollapsed ? "px-2" : "px-4")}>
             {sidebarItems.map((item, index) => (
               <button
                 key={item.id}
@@ -291,19 +286,21 @@ export default function Admin() {
                   }
                 }}
                 className={cn(
-                  "w-full flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-all duration-200 relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1",
+                  "w-full flex items-center text-sm font-medium rounded-lg transition-all duration-200 relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1",
+                  sidebarCollapsed ? "px-2 py-3 justify-center" : "px-4 py-3",
                   activeTab === item.id
-                    ? "bg-blue-600 text-white shadow-md border-l-4 border-blue-800"
+                    ? "bg-blue-600 text-white shadow-md"
                     : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 hover:shadow-sm"
                 )}
                 data-testid={`nav-${item.id}`}
                 tabIndex={0}
                 role="tab"
                 aria-selected={activeTab === item.id}
+                title={sidebarCollapsed ? item.label : undefined}
               >
-                <i className={cn(item.icon, "mr-3 text-lg")}></i>
-                {item.label}
-                {activeTab === item.id && (
+                <i className={cn(item.icon, "text-lg", !sidebarCollapsed && "mr-3")}></i>
+                {!sidebarCollapsed && item.label}
+                {activeTab === item.id && !sidebarCollapsed && (
                   <div className="absolute right-2 w-2 h-2 bg-white rounded-full"></div>
                 )}
               </button>
@@ -311,33 +308,26 @@ export default function Admin() {
           </nav>
           
           {/* Logout */}
-          <div className="p-4 border-t border-gray-200">
+          <div className={cn("border-t border-gray-200", sidebarCollapsed ? "p-2" : "p-4")}>
             <Button 
               variant="outline" 
-              className="w-full"
+              className={cn("w-full", sidebarCollapsed && "px-2")}
               onClick={() => logout()}
               data-testid="button-admin-logout"
+              title={sidebarCollapsed ? "Logout" : undefined}
             >
-              <i className="fas fa-sign-out-alt mr-2"></i>
-              Logout
+              <i className={cn("fas fa-sign-out-alt", !sidebarCollapsed && "mr-2")}></i>
+              {!sidebarCollapsed && "Logout"}
             </Button>
           </div>
         </div>
       </div>
       
       {/* Main content */}
-      <div className="flex-1 lg:ml-0">
+      <div className="flex-1">
         {/* Header */}
         <header className="bg-white shadow-sm border-b border-gray-200">
-          <div className="flex items-center justify-between h-16 px-4 sm:px-6">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="lg:hidden mr-3"
-              onClick={() => setSidebarOpen(true)}
-            >
-              <i className="fas fa-bars"></i>
-            </Button>
+          <div className="flex items-center h-16 px-4 sm:px-6">
             <div>
               <h2 className="text-xl font-semibold text-gray-900">
                 {sidebarItems.find(item => item.id === activeTab)?.label || 'Dashboard'}

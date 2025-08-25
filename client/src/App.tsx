@@ -18,29 +18,38 @@ import Footer from "@/components/layout/footer";
 
 function Router() {
   return (
-    <div className="min-h-screen flex flex-col">
-      <ErrorBoundary>
-        <Header />
-      </ErrorBoundary>
-      <main className="max-w-4xl mx-auto px-4 py-6 flex-1">
-        <ErrorBoundary>
-          <Switch>
-            <Route path="/" component={Products} />
-            <Route path="/cart" component={Cart} />
-            <Route path="/checkout" component={Checkout} />
-            <Route path="/admin" component={Admin} />
-            <Route path="/influencer" component={Influencer} />
-            <Route path="/thank-you" component={ThankYou} />
-            <Route path="/terms-of-service" component={TermsOfService} />
-            <Route path="/refund-policy" component={RefundPolicy} />
-            <Route component={NotFound} />
-          </Switch>
-        </ErrorBoundary>
-      </main>
-      <ErrorBoundary>
-        <Footer />
-      </ErrorBoundary>
-    </div>
+    <ErrorBoundary>
+      <Switch>
+        {/* Full-screen admin and influencer pages */}
+        <Route path="/admin" component={Admin} />
+        <Route path="/influencer" component={Influencer} />
+        
+        {/* Regular layout for other pages */}
+        <Route>
+          <div className="min-h-screen flex flex-col">
+            <ErrorBoundary>
+              <Header />
+            </ErrorBoundary>
+            <main className="max-w-4xl mx-auto px-4 py-6 flex-1">
+              <ErrorBoundary>
+                <Switch>
+                  <Route path="/" component={Products} />
+                  <Route path="/cart" component={Cart} />
+                  <Route path="/checkout" component={Checkout} />
+                  <Route path="/thank-you" component={ThankYou} />
+                  <Route path="/terms-of-service" component={TermsOfService} />
+                  <Route path="/refund-policy" component={RefundPolicy} />
+                  <Route component={NotFound} />
+                </Switch>
+              </ErrorBoundary>
+            </main>
+            <ErrorBoundary>
+              <Footer />
+            </ErrorBoundary>
+          </div>
+        </Route>
+      </Switch>
+    </ErrorBoundary>
   );
 }
 
