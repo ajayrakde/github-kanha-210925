@@ -128,13 +128,25 @@ export default function Checkout() {
       }
       
       // If user is adding a new address, create it first
-      if (showNewAddressForm) {
+      if (showNewAddressForm && authData?.authenticated) {
         const addressData = {
           name: "Delivery Address",
           address: userInfo.address,
           city: userInfo.city,
           pincode: userInfo.pincode,
           isPreferred: makePreferred,
+        };
+        await createAddressMutation.mutateAsync(addressData);
+      }
+      
+      // For logged-in users with no saved addresses, automatically save the current address
+      if (authData?.authenticated && (!addresses || addresses.length === 0) && !selectedAddressId && !showNewAddressForm) {
+        const addressData = {
+          name: "Primary Address",
+          address: userInfo.address,
+          city: userInfo.city,
+          pincode: userInfo.pincode,
+          isPreferred: true, // First address becomes preferred automatically
         };
         await createAddressMutation.mutateAsync(addressData);
       }
@@ -545,15 +557,10 @@ export default function Checkout() {
                     </div>
 
                     {authData?.authenticated && (
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="makePreferredFirst"
-                          checked={makePreferred}
-                          onCheckedChange={(checked) => setMakePreferred(checked as boolean)}
-                        />
-                        <Label htmlFor="makePreferredFirst" className="text-sm">
-                          Save this address as preferred
-                        </Label>
+                      <div className="bg-blue-50 p-3 rounded-lg">
+                        <p className="text-sm text-blue-800">
+                          ✓ This address will be saved automatically for future orders
+                        </p>
                       </div>
                     )}
                   </div>
