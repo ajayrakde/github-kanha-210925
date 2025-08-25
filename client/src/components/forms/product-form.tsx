@@ -12,6 +12,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Product } from "@/lib/types";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import type { UploadResult } from "@uppy/core";
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
+import { Eye, FileText } from "lucide-react";
+import { useState } from "react";
 
 const productSchema = z.object({
   name: z.string().min(1, "Product name is required"),
@@ -35,6 +38,7 @@ interface ProductFormProps {
 export default function ProductForm({ product, onClose }: ProductFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [showDescriptionPreview, setShowDescriptionPreview] = useState(false);
 
   const form = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
@@ -165,15 +169,36 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
         </div>
 
         <div>
-          <Label htmlFor="description">Description</Label>
-          <Textarea
-            id="description"
-            {...form.register("description")}
-            placeholder="Enter product description"
-            rows={3}
-            className="mt-2"
-            data-testid="input-product-description"
-          />
+          <div className="flex items-center justify-between mb-2">
+            <Label htmlFor="description">Description</Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowDescriptionPreview(!showDescriptionPreview)}
+              className="text-xs"
+            >
+              {showDescriptionPreview ? (
+                <><FileText size={14} className="mr-1" /> Edit</>
+              ) : (
+                <><Eye size={14} className="mr-1" /> Preview</>
+              )}
+            </Button>
+          </div>
+          {showDescriptionPreview ? (
+            <div className="min-h-[80px] border rounded-md p-3 bg-gray-50 dark:bg-gray-900">
+              <MarkdownRenderer content={form.watch('description') || ''} />
+            </div>
+          ) : (
+            <Textarea
+              id="description"
+              {...form.register("description")}
+              placeholder="Enter product description (Markdown supported: **bold**, *italic*, [links](url), lists, etc.)"
+              rows={4}
+              className="mt-0"
+              data-testid="input-product-description"
+            />
+          )}
         </div>
 
         <div>

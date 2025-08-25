@@ -5,6 +5,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Product, CartItemWithProduct } from "@/lib/types";
 import ProductDetailsModal from "./product-details-modal";
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import { Plus, Minus } from "lucide-react";
 
 interface ProductCardProps {
@@ -118,9 +119,13 @@ export default function ProductCard({ product }: ProductCardProps) {
           <h3 className="font-medium text-gray-900 mb-2 hover:text-blue-600" data-testid={`product-name-${product.id}`}>
             {product.name}
           </h3>
-          <p className="text-sm text-gray-600 mb-3" data-testid={`product-description-${product.id}`}>
-            {product.description || 'No description available'}
-          </p>
+          <div data-testid={`product-description-${product.id}`}>
+            <MarkdownRenderer
+              content={product.description || ''}
+              compact
+              className="mb-3"
+            />
+          </div>
           <div className="flex items-center justify-between gap-3">
             <span className="text-lg font-semibold text-gray-900" data-testid={`product-price-${product.id}`}>
               ₹{parseFloat(product.price).toFixed(2)}

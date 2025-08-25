@@ -8,6 +8,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Product, CartItemWithProduct } from "@/lib/types";
 import { X, ChevronLeft, ChevronRight, Plus, Minus } from "lucide-react";
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 
 interface ProductDetailsModalProps {
   product: Product | null;
@@ -424,9 +425,9 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
               {product.description && (
                 <div>
                   <h3 className="font-medium text-gray-900 mb-2">Description</h3>
-                  <p className="text-gray-600" data-testid="product-description">
-                    {product.description}
-                  </p>
+                  <div data-testid="product-description">
+                    <MarkdownRenderer content={product.description} />
+                  </div>
                 </div>
               )}
             </div>
