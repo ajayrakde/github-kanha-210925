@@ -250,20 +250,21 @@ export default function Admin() {
       )}>
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
-            <div className="flex-1">
-              {!sidebarCollapsed && (
-                <h1 className="text-xl font-semibold text-gray-900">Admin Panel</h1>
-              )}
-            </div>
+          <div className="flex items-center h-16 px-4 border-b border-gray-200">
+            {!sidebarCollapsed && (
+              <h1 className="text-xl font-semibold text-gray-900 flex-1">Admin Panel</h1>
+            )}
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
               data-testid="toggle-sidebar"
-              className="flex-shrink-0"
+              className={cn(
+                "p-2 hover:bg-gray-100 rounded-md border border-gray-300",
+                sidebarCollapsed && "mx-auto"
+              )}
             >
-              <i className={cn("fas transition-transform", sidebarCollapsed ? "fa-chevron-right" : "fa-chevron-left")}></i>
+              <i className={cn("fas text-gray-600", sidebarCollapsed ? "fa-chevron-right" : "fa-chevron-left")}></i>
             </Button>
           </div>
           
@@ -300,8 +301,8 @@ export default function Admin() {
                 aria-selected={activeTab === item.id}
                 title={sidebarCollapsed ? item.label : undefined}
               >
-                <i className={cn(item.icon, "text-lg", !sidebarCollapsed && "mr-3")}></i>
-                {!sidebarCollapsed && item.label}
+                <i className={cn(item.icon, "text-lg flex-shrink-0", !sidebarCollapsed && "mr-3")}></i>
+                {!sidebarCollapsed && <span className="truncate">{item.label}</span>}
                 {activeTab === item.id && !sidebarCollapsed && (
                   <div className="absolute right-2 w-2 h-2 bg-white rounded-full"></div>
                 )}
@@ -318,8 +319,8 @@ export default function Admin() {
               data-testid="button-admin-logout"
               title={sidebarCollapsed ? "Logout" : undefined}
             >
-              <i className={cn("fas fa-sign-out-alt", !sidebarCollapsed && "mr-2")}></i>
-              {!sidebarCollapsed && "Logout"}
+              <i className={cn("fas fa-sign-out-alt flex-shrink-0", !sidebarCollapsed && "mr-2")}></i>
+              {!sidebarCollapsed && <span>Logout</span>}
             </Button>
           </div>
         </div>
