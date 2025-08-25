@@ -1,19 +1,18 @@
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Product, CartItemWithProduct } from "@/lib/types";
-import ProductDetailsModal from "./product-details-modal";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import { Plus, Minus } from "lucide-react";
+import { useLocation } from "wouter";
 
 interface ProductCardProps {
   product: Product;
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
-  const [showDetails, setShowDetails] = useState(false);
+  const [, navigate] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -107,7 +106,11 @@ export default function ProductCard({ product }: ProductCardProps) {
       <div 
         className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden cursor-pointer" 
         data-testid={`product-card-${product.id}`}
-        onClick={() => setShowDetails(true)}
+        onClick={() => {
+          // Save scroll position before navigation
+          sessionStorage.setItem('productsScrollPosition', window.scrollY.toString());
+          navigate(`/product/${product.id}`);
+        }}
       >
         <img
           src={product.displayImageUrl || product.imageUrl || `https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=300`}
@@ -182,12 +185,6 @@ export default function ProductCard({ product }: ProductCardProps) {
           </div>
         </div>
       </div>
-
-      <ProductDetailsModal
-        product={product}
-        isOpen={showDetails}
-        onClose={() => setShowDetails(false)}
-      />
     </>
   );
 }

@@ -9,6 +9,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { ArrowLeft } from "lucide-react";
 
 interface UserInfo {
   name: string;
@@ -96,6 +97,17 @@ export default function Checkout() {
 
   return (
     <div className="space-y-6">
+      {/* Back Button */}
+      <Button 
+        onClick={() => setLocation("/")}
+        variant="ghost" 
+        className="-ml-2 mb-2 hover:bg-gray-100"
+        data-testid="button-back-to-products"
+      >
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Back
+      </Button>
+
       <div className="mb-6">
         <h2 className="text-2xl font-semibold text-gray-900 mb-2">Checkout</h2>
         <p className="text-gray-600">Complete your order with secure payment</p>

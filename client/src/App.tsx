@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ErrorBoundary } from "@/components/error-boundary";
 import NotFound from "@/pages/not-found";
 import Products from "@/pages/products";
+import ProductDetails from "@/pages/product-details";
 import Cart from "@/pages/cart";
 import Checkout from "@/pages/checkout";
 import Admin from "@/pages/admin";
@@ -34,6 +35,7 @@ function Router() {
               <ErrorBoundary>
                 <Switch>
                   <Route path="/" component={Products} />
+                  <Route path="/product/:id" component={ProductDetails} />
                   <Route path="/cart" component={Cart} />
                   <Route path="/checkout" component={Checkout} />
                   <Route path="/thank-you" component={ThankYou} />
