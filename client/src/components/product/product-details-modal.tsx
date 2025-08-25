@@ -173,8 +173,8 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
   });
 
   const updateCartMutation = useMutation({
-    mutationFn: ({ cartItemId, quantity }: { cartItemId: string; quantity: number }) =>
-      apiRequest("PATCH", `/api/cart/${cartItemId}`, { quantity }),
+    mutationFn: ({ productId, quantity }: { productId: string; quantity: number }) =>
+      apiRequest("PATCH", `/api/cart/${productId}`, { quantity }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
     },
@@ -189,7 +189,7 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
   });
 
   const removeFromCartMutation = useMutation({
-    mutationFn: (cartItemId: string) => apiRequest("DELETE", `/api/cart/${cartItemId}`),
+    mutationFn: (productId: string) => apiRequest("DELETE", `/api/cart/${productId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
     },
@@ -226,9 +226,9 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
   };
 
   const handleIncreaseQuantity = () => {
-    if (cartItem) {
+    if (cartItem && cartItem.quantity < 10) {
       updateCartMutation.mutate({
-        cartItemId: cartItem.id,
+        productId: product.id,
         quantity: cartItem.quantity + 1
       });
     }
@@ -237,10 +237,10 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
   const handleDecreaseQuantity = () => {
     if (cartItem) {
       if (cartItem.quantity === 1) {
-        removeFromCartMutation.mutate(cartItem.id);
+        removeFromCartMutation.mutate(product.id);
       } else {
         updateCartMutation.mutate({
-          cartItemId: cartItem.id,
+          productId: product.id,
           quantity: cartItem.quantity - 1
         });
       }
@@ -344,7 +344,7 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
               
               {/* Cart Controls */}
               <div className="pt-4">
-                {isInCart ? (
+                {cartQuantity > 0 ? (
                   <div className="flex items-center gap-3">
                     <div className="flex items-center gap-2 border rounded-lg">
                       <Button
@@ -369,7 +369,7 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
                           e.stopPropagation();
                           handleIncreaseQuantity();
                         }}
-                        disabled={updateCartMutation.isPending}
+                        disabled={updateCartMutation.isPending || cartQuantity >= 10}
                         data-testid="button-increase-quantity"
                       >
                         <Plus size={16} />

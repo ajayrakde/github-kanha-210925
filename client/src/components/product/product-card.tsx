@@ -45,8 +45,8 @@ export default function ProductCard({ product }: ProductCardProps) {
   });
 
   const updateCartMutation = useMutation({
-    mutationFn: ({ cartItemId, quantity }: { cartItemId: string; quantity: number }) =>
-      apiRequest("PATCH", `/api/cart/${cartItemId}`, { quantity }),
+    mutationFn: ({ productId, quantity }: { productId: string; quantity: number }) =>
+      apiRequest("PATCH", `/api/cart/${productId}`, { quantity }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
     },
@@ -61,7 +61,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   });
 
   const removeFromCartMutation = useMutation({
-    mutationFn: (cartItemId: string) => apiRequest("DELETE", `/api/cart/${cartItemId}`),
+    mutationFn: (productId: string) => apiRequest("DELETE", `/api/cart/${productId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
     },
@@ -80,9 +80,9 @@ export default function ProductCard({ product }: ProductCardProps) {
   const cartQuantity = cartItem?.quantity || 0;
 
   const handleIncreaseQuantity = () => {
-    if (cartItem) {
+    if (cartItem && cartItem.quantity < 10) {
       updateCartMutation.mutate({
-        cartItemId: cartItem.id,
+        productId: product.id,
         quantity: cartItem.quantity + 1
       });
     }
@@ -91,10 +91,10 @@ export default function ProductCard({ product }: ProductCardProps) {
   const handleDecreaseQuantity = () => {
     if (cartItem) {
       if (cartItem.quantity === 1) {
-        removeFromCartMutation.mutate(cartItem.id);
+        removeFromCartMutation.mutate(product.id);
       } else {
         updateCartMutation.mutate({
-          cartItemId: cartItem.id,
+          productId: product.id,
           quantity: cartItem.quantity - 1
         });
       }
@@ -126,7 +126,7 @@ export default function ProductCard({ product }: ProductCardProps) {
               ₹{parseFloat(product.price).toFixed(2)}
             </span>
             
-            {isInCart ? (
+            {cartQuantity > 0 ? (
               <div 
                 className="flex items-center gap-1 border rounded-md" 
                 onClick={(e) => e.stopPropagation()}
@@ -154,7 +154,7 @@ export default function ProductCard({ product }: ProductCardProps) {
                     e.stopPropagation();
                     handleIncreaseQuantity();
                   }}
-                  disabled={updateCartMutation.isPending}
+                  disabled={updateCartMutation.isPending || cartQuantity >= 10}
                   className="h-8 w-8 p-0"
                   data-testid={`button-increase-quantity-${product.id}`}
                 >
