@@ -201,7 +201,7 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
                   url: data.uploadURL,
                 };
               }}
-              onComplete={(result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
+              onComplete={(result) => {
                 if (result.successful && result.successful.length > 0) {
                   const newImages = result.successful.map((file) => {
                     const uploadUrl = file.uploadURL as string;
@@ -215,6 +215,7 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
                   const currentImages = form.getValues("images") || [];
                   const allImages = [...currentImages, ...newImages].slice(0, 5); // Max 5 images
                   form.setValue("images", allImages);
+                  console.log('Images updated:', allImages);
                 }
               }}
               buttonClassName="w-full bg-blue-600 hover:bg-blue-700 h-32 border-2 border-dashed border-blue-300 hover:border-blue-400"
