@@ -12,6 +12,7 @@ import Checkout from "@/pages/checkout";
 import Admin from "@/pages/admin";
 import Influencer from "@/pages/influencer";
 import ThankYou from "@/pages/thank-you";
+import UserOrders from "@/pages/user-orders";
 import TermsOfService from "@/pages/terms-of-service";
 import RefundPolicy from "@/pages/refund-policy";
 import Header from "@/components/layout/header";
@@ -39,6 +40,7 @@ function Router() {
                   <Route path="/cart" component={Cart} />
                   <Route path="/checkout" component={Checkout} />
                   <Route path="/thank-you" component={ThankYou} />
+                  <Route path="/orders" component={UserOrders} />
                   <Route path="/terms-of-service" component={TermsOfService} />
                   <Route path="/refund-policy" component={RefundPolicy} />
                   <Route component={NotFound} />

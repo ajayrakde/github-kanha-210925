@@ -1,6 +1,6 @@
 import { useCart } from "@/hooks/use-cart";
 import { useLocation } from "wouter";
-import { Button } from "@/components/ui/button";
+import UserMenu from "./user-menu";
 
 export default function Header() {
   const [location, setLocation] = useLocation();
@@ -17,6 +17,7 @@ export default function Header() {
             <h1 className="text-lg font-semibold text-gray-900">SimpleStore</h1>
           </div>
           <div className="flex items-center space-x-3">
+            <UserMenu />
             <button 
               onClick={() => setLocation("/cart")}
               className="relative p-2 text-gray-600 hover:text-blue-600 transition-colors"

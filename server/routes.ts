@@ -218,18 +218,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ message: 'OTP sent successfully' });
   });
 
-  app.post('/api/otp/verify', async (req, res) => {
+  app.post('/api/otp/verify', async (req: SessionRequest, res) => {
     const { phone, otp } = req.body;
     // Mock verification - accept any 6 digit code
     if (otp && otp.length === 6) {
       // Check if user exists, create if not
-      let user = await storage.getUserByPhone(phone);
+      let user = await storage.getUserByPhone(`+91${phone}`);
       if (!user) {
-        user = await storage.createUser({ phone });
+        user = await storage.createUser({ phone: `+91${phone}` });
       }
+      // Set user session
+      req.session.userId = user.id;
+      req.session.userRole = 'buyer';
       res.json({ verified: true, user });
     } else {
       res.status(400).json({ message: 'Invalid OTP' });
+    }
+  });
+
+  // User authentication routes
+  app.post('/api/auth/send-otp', async (req, res) => {
+    const { phone } = req.body;
+    // In production, integrate with SMS gateway
+    console.log(`Sending login OTP to ${phone}: 123456`);
+    res.json({ message: 'OTP sent successfully' });
+  });
+
+  app.post('/api/auth/login', async (req: SessionRequest, res) => {
+    const { phone, otp } = req.body;
+    // Mock verification - accept any 6 digit code
+    if (otp && otp.length === 6) {
+      // Check if user exists
+      let user = await storage.getUserByPhone(`+91${phone}`);
+      if (!user) {
+        // Create new user during login if doesn't exist
+        user = await storage.createUser({ 
+          phone: `+91${phone}`,
+          name: '',
+          email: null
+        });
+      }
+      // Set user session
+      req.session.userId = user.id;
+      req.session.userRole = 'buyer';
+      res.json({ success: true, user });
+    } else {
+      res.status(400).json({ message: 'Invalid OTP' });
+    }
+  });
+
+  app.post('/api/auth/logout', async (req: SessionRequest, res) => {
+    req.session.userId = undefined;
+    req.session.userRole = undefined;
+    res.json({ message: 'Logged out successfully' });
+  });
+
+  app.get('/api/auth/me', async (req: SessionRequest, res) => {
+    if (req.session.userId && req.session.userRole === 'buyer') {
+      try {
+        const user = await storage.getUser(req.session.userId);
+        if (user) {
+          res.json({ authenticated: true, user });
+        } else {
+          res.status(401).json({ authenticated: false });
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+        res.status(500).json({ authenticated: false });
+      }
+    } else {
+      res.status(401).json({ authenticated: false });
+    }
+  });
+
+  app.get('/api/auth/orders', async (req: SessionRequest, res) => {
+    if (!req.session.userId || req.session.userRole !== 'buyer') {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    try {
+      const orders = await storage.getOrdersByUser(req.session.userId);
+      res.json(orders);
+    } catch (error) {
+      console.error('Error fetching user orders:', error);
+      res.status(500).json({ message: 'Failed to fetch orders' });
     }
   });
 
