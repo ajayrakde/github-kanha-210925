@@ -41,29 +41,14 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
       if (e.key === 'Escape' && isOpen) {
         e.preventDefault();
         e.stopPropagation();
-        e.stopImmediatePropagation();
         handleClose();
-        return false;
       }
     };
 
     if (isOpen) {
-      // Only block escape key, allow other events to work normally
-      document.addEventListener('keydown', handleEscape, { capture: true, passive: false });
-      
-      // Prevent default dialog behavior
-      const dialogElements = document.querySelectorAll('[data-state="open"]');
-      dialogElements.forEach(el => {
-        (el as HTMLElement).style.pointerEvents = 'none';
-      });
-
+      document.addEventListener('keydown', handleEscape, { capture: true });
       return () => {
         document.removeEventListener('keydown', handleEscape, { capture: true });
-        
-        // Restore dialog functionality
-        dialogElements.forEach(el => {
-          (el as HTMLElement).style.pointerEvents = '';
-        });
       };
     }
   }, [isOpen, handleClose]);
@@ -166,6 +151,10 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
   const queryClient = useQueryClient();
 
   const handleModalClose = () => {
+    if (lightboxOpen) {
+      setLightboxOpen(false); // Close lightbox first if open
+      return;
+    }
     setIsModalClosing(true);
     setTimeout(() => {
       onClose();
@@ -174,12 +163,24 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
     }, 200); // Smooth 200ms fadeout matching lightbox
   };
 
+  const handleLightboxClose = () => {
+    setLightboxOpen(false);
+  };
+
   // Mark as animated once opened
   useEffect(() => {
     if (isOpen && !hasAnimated) {
       setHasAnimated(true);
     }
   }, [isOpen, hasAnimated]);
+
+  // Reset states when modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      setLightboxOpen(false);
+      setCurrentImageIndex(0);
+    }
+  }, [isOpen]);
 
   // Handle body scroll locking
   useEffect(() => {
@@ -309,14 +310,12 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
   return (
     <>
       <Dialog 
-        open={isOpen} 
+        open={isOpen && !isModalClosing} 
         onOpenChange={(open) => {
-          // Only allow dialog to close if lightbox is not open
-          if (!open && !lightboxOpen) {
+          if (!open) {
             handleModalClose();
           }
         }}
-        modal={!lightboxOpen}
       >
         <DialogContent 
           className={`max-w-4xl max-h-[90vh] overflow-y-auto ${
@@ -492,7 +491,7 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
         images={productImages}
         currentIndex={currentImageIndex}
         isOpen={lightboxOpen}
-        onClose={() => setLightboxOpen(false)}
+        onClose={handleLightboxClose}
         onPrevious={handlePreviousImage}
         onNext={handleNextImage}
       />
