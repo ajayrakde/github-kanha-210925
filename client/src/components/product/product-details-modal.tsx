@@ -161,6 +161,7 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [isModalClosing, setIsModalClosing] = useState(false);
+  const [hasAnimated, setHasAnimated] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -169,8 +170,16 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
     setTimeout(() => {
       onClose();
       setIsModalClosing(false);
+      setHasAnimated(false); // Reset for next opening
     }, 200); // Smooth 200ms fadeout matching lightbox
   };
+
+  // Mark as animated once opened
+  useEffect(() => {
+    if (isOpen && !hasAnimated) {
+      setHasAnimated(true);
+    }
+  }, [isOpen, hasAnimated]);
 
   // Handle body scroll locking
   useEffect(() => {
@@ -310,15 +319,17 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
         modal={!lightboxOpen}
       >
         <DialogContent 
-          className={`max-w-4xl max-h-[90vh] overflow-y-auto dialog-content-enter transition-all duration-200 ease-out ${
-            isModalClosing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
+          className={`max-w-4xl max-h-[90vh] overflow-y-auto ${
+            !hasAnimated ? 'dialog-content-enter' : ''
+          } ${
+            isModalClosing ? 'opacity-0 scale-95 transition-all duration-200 ease-out' : 'opacity-100 scale-100'
           }`}
           data-testid="product-details-modal"
           style={{
             pointerEvents: lightboxOpen ? 'none' : 'auto',
             opacity: lightboxOpen ? 0.3 : (isModalClosing ? 0 : 1),
             transform: isModalClosing ? 'scale(0.95)' : 'scale(1)',
-            transition: lightboxOpen ? 'opacity 0.2s ease-in-out' : 'all 0.2s ease-out'
+            transition: lightboxOpen ? 'opacity 0.15s ease-in-out' : (isModalClosing ? 'all 0.2s ease-out' : 'opacity 0.15s ease-in-out')
           }}
           onEscapeKeyDown={(e) => {
             if (lightboxOpen) {
