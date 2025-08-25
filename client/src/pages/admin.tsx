@@ -260,11 +260,13 @@ export default function Admin() {
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
               data-testid="toggle-sidebar"
               className={cn(
-                "p-2 hover:bg-gray-100 rounded-md border border-gray-300",
+                "p-2 hover:bg-gray-100 rounded-md border border-gray-300 font-bold text-lg",
                 sidebarCollapsed && "mx-auto"
               )}
             >
-              <i className={cn("fas text-gray-600", sidebarCollapsed ? "fa-chevron-right" : "fa-chevron-left")}></i>
+              <span className="text-gray-600">
+                {sidebarCollapsed ? "›" : "‹"}
+              </span>
             </Button>
           </div>
           
