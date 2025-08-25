@@ -1,15 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCart } from "@/hooks/use-cart";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { useMutation } from "@tanstack/react-query";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Plus } from "lucide-react";
 
 interface UserInfo {
   name: string;
@@ -35,6 +36,44 @@ export default function Checkout() {
   });
   const [user, setUser] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState("upi");
+  const [selectedAddressId, setSelectedAddressId] = useState<string>("");
+  const [showNewAddressForm, setShowNewAddressForm] = useState(false);
+  const [makePreferred, setMakePreferred] = useState(false);
+
+  // Check if user is already logged in
+  const { data: authData } = useQuery<{ authenticated: boolean; user?: any }>({
+    queryKey: ["/api/auth/me"],
+    retry: false,
+  });
+
+  // Get user addresses if logged in
+  const { data: addresses } = useQuery<any[]>({
+    queryKey: ["/api/auth/addresses"],
+    enabled: authData?.authenticated || false,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (authData?.authenticated && authData.user) {
+      setUser(authData.user);
+      setStep("details");
+      
+      // Pre-select preferred address if available
+      if (addresses && addresses.length > 0) {
+        const preferred = addresses.find(addr => addr.isPreferred);
+        if (preferred) {
+          setSelectedAddressId(preferred.id);
+          setUserInfo({
+            name: authData.user.name || "",
+            email: authData.user.email || "",
+            address: preferred.address,
+            city: preferred.city,
+            pincode: preferred.pincode,
+          });
+        }
+      }
+    }
+  }, [authData, addresses]);
 
   const sendOtpMutation = useMutation({
     mutationFn: async () => {
@@ -67,8 +106,39 @@ export default function Checkout() {
     },
   });
 
+  const createAddressMutation = useMutation({
+    mutationFn: async (addressData: any) => {
+      const response = await apiRequest("POST", "/api/auth/addresses", addressData);
+      return await response.json();
+    },
+    onSuccess: () => {
+      setShowNewAddressForm(false);
+      toast({
+        title: "Address saved",
+        description: "Your new address has been saved successfully",
+      });
+    },
+  });
+
   const placeOrderMutation = useMutation({
     mutationFn: async () => {
+      // If user selected an existing address, save it if marked as preferred
+      if (selectedAddressId && makePreferred) {
+        await apiRequest("PUT", `/api/auth/addresses/${selectedAddressId}/preferred`, {});
+      }
+      
+      // If user is adding a new address, create it first
+      if (showNewAddressForm) {
+        const addressData = {
+          name: "Delivery Address",
+          address: userInfo.address,
+          city: userInfo.city,
+          pincode: userInfo.pincode,
+          isPreferred: makePreferred,
+        };
+        await createAddressMutation.mutateAsync(addressData);
+      }
+
       const response = await apiRequest("POST", "/api/orders", {
         userId: user.id,
         userInfo,
@@ -212,7 +282,9 @@ export default function Checkout() {
                   <i className="fas fa-truck text-blue-600 mr-2"></i>
                   Delivery Information
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                {/* User Name and Email */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                   <div>
                     <Label htmlFor="name">Full Name</Label>
                     <Input
@@ -237,43 +309,151 @@ export default function Checkout() {
                       data-testid="input-email"
                     />
                   </div>
-                  <div className="md:col-span-2">
-                    <Label htmlFor="address">Address</Label>
-                    <Textarea
-                      id="address"
-                      placeholder="House/Building, Street, Area"
-                      rows={3}
-                      value={userInfo.address}
-                      onChange={(e) => setUserInfo({ ...userInfo, address: e.target.value })}
-                      className="mt-2"
-                      data-testid="input-address"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="city">City</Label>
-                    <Input
-                      id="city"
-                      type="text"
-                      placeholder="Mumbai"
-                      value={userInfo.city}
-                      onChange={(e) => setUserInfo({ ...userInfo, city: e.target.value })}
-                      className="mt-2"
-                      data-testid="input-city"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="pincode">PIN Code</Label>
-                    <Input
-                      id="pincode"
-                      type="text"
-                      placeholder="400001"
-                      value={userInfo.pincode}
-                      onChange={(e) => setUserInfo({ ...userInfo, pincode: e.target.value })}
-                      className="mt-2"
-                      data-testid="input-pincode"
-                    />
-                  </div>
                 </div>
+
+                {/* Address Selection/Management */}
+                {addresses && addresses.length > 0 && !showNewAddressForm ? (
+                  <>
+                    <div className="mb-4">
+                      <Label>Select Delivery Address</Label>
+                      <div className="mt-2 space-y-2">
+                        {addresses.map((address) => (
+                          <div
+                            key={address.id}
+                            className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+                              selectedAddressId === address.id
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                            onClick={() => {
+                              setSelectedAddressId(address.id);
+                              setUserInfo({
+                                ...userInfo,
+                                address: address.address,
+                                city: address.city,
+                                pincode: address.pincode,
+                              });
+                            }}
+                            data-testid={`address-option-${address.id}`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-medium">{address.name}</h4>
+                                  {address.isPreferred && (
+                                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                                      Preferred
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-600 mt-1">
+                                  {address.address}, {address.city} - {address.pincode}
+                                </p>
+                              </div>
+                              <input
+                                type="radio"
+                                name="selectedAddress"
+                                checked={selectedAddressId === address.id}
+                                onChange={() => {}}
+                                className="mt-1"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {selectedAddressId && (
+                      <div className="flex items-center space-x-2 mb-4">
+                        <Checkbox
+                          id="makePreferred"
+                          checked={makePreferred}
+                          onCheckedChange={(checked) => setMakePreferred(checked as boolean)}
+                        />
+                        <Label htmlFor="makePreferred" className="text-sm">
+                          Set as preferred address
+                        </Label>
+                      </div>
+                    )}
+
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowNewAddressForm(true)}
+                      className="w-full"
+                      data-testid="button-add-new-address"
+                    >
+                      <Plus className="w-4 h-4 mr-2" />
+                      Add New Address
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    {/* New Address Form */}
+                    <div className="space-y-4">
+                      <div className="md:col-span-2">
+                        <Label htmlFor="address">Address</Label>
+                        <Textarea
+                          id="address"
+                          placeholder="House/Building, Street, Area"
+                          rows={3}
+                          value={userInfo.address}
+                          onChange={(e) => setUserInfo({ ...userInfo, address: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-address"
+                        />
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="city">City</Label>
+                          <Input
+                            id="city"
+                            type="text"
+                            placeholder="Mumbai"
+                            value={userInfo.city}
+                            onChange={(e) => setUserInfo({ ...userInfo, city: e.target.value })}
+                            className="mt-2"
+                            data-testid="input-city"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="pincode">PIN Code</Label>
+                          <Input
+                            id="pincode"
+                            type="text"
+                            placeholder="400001"
+                            value={userInfo.pincode}
+                            onChange={(e) => setUserInfo({ ...userInfo, pincode: e.target.value })}
+                            className="mt-2"
+                            data-testid="input-pincode"
+                          />
+                        </div>
+                      </div>
+
+                      {authData?.authenticated && (
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="makePreferredNew"
+                            checked={makePreferred}
+                            onCheckedChange={(checked) => setMakePreferred(checked as boolean)}
+                          />
+                          <Label htmlFor="makePreferredNew" className="text-sm">
+                            Save this address and set as preferred
+                          </Label>
+                        </div>
+                      )}
+
+                      {addresses && addresses.length > 0 && (
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowNewAddressForm(false)}
+                          data-testid="button-cancel-new-address"
+                        >
+                          Cancel - Use Existing Address
+                        </Button>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Payment Method */}

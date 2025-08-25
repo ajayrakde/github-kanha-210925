@@ -22,7 +22,7 @@ interface SessionRequest extends Request {
     sessionId?: string;
     adminId?: string;
     userId?: string;
-    userRole?: string;
+    userRole?: 'admin' | 'influencer' | 'buyer';
   };
 }
 
@@ -225,7 +225,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if user exists, create if not
       let user = await storage.getUserByPhone(`+91${phone}`);
       if (!user) {
-        user = await storage.createUser({ phone: `+91${phone}` });
+        user = await storage.createUser({ 
+          phone: `+91${phone}`,
+          name: '',
+          email: null
+        });
       }
       // Set user session
       req.session.userId = user.id;
@@ -302,6 +306,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching user orders:', error);
       res.status(500).json({ message: 'Failed to fetch orders' });
+    }
+  });
+
+  // User address management routes
+  app.get('/api/auth/addresses', async (req: SessionRequest, res) => {
+    if (!req.session.userId || req.session.userRole !== 'buyer') {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    try {
+      const addresses = await storage.getUserAddresses(req.session.userId);
+      res.json(addresses);
+    } catch (error) {
+      console.error('Error fetching user addresses:', error);
+      res.status(500).json({ message: 'Failed to fetch addresses' });
+    }
+  });
+
+  app.post('/api/auth/addresses', async (req: SessionRequest, res) => {
+    if (!req.session.userId || req.session.userRole !== 'buyer') {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    try {
+      const { name, address, city, pincode, isPreferred } = req.body;
+      
+      // If this is the first address, make it preferred automatically
+      const existingAddresses = await storage.getUserAddresses(req.session.userId);
+      const shouldBePreferred = isPreferred || existingAddresses.length === 0;
+      
+      const newAddress = await storage.createUserAddress({
+        userId: req.session.userId,
+        name,
+        address,
+        city,
+        pincode,
+        isPreferred: shouldBePreferred,
+      });
+
+      // If this should be preferred, update others
+      if (shouldBePreferred && existingAddresses.length > 0) {
+        await storage.setPreferredAddress(req.session.userId, newAddress.id);
+      }
+
+      res.json(newAddress);
+    } catch (error) {
+      console.error('Error creating address:', error);
+      res.status(500).json({ message: 'Failed to create address' });
+    }
+  });
+
+  app.put('/api/auth/addresses/:id/preferred', async (req: SessionRequest, res) => {
+    if (!req.session.userId || req.session.userRole !== 'buyer') {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    try {
+      await storage.setPreferredAddress(req.session.userId, req.params.id);
+      res.json({ message: 'Preferred address updated' });
+    } catch (error) {
+      console.error('Error setting preferred address:', error);
+      res.status(500).json({ message: 'Failed to set preferred address' });
+    }
+  });
+
+  app.delete('/api/auth/addresses/:id', async (req: SessionRequest, res) => {
+    if (!req.session.userId || req.session.userRole !== 'buyer') {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    try {
+      await storage.deleteUserAddress(req.params.id);
+      res.json({ message: 'Address deleted' });
+    } catch (error) {
+      console.error('Error deleting address:', error);
+      res.status(500).json({ message: 'Failed to delete address' });
     }
   });
 
@@ -928,7 +1008,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         username: 'admin',
         password: 'password123',
         name: 'Admin User',
-        email: 'admin@example.com'
+        email: 'admin@example.com',
+        phone: '+919999999999'
       });
       
       res.json({ 

@@ -25,6 +25,9 @@ import {
   type CartItem,
   type InsertCartItem,
   type OfferRedemption,
+  type UserAddress,
+  type InsertUserAddress,
+  userAddresses,
 } from "@shared/schema";
 import type { AbandonedCart } from "@/lib/types";
 import { db } from "./db";
@@ -105,6 +108,14 @@ export interface IStorage {
   // Offer redemption operations
   createOfferRedemption(redemption: Omit<OfferRedemption, 'id' | 'createdAt'>): Promise<OfferRedemption>;
   getOfferRedemptionsByUser(userId: string, offerId: string): Promise<OfferRedemption[]>;
+
+  // User address operations
+  getUserAddresses(userId: string): Promise<UserAddress[]>;
+  createUserAddress(address: InsertUserAddress): Promise<UserAddress>;
+  updateUserAddress(id: string, address: Partial<InsertUserAddress>): Promise<UserAddress>;
+  deleteUserAddress(id: string): Promise<void>;
+  setPreferredAddress(userId: string, addressId: string): Promise<void>;
+  getPreferredAddress(userId: string): Promise<UserAddress | undefined>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -625,6 +636,54 @@ export class DatabaseStorage implements IStorage {
         eq(offerRedemptions.userId, userId),
         eq(offerRedemptions.offerId, offerId)
       ));
+  }
+
+  // User address operations
+  async getUserAddresses(userId: string): Promise<UserAddress[]> {
+    return await db.select()
+      .from(userAddresses)
+      .where(eq(userAddresses.userId, userId))
+      .orderBy(desc(userAddresses.isPreferred), userAddresses.createdAt);
+  }
+
+  async createUserAddress(address: InsertUserAddress): Promise<UserAddress> {
+    const [createdAddress] = await db.insert(userAddresses).values(address).returning();
+    return createdAddress;
+  }
+
+  async updateUserAddress(id: string, address: Partial<InsertUserAddress>): Promise<UserAddress> {
+    const [updatedAddress] = await db
+      .update(userAddresses)
+      .set({ ...address, updatedAt: new Date() })
+      .where(eq(userAddresses.id, id))
+      .returning();
+    return updatedAddress;
+  }
+
+  async deleteUserAddress(id: string): Promise<void> {
+    await db.delete(userAddresses).where(eq(userAddresses.id, id));
+  }
+
+  async setPreferredAddress(userId: string, addressId: string): Promise<void> {
+    // First, unset all preferred addresses for this user
+    await db
+      .update(userAddresses)
+      .set({ isPreferred: false })
+      .where(eq(userAddresses.userId, userId));
+    
+    // Then set the specified address as preferred
+    await db
+      .update(userAddresses)
+      .set({ isPreferred: true })
+      .where(and(eq(userAddresses.id, addressId), eq(userAddresses.userId, userId)));
+  }
+
+  async getPreferredAddress(userId: string): Promise<UserAddress | undefined> {
+    const [address] = await db.select()
+      .from(userAddresses)
+      .where(and(eq(userAddresses.userId, userId), eq(userAddresses.isPreferred, true)))
+      .limit(1);
+    return address;
   }
 
 }

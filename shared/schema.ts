@@ -126,6 +126,19 @@ export const cartItems = pgTable("cart_items", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// User addresses table - supports multiple addresses per user
+export const userAddresses = pgTable("user_addresses", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  name: varchar("name", { length: 255 }).notNull(), // Address name (e.g., "Home", "Office")
+  address: text("address").notNull(),
+  city: varchar("city", { length: 100 }).notNull(),
+  pincode: varchar("pincode", { length: 10 }).notNull(),
+  isPreferred: boolean("is_preferred").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Offer redemptions table - tracks per-user usage
 export const offerRedemptions = pgTable("offer_redemptions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -140,6 +153,7 @@ export const offerRedemptions = pgTable("offer_redemptions", {
 export const usersRelations = relations(users, ({ many }) => ({
   orders: many(orders),
   offerRedemptions: many(offerRedemptions),
+  addresses: many(userAddresses),
 }));
 
 export const productsRelations = relations(products, ({ many }) => ({
@@ -207,6 +221,13 @@ export const offerRedemptionsRelations = relations(offerRedemptions, ({ one }) =
   }),
 }));
 
+export const userAddressesRelations = relations(userAddresses, ({ one }) => ({
+  user: one(users, {
+    fields: [userAddresses.userId],
+    references: [users.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true, updatedAt: true });
@@ -220,6 +241,7 @@ export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, cre
 export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: true });
 export const insertCartItemSchema = createInsertSchema(cartItems).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOtpSchema = createInsertSchema(otps).omit({ id: true, createdAt: true });
+export const insertUserAddressSchema = createInsertSchema(userAddresses).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -239,5 +261,7 @@ export type InsertOrderItem = z.infer<typeof insertOrderItemSchema>;
 export type CartItem = typeof cartItems.$inferSelect;
 export type InsertCartItem = z.infer<typeof insertCartItemSchema>;
 export type OfferRedemption = typeof offerRedemptions.$inferSelect;
+export type UserAddress = typeof userAddresses.$inferSelect;
+export type InsertUserAddress = z.infer<typeof insertUserAddressSchema>;
 export type Otp = typeof otps.$inferSelect;
 export type InsertOtp = z.infer<typeof insertOtpSchema>;

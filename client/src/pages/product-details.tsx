@@ -261,27 +261,41 @@ export default function ProductDetails() {
             {/* Cart Controls */}
             <div className="space-y-3">
               {isInCart ? (
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={handleDecreaseQuantity}
-                    disabled={removeFromCartMutation.isPending || updateCartMutation.isPending}
-                    className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
-                    data-testid="button-decrease-quantity"
-                  >
-                    <Minus size={18} />
-                  </button>
-                  <span className="text-lg font-medium w-12 text-center" data-testid="cart-quantity">
-                    {cartQuantity}
-                  </span>
-                  <button
-                    onClick={handleIncreaseQuantity}
-                    disabled={cartQuantity >= 10 || updateCartMutation.isPending}
-                    className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    data-testid="button-increase-quantity"
-                  >
-                    <Plus size={18} />
-                  </button>
-                  <span className="text-sm text-gray-600">in cart</span>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={handleDecreaseQuantity}
+                      disabled={removeFromCartMutation.isPending || updateCartMutation.isPending}
+                      className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
+                      data-testid="button-decrease-quantity"
+                    >
+                      <Minus size={18} />
+                    </button>
+                    <span className="text-lg font-medium w-12 text-center" data-testid="cart-quantity">
+                      {cartQuantity}
+                    </span>
+                    <button
+                      onClick={handleIncreaseQuantity}
+                      disabled={cartQuantity >= 10 || updateCartMutation.isPending}
+                      className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      data-testid="button-increase-quantity"
+                    >
+                      <Plus size={18} />
+                    </button>
+                    <span className="text-sm text-gray-600">in cart</span>
+                  </div>
+                  
+                  {/* Proceed to Checkout Button - shown when cart has items */}
+                  {cartItems && cartItems.length > 0 && (
+                    <Button
+                      onClick={() => navigate('/checkout')}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white"
+                      size="lg"
+                      data-testid="button-proceed-checkout"
+                    >
+                      Proceed to Checkout
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <Button
