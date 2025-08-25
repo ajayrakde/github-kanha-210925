@@ -26,24 +26,10 @@ interface ImageLightboxProps {
 }
 
 function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNext }: ImageLightboxProps) {
-  const [isClosing, setIsClosing] = useState(false);
-
-  const handleClose = () => {
-    setIsClosing(true);
-    // Close state immediately, animation is just visual
-    onClose();
-    // Reset animation state after animation completes
-    setTimeout(() => {
-      setIsClosing(false);
-    }, 200);
-  };
-
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
-        e.preventDefault();
-        e.stopPropagation();
-        handleClose();
+        onClose();
       }
     };
 
@@ -53,14 +39,7 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
         document.removeEventListener('keydown', handleEscape);
       };
     }
-  }, [isOpen]);
-
-  // Reset animation state when opening
-  useEffect(() => {
-    if (isOpen) {
-      setIsClosing(false);
-    }
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -73,7 +52,7 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
       onClick={(e) => {
         // Only close if clicking the background, not the image or controls
         if (e.target === e.currentTarget) {
-          handleClose();
+          onClose();
         }
       }}
     >
@@ -82,14 +61,14 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
         onClick={(e) => {
           // Close when clicking the container but not the image
           if (e.target === e.currentTarget) {
-            handleClose();
+            onClose();
           }
         }}
       >
         <button
           onClick={(e) => {
             e.stopPropagation();
-            handleClose();
+            onClose();
           }}
           className="fixed top-6 right-6 text-white hover:text-gray-300 bg-black bg-opacity-50 rounded-full p-2 z-[110] transition-all duration-200"
           data-testid="button-close-lightbox"
@@ -125,9 +104,7 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
         <img
           src={images[currentIndex]}
           alt={`Product image ${currentIndex + 1}`}
-          className={`max-w-[90vw] max-h-[90vh] object-contain transition-all duration-200 ${
-            isClosing ? 'scale-95 opacity-0' : 'scale-100 opacity-100'
-          }`}
+          className="max-w-[90vw] max-h-[90vh] object-contain"
           onClick={(e) => e.stopPropagation()}
           data-testid="lightbox-image"
         />
