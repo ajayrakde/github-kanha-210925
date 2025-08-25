@@ -76,7 +76,17 @@ export default function Checkout() {
       });
       return await response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Store order data in session storage for thank you page
+      sessionStorage.setItem('lastOrder', JSON.stringify({
+        orderId: data.order.id,
+        total: data.order.total,
+        subtotal: data.order.subtotal,
+        discountAmount: data.order.discountAmount,
+        paymentMethod: data.order.paymentMethod,
+        deliveryAddress: data.order.deliveryAddress,
+        userInfo: userInfo
+      }));
       setLocation("/thank-you");
     },
   });
