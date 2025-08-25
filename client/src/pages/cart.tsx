@@ -79,9 +79,15 @@ export default function Cart() {
     }
   };
 
+  // Price includes 5% tax already
+  const taxRate = 0.05;
+  const basePrice = subtotal / (1 + taxRate);
+  const taxAmount = subtotal - basePrice;
+
   const calculateDiscount = () => {
     if (!appliedOffer) return 0;
     
+    // Discount applied on all-inclusive price (price + tax)
     if (appliedOffer.discountType === 'percentage') {
       const discount = (subtotal * parseFloat(appliedOffer.discountValue)) / 100;
       return appliedOffer.maxDiscount 
@@ -93,7 +99,8 @@ export default function Cart() {
   };
 
   const discount = calculateDiscount();
-  const total = subtotal - discount;
+  const shippingCharge = 50; // Fixed shipping charge
+  const total = subtotal - discount + shippingCharge;
 
   if (isLoading) {
     return (
@@ -251,7 +258,11 @@ export default function Cart() {
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-600">Subtotal ({cartItems.length} items)</span>
-                <span data-testid="text-subtotal">₹{subtotal.toFixed(2)}</span>
+                <span data-testid="text-subtotal">₹{basePrice.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Tax (5%)</span>
+                <span data-testid="text-tax">₹{taxAmount.toFixed(2)}</span>
               </div>
               {appliedOffer && (
                 <div className="flex justify-between text-green-600">
@@ -261,7 +272,7 @@ export default function Cart() {
               )}
               <div className="flex justify-between">
                 <span className="text-gray-600">Shipping</span>
-                <span className="text-green-600">Free</span>
+                <span data-testid="text-shipping">₹{shippingCharge.toFixed(2)}</span>
               </div>
               <hr className="my-3" />
               <div className="flex justify-between font-semibold text-lg">

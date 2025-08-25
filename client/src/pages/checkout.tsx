@@ -80,7 +80,7 @@ export default function Checkout() {
     },
   });
 
-  const total = subtotal; // Simplified - would include discount logic
+  const total = subtotal + 50; // Add shipping charges
 
   if (!cartItems || cartItems.length === 0) {
     return (
@@ -156,7 +156,7 @@ export default function Checkout() {
                     maxLength={6}
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
-                    className="w-32 text-center font-mono text-lg mt-2"
+                    className="w-40 text-center font-mono text-lg mt-2"
                     data-testid="input-otp"
                   />
                 </div>
@@ -290,16 +290,20 @@ export default function Checkout() {
             <div className="space-y-3 text-sm mb-4">
               <div className="flex justify-between">
                 <span className="text-gray-600">Subtotal ({cartItems.length} items)</span>
-                <span data-testid="text-order-subtotal">₹{subtotal.toFixed(2)}</span>
+                <span data-testid="text-order-subtotal">₹{(subtotal / 1.05).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Tax (5%)</span>
+                <span data-testid="text-order-tax">₹{(subtotal - (subtotal / 1.05)).toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Shipping</span>
-                <span className="text-green-600">Free</span>
+                <span data-testid="text-order-shipping">₹50.00</span>
               </div>
               <hr />
               <div className="flex justify-between font-semibold text-lg">
                 <span>Total</span>
-                <span data-testid="text-order-total">₹{total.toFixed(2)}</span>
+                <span data-testid="text-order-total">₹{(subtotal + 50).toFixed(2)}</span>
               </div>
             </div>
 
@@ -310,7 +314,7 @@ export default function Checkout() {
               </div>
               <div className="text-xs text-gray-500 flex items-center">
                 <i className="fas fa-truck mr-1"></i>
-                Free delivery across India
+                Delivery across India - ₹50
               </div>
             </div>
 

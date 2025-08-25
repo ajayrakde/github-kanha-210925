@@ -103,42 +103,45 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   return (
     <>
-      <div className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden" data-testid={`product-card-${product.id}`}>
+      <div 
+        className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden cursor-pointer" 
+        data-testid={`product-card-${product.id}`}
+        onClick={() => setShowDetails(true)}
+      >
         <img
           src={product.displayImageUrl || product.imageUrl || `https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=300`}
           alt={product.name}
-          className="w-full h-48 object-cover cursor-pointer"
-          onClick={() => setShowDetails(true)}
+          className="w-full h-48 object-cover"
           data-testid={`product-image-${product.id}`}
         />
         <div className="p-4">
-          <h3 
-            className="font-medium text-gray-900 mb-2 cursor-pointer hover:text-blue-600" 
-            data-testid={`product-name-${product.id}`}
-            onClick={() => setShowDetails(true)}
-          >
+          <h3 className="font-medium text-gray-900 mb-2 hover:text-blue-600" data-testid={`product-name-${product.id}`}>
             {product.name}
           </h3>
           <p className="text-sm text-gray-600 mb-3" data-testid={`product-description-${product.id}`}>
             {product.description || 'No description available'}
           </p>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <span className="text-lg font-semibold text-gray-900" data-testid={`product-price-${product.id}`}>
               ₹{parseFloat(product.price).toFixed(2)}
             </span>
             
             {isInCart ? (
-              <div className="flex items-center gap-2 border rounded-lg">
+              <div 
+                className="flex items-center gap-1 border rounded-md" 
+                onClick={(e) => e.stopPropagation()}
+              >
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={handleDecreaseQuantity}
                   disabled={updateCartMutation.isPending || removeFromCartMutation.isPending}
+                  className="h-8 w-8 p-0"
                   data-testid={`button-decrease-quantity-${product.id}`}
                 >
-                  <Minus size={16} />
+                  <Minus size={14} />
                 </Button>
-                <span className="px-3 py-2 font-medium" data-testid={`cart-quantity-${product.id}`}>
+                <span className="px-2 py-1 text-sm font-medium min-w-[24px] text-center" data-testid={`cart-quantity-${product.id}`}>
                   {cartQuantity}
                 </span>
                 <Button
@@ -146,16 +149,20 @@ export default function ProductCard({ product }: ProductCardProps) {
                   size="sm"
                   onClick={handleIncreaseQuantity}
                   disabled={updateCartMutation.isPending}
+                  className="h-8 w-8 p-0"
                   data-testid={`button-increase-quantity-${product.id}`}
                 >
-                  <Plus size={16} />
+                  <Plus size={14} />
                 </Button>
               </div>
             ) : (
               <Button
-                onClick={() => addToCartMutation.mutate()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  addToCartMutation.mutate();
+                }}
                 disabled={addToCartMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-blue-600 hover:bg-blue-700 text-sm px-3 py-1.5 h-8"
                 data-testid={`button-add-to-cart-${product.id}`}
               >
                 Add to Cart

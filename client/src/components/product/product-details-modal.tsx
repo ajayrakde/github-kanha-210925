@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,7 +27,7 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center">
+    <div className="fixed inset-0 z-[60] bg-black bg-opacity-90 flex items-center justify-center">
       <div className="relative w-full h-full flex items-center justify-center">
         <button
           onClick={onClose}
@@ -192,6 +192,9 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
             <DialogTitle className="text-xl font-semibold" data-testid="product-details-title">
               {product.name}
             </DialogTitle>
+            <DialogDescription className="sr-only">
+              Product details for {product.name}
+            </DialogDescription>
           </DialogHeader>
           
           <div className="grid md:grid-cols-2 gap-6">
@@ -201,7 +204,7 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
                 <img
                   src={productImages[currentImageIndex]}
                   alt={product.name}
-                  className="w-full h-96 object-cover rounded-lg cursor-pointer"
+                  className="w-full h-96 object-contain rounded-lg cursor-pointer bg-gray-50"
                   onClick={handleImageClick}
                   data-testid="product-main-image"
                 />
