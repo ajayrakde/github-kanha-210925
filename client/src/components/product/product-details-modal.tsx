@@ -160,8 +160,17 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
 export default function ProductDetailsModal({ product, isOpen, onClose }: ProductDetailsModalProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [isModalClosing, setIsModalClosing] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const handleModalClose = () => {
+    setIsModalClosing(true);
+    setTimeout(() => {
+      onClose();
+      setIsModalClosing(false);
+    }, 200); // Smooth 200ms fadeout matching lightbox
+  };
 
   // Handle body scroll locking
   useEffect(() => {
@@ -180,7 +189,7 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen && !lightboxOpen) {
-        onClose();
+        handleModalClose();
       }
     };
 
@@ -188,7 +197,7 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
       document.addEventListener('keydown', handleEscape);
       return () => document.removeEventListener('keydown', handleEscape);
     }
-  }, [isOpen, lightboxOpen, onClose]);
+  }, [isOpen, lightboxOpen, handleModalClose]);
 
   const { data: cartItems } = useQuery<CartItemWithProduct[]>({
     queryKey: ["/api/cart"],
@@ -295,18 +304,21 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
         onOpenChange={(open) => {
           // Only allow dialog to close if lightbox is not open
           if (!open && !lightboxOpen) {
-            onClose();
+            handleModalClose();
           }
         }}
         modal={!lightboxOpen}
       >
         <DialogContent 
-          className="max-w-4xl max-h-[90vh] overflow-y-auto" 
+          className={`max-w-4xl max-h-[90vh] overflow-y-auto dialog-content-enter transition-all duration-200 ease-out ${
+            isModalClosing ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
+          }`}
           data-testid="product-details-modal"
           style={{
             pointerEvents: lightboxOpen ? 'none' : 'auto',
-            opacity: lightboxOpen ? 0.3 : 1,
-            transition: 'opacity 0.2s ease-in-out'
+            opacity: lightboxOpen ? 0.3 : (isModalClosing ? 0 : 1),
+            transform: isModalClosing ? 'scale(0.95)' : 'scale(1)',
+            transition: lightboxOpen ? 'opacity 0.2s ease-in-out' : 'all 0.2s ease-out'
           }}
           onEscapeKeyDown={(e) => {
             if (lightboxOpen) {
