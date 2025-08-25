@@ -251,15 +251,17 @@ export default function Admin() {
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
-            {!sidebarCollapsed && (
-              <h1 className="text-xl font-semibold text-gray-900">Admin Panel</h1>
-            )}
+            <div className="flex-1">
+              {!sidebarCollapsed && (
+                <h1 className="text-xl font-semibold text-gray-900">Admin Panel</h1>
+              )}
+            </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className={cn("ml-auto", sidebarCollapsed && "mx-auto")}
               data-testid="toggle-sidebar"
+              className="flex-shrink-0"
             >
               <i className={cn("fas transition-transform", sidebarCollapsed ? "fa-chevron-right" : "fa-chevron-left")}></i>
             </Button>
