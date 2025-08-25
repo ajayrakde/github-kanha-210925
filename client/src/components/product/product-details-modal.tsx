@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -25,11 +25,25 @@ interface ImageLightboxProps {
 }
 
 function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNext }: ImageLightboxProps) {
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const lightboxContent = (
     <div 
-      className="fixed inset-0 z-[70] bg-black bg-opacity-90 flex items-center justify-center"
+      className="fixed inset-0 z-[100] bg-black bg-opacity-90 flex items-center justify-center"
       onClick={(e) => {
         e.stopPropagation();
         onClose();
@@ -108,6 +122,33 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Handle body scroll locking
+  useEffect(() => {
+    if (isOpen || lightboxOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen, lightboxOpen]);
+
+  // Handle escape key for CardDetails (only when lightbox is not open)
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !lightboxOpen) {
+        onClose();
+      }
+    };
+
+    if (isOpen && !lightboxOpen) {
+      document.addEventListener('keydown', handleEscape);
+      return () => document.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen, lightboxOpen, onClose]);
+
   const { data: cartItems } = useQuery<CartItemWithProduct[]>({
     queryKey: ["/api/cart"],
   });
@@ -185,9 +226,7 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
   };
 
   const handleIncreaseQuantity = () => {
-    console.log('handleIncreaseQuantity called, cartItem:', cartItem);
     if (cartItem) {
-      console.log('Updating cart item:', cartItem.id, 'new quantity:', cartItem.quantity + 1);
       updateCartMutation.mutate({
         cartItemId: cartItem.id,
         quantity: cartItem.quantity + 1
@@ -196,14 +235,10 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
   };
 
   const handleDecreaseQuantity = () => {
-    console.log('handleDecreaseQuantity called, cartItem:', cartItem);
     if (cartItem) {
-      console.log('Current quantity:', cartItem.quantity);
       if (cartItem.quantity === 1) {
-        console.log('Removing item from cart');
         removeFromCartMutation.mutate(cartItem.id);
       } else {
-        console.log('Updating cart item:', cartItem.id, 'new quantity:', cartItem.quantity - 1);
         updateCartMutation.mutate({
           cartItemId: cartItem.id,
           quantity: cartItem.quantity - 1
@@ -214,12 +249,16 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={(open) => {
-        if (!open && !lightboxOpen) {
-          onClose();
-        }
-      }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" data-testid="product-details-modal">
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent 
+          className="max-w-4xl max-h-[90vh] overflow-y-auto" 
+          data-testid="product-details-modal"
+          style={{
+            pointerEvents: lightboxOpen ? 'none' : 'auto',
+            opacity: lightboxOpen ? 0.3 : 1,
+            transition: 'opacity 0.2s ease-in-out'
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold" data-testid="product-details-title">
               {product.name}
@@ -313,7 +352,6 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          console.log('Decrease quantity clicked, current quantity:', cartQuantity);
                           handleDecreaseQuantity();
                         }}
                         disabled={updateCartMutation.isPending || removeFromCartMutation.isPending}
@@ -329,7 +367,6 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          console.log('Increase quantity clicked, current quantity:', cartQuantity);
                           handleIncreaseQuantity();
                         }}
                         disabled={updateCartMutation.isPending}
