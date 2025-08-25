@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -18,8 +20,22 @@ interface Offer {
   isActive: boolean;
   endDate: string | null;
   influencer?: {
+    id: string;
     username: string;
   };
+}
+
+interface Influencer {
+  id: string;
+  username: string;
+}
+
+interface PaginatedResponse<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 interface OfferTableProps {
@@ -29,10 +45,37 @@ interface OfferTableProps {
 export default function OfferTable({ onEdit }: OfferTableProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Filter and pagination state
+  const [filterInfluencer, setFilterInfluencer] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(25);
 
-  const { data: offers, isLoading } = useQuery<Offer[]>({
-    queryKey: ["/api/offers"],
+  // Get influencers for filter dropdown
+  const { data: influencers } = useQuery<Influencer[]>({
+    queryKey: ["/api/influencers"],
   });
+
+  // Build query parameters
+  const queryParams = new URLSearchParams({
+    page: page.toString(),
+    limit: limit.toString(),
+    ...(filterInfluencer !== 'all' && { influencerId: filterInfluencer }),
+    ...(filterStatus !== 'all' && { isActive: filterStatus }),
+  });
+
+  const { data: offersResponse, isLoading } = useQuery<PaginatedResponse<Offer>>({
+    queryKey: ["/api/offers", page, limit, filterInfluencer, filterStatus],
+    queryFn: async () => {
+      const response = await fetch(`/api/offers?${queryParams.toString()}`);
+      if (!response.ok) throw new Error('Failed to fetch offers');
+      return response.json();
+    },
+  });
+
+  const offers = offersResponse?.data || [];
+  const totalPages = offersResponse?.totalPages || 1;
 
   const toggleOfferMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
@@ -126,17 +169,177 @@ export default function OfferTable({ onEdit }: OfferTableProps) {
     );
   }
 
+  const handleFilterChange = (type: 'influencer' | 'status' | 'limit', value: string) => {
+    if (type === 'influencer') {
+      setFilterInfluencer(value);
+      setPage(1); // Reset to first page
+    } else if (type === 'status') {
+      setFilterStatus(value);
+      setPage(1); // Reset to first page
+    } else if (type === 'limit') {
+      setLimit(parseInt(value));
+      setPage(1); // Reset to first page
+    }
+  };
+
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+
+    const pages = [];
+    const startPage = Math.max(1, page - 2);
+    const endPage = Math.min(totalPages, page + 2);
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(
+        <Button
+          key={i}
+          variant={i === page ? "default" : "outline"}
+          size="sm"
+          onClick={() => setPage(i)}
+          className="w-8 h-8 p-0"
+        >
+          {i}
+        </Button>
+      );
+    }
+
+    return (
+      <div className="flex items-center justify-between mt-4 px-2">
+        <div className="text-sm text-gray-600">
+          Showing {((page - 1) * limit) + 1} to {Math.min(page * limit, offersResponse?.total || 0)} of {offersResponse?.total || 0} offers
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(Math.max(1, page - 1))}
+            disabled={page === 1}
+          >
+            <i className="fas fa-chevron-left"></i>
+          </Button>
+          {pages}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage(Math.min(totalPages, page + 1))}
+            disabled={page === totalPages}
+          >
+            <i className="fas fa-chevron-right"></i>
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   if (!offers || offers.length === 0) {
     return (
-      <div className="text-center py-8">
-        <div className="text-gray-500">No offers found</div>
-        <p className="text-gray-400 mt-2">Create your first offer to get started</p>
+      <div>
+        {/* Filter Controls */}
+        <div className="mb-4 flex flex-wrap gap-4 items-center justify-between">
+          <div className="flex flex-wrap gap-4">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Influencer:</label>
+              <Select value={filterInfluencer} onValueChange={(value) => handleFilterChange('influencer', value)}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="All Influencers" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Influencers</SelectItem>
+                  {influencers?.map((influencer) => (
+                    <SelectItem key={influencer.id} value={influencer.id}>
+                      {influencer.username}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Status:</label>
+              <Select value={filterStatus} onValueChange={(value) => handleFilterChange('status', value)}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="All Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="true">Active</SelectItem>
+                  <SelectItem value="false">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Per page:</label>
+            <Select value={limit.toString()} onValueChange={(value) => handleFilterChange('limit', value)}>
+              <SelectTrigger className="w-20">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="text-center py-8">
+          <div className="text-gray-500">No offers found</div>
+          <p className="text-gray-400 mt-2">{filterInfluencer !== 'all' || filterStatus !== 'all' ? 'Try adjusting your filters' : 'Create your first offer to get started'}</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div>
+      {/* Filter Controls */}
+      <div className="mb-4 flex flex-wrap gap-4 items-center justify-between">
+        <div className="flex flex-wrap gap-4">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Influencer:</label>
+            <Select value={filterInfluencer} onValueChange={(value) => handleFilterChange('influencer', value)}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="All Influencers" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Influencers</SelectItem>
+                {influencers?.map((influencer) => (
+                  <SelectItem key={influencer.id} value={influencer.id}>
+                    {influencer.username}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Status:</label>
+            <Select value={filterStatus} onValueChange={(value) => handleFilterChange('status', value)}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="true">Active</SelectItem>
+                <SelectItem value="false">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-700">Per page:</label>
+          <Select value={limit.toString()} onValueChange={(value) => handleFilterChange('limit', value)}>
+            <SelectTrigger className="w-20">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="10">10</SelectItem>
+              <SelectItem value="25">25</SelectItem>
+              <SelectItem value="50">50</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      
+      <div className="overflow-x-auto">
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-gray-50">
           <tr>
@@ -230,6 +433,9 @@ export default function OfferTable({ onEdit }: OfferTableProps) {
           ))}
         </tbody>
       </table>
+      </div>
+      
+      {renderPagination()}
     </div>
   );
 }

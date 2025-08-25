@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import HybridLogin from "@/components/auth/hybrid-login";
 import { useInfluencerAuth } from "@/hooks/use-auth";
+import InfluencerOfferTable from "@/components/influencer/offer-table";
 
 export default function Influencer() {
   const { isAuthenticated, isLoading, logout } = useInfluencerAuth();
@@ -219,75 +220,12 @@ export default function Influencer() {
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 p-4 border-b border-gray-200 bg-white">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">My Offer Codes</h3>
-                  <p className="text-sm text-gray-600 mt-1">View and manage your assigned promotional offers</p>
+                  <p className="text-sm text-gray-600 mt-1">View your assigned active promotional offers</p>
                 </div>
               </div>
-              <div className="bg-gray-50 p-4">
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  {myOffers.length === 0 ? (
-                    <div className="text-center py-8">
-                      <div className="text-gray-500 mb-4">
-                        <i className="fas fa-tags text-4xl"></i>
-                      </div>
-                      <p className="text-gray-600">No offers assigned to you yet.</p>
-                      <p className="text-sm text-gray-500 mt-2">Contact your admin to get started with promotional offers!</p>
-                    </div>
-                  ) : (
-                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      {myOffers.map((offer: any) => (
-                        <div key={offer.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow" data-testid={`offer-card-${offer.id}`}>
-                          <div className="flex items-center justify-between mb-3">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              offer.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                            }`}>
-                              {offer.isActive ? 'Active' : 'Inactive'}
-                            </span>
-                            <div className="text-lg font-bold text-blue-600" data-testid={`offer-code-${offer.id}`}>
-                              {offer.code}
-                            </div>
-                          </div>
-                          
-                          <div className="space-y-2">
-                            <div>
-                              <label className="text-xs font-medium text-gray-600">Name</label>
-                              <p className="text-sm text-gray-900" data-testid={`offer-name-${offer.id}`}>{offer.name || 'Unnamed offer'}</p>
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <label className="text-xs font-medium text-gray-600">Discount</label>
-                                <p className="text-sm text-gray-900" data-testid={`offer-discount-${offer.id}`}>
-                                  {offer.discountType === 'percentage' ? `${offer.discountValue}%` : `₹${offer.discountValue}`}
-                                </p>
-                              </div>
-                              <div>
-                                <label className="text-xs font-medium text-gray-600">Used</label>
-                                <p className="text-sm text-gray-900" data-testid={`offer-usage-${offer.id}`}>
-                                  {offer.currentUsage || 0}/{offer.globalUsageLimit || '∞'}
-                                </p>
-                              </div>
-                            </div>
-                            
-                            {offer.minCartValue && (
-                              <div>
-                                <label className="text-xs font-medium text-gray-600">Min Cart Value</label>
-                                <p className="text-sm text-gray-900">₹{offer.minCartValue}</p>
-                              </div>
-                            )}
-                            
-                            {offer.endDate && (
-                              <div>
-                                <label className="text-xs font-medium text-gray-600">Expires</label>
-                                <p className="text-sm text-gray-900">
-                                  {new Date(offer.endDate).toLocaleDateString()}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+              <div className="bg-gray-50 p-4 overflow-hidden">
+                <div className="w-full overflow-x-auto">
+                  <InfluencerOfferTable />
                 </div>
               </div>
             </TabsContent>

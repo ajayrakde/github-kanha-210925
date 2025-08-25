@@ -376,8 +376,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Offer management routes
   app.get('/api/offers', async (req, res) => {
     try {
-      const offers = await storage.getOffers();
-      res.json(offers);
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 25;
+      const influencerId = req.query.influencerId as string;
+      const isActiveParam = req.query.isActive as string;
+      
+      let allOffers = await storage.getOffers();
+      
+      // Apply filters
+      if (influencerId && influencerId !== 'all') {
+        allOffers = allOffers.filter(offer => offer.influencerId === influencerId);
+      }
+      
+      if (isActiveParam && isActiveParam !== 'all') {
+        const isActive = isActiveParam === 'true';
+        allOffers = allOffers.filter(offer => offer.isActive === isActive);
+      }
+      
+      // Calculate pagination
+      const total = allOffers.length;
+      const totalPages = Math.ceil(total / limit);
+      const offset = (page - 1) * limit;
+      const paginatedOffers = allOffers.slice(offset, offset + limit);
+      
+      // Return paginated response if pagination parameters are provided
+      if (req.query.page || req.query.limit) {
+        res.json({
+          data: paginatedOffers,
+          total,
+          page,
+          limit,
+          totalPages
+        });
+      } else {
+        // Return all offers for backward compatibility
+        res.json(allOffers);
+      }
     } catch (error) {
       console.error('Error fetching offers:', error);
       res.status(500).json({ message: 'Failed to fetch offers' });
