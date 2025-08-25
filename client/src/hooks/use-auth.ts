@@ -7,6 +7,8 @@ export function useAdminAuth() {
   const { data: authStatus, isLoading } = useQuery({
     queryKey: ["/api/admin/me"],
     retry: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false,
   });
 
   const loginMutation = useMutation({
@@ -52,6 +54,8 @@ export function useInfluencerAuth() {
   const { data: authStatus, isLoading } = useQuery({
     queryKey: ["/api/influencer/me"],
     retry: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false,
   });
 
   const loginMutation = useMutation({
