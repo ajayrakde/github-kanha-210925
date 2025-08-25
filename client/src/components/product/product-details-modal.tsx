@@ -27,10 +27,22 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black bg-opacity-90 flex items-center justify-center">
-      <div className="relative w-full h-full flex items-center justify-center">
+    <div 
+      className="fixed inset-0 z-[60] bg-black bg-opacity-90 flex items-center justify-center"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
+    >
+      <div 
+        className="relative w-full h-full flex items-center justify-center"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
-          onClick={onClose}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
           className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
           data-testid="button-close-lightbox"
         >
@@ -40,14 +52,20 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
         {images.length > 1 && (
           <>
             <button
-              onClick={onPrevious}
+              onClick={(e) => {
+                e.stopPropagation();
+                onPrevious();
+              }}
               className="absolute left-4 text-white hover:text-gray-300 z-10"
               data-testid="button-previous-lightbox"
             >
               <ChevronLeft size={48} />
             </button>
             <button
-              onClick={onNext}
+              onClick={(e) => {
+                e.stopPropagation();
+                onNext();
+              }}
               className="absolute right-4 text-white hover:text-gray-300 z-10"
               data-testid="button-next-lightbox"
             >
@@ -60,6 +78,7 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
           src={images[currentIndex]}
           alt={`Product image ${currentIndex + 1}`}
           className="max-w-full max-h-full object-contain"
+          onClick={(e) => e.stopPropagation()}
           data-testid="lightbox-image"
         />
         
@@ -271,29 +290,6 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
                 )}
               </div>
               
-              {product.category && (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Category:</span>
-                  <Badge variant="outline" data-testid="product-category">{product.category}</Badge>
-                </div>
-              )}
-              
-              {product.classification && (
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-600">Type:</span>
-                  <Badge variant="outline" data-testid="product-classification">{product.classification}</Badge>
-                </div>
-              )}
-              
-              {product.description && (
-                <div>
-                  <h3 className="font-medium text-gray-900 mb-2">Description</h3>
-                  <p className="text-gray-600" data-testid="product-description">
-                    {product.description}
-                  </p>
-                </div>
-              )}
-              
               {/* Cart Controls */}
               <div className="pt-4">
                 {isInCart ? (
@@ -302,7 +298,10 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={handleDecreaseQuantity}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDecreaseQuantity();
+                        }}
                         disabled={updateCartMutation.isPending || removeFromCartMutation.isPending}
                         data-testid="button-decrease-quantity"
                       >
@@ -314,7 +313,10 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={handleIncreaseQuantity}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleIncreaseQuantity();
+                        }}
                         disabled={updateCartMutation.isPending}
                         data-testid="button-increase-quantity"
                       >
@@ -334,6 +336,15 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
                   </Button>
                 )}
               </div>
+              
+              {product.description && (
+                <div>
+                  <h3 className="font-medium text-gray-900 mb-2">Description</h3>
+                  <p className="text-gray-600" data-testid="product-description">
+                    {product.description}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </DialogContent>

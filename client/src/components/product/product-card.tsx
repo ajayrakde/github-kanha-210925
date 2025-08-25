@@ -134,7 +134,10 @@ export default function ProductCard({ product }: ProductCardProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={handleDecreaseQuantity}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDecreaseQuantity();
+                  }}
                   disabled={updateCartMutation.isPending || removeFromCartMutation.isPending}
                   className="h-8 w-8 p-0"
                   data-testid={`button-decrease-quantity-${product.id}`}
@@ -147,7 +150,10 @@ export default function ProductCard({ product }: ProductCardProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={handleIncreaseQuantity}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleIncreaseQuantity();
+                  }}
                   disabled={updateCartMutation.isPending}
                   className="h-8 w-8 p-0"
                   data-testid={`button-increase-quantity-${product.id}`}
