@@ -37,18 +37,9 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
       }
     };
 
-    const handleClick = (e: Event) => {
-      if (isOpen) {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-      }
-    };
-
     if (isOpen) {
-      // Completely block all events from reaching other handlers
+      // Only block escape key, allow other events to work normally
       document.addEventListener('keydown', handleEscape, { capture: true, passive: false });
-      document.addEventListener('click', handleClick, { capture: true, passive: false });
       
       // Prevent default dialog behavior
       const dialogElements = document.querySelectorAll('[data-state="open"]');
@@ -58,7 +49,6 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
 
       return () => {
         document.removeEventListener('keydown', handleEscape, { capture: true });
-        document.removeEventListener('click', handleClick, { capture: true });
         
         // Restore dialog functionality
         dialogElements.forEach(el => {
@@ -74,27 +64,30 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
     <div 
       className="fixed inset-0 z-[100] bg-black bg-opacity-90 flex items-center justify-center"
       onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        onClose();
+        // Only close if clicking the background, not the image or controls
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
       }}
     >
       <div 
         className="relative w-full h-full flex items-center justify-center"
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e) => {
+          // Close when clicking the container but not the image
+          if (e.target === e.currentTarget) {
+            onClose();
+          }
+        }}
       >
         <button
           onClick={(e) => {
-            e.preventDefault();
             e.stopPropagation();
-            e.stopImmediatePropagation();
             onClose();
           }}
-          className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
+          className="fixed top-6 right-6 text-white hover:text-gray-300 bg-black bg-opacity-50 rounded-full p-2 z-[110]"
           data-testid="button-close-lightbox"
         >
-          <X size={32} />
+          <X size={24} />
         </button>
         
         {images.length > 1 && (
@@ -125,7 +118,7 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
         <img
           src={images[currentIndex]}
           alt={`Product image ${currentIndex + 1}`}
-          className="max-w-full max-h-full object-contain"
+          className="max-w-[90vw] max-h-[90vh] object-contain"
           onClick={(e) => e.stopPropagation()}
           data-testid="lightbox-image"
         />
