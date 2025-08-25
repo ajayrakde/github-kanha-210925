@@ -328,7 +328,6 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
           style={{
             pointerEvents: lightboxOpen ? 'none' : 'auto',
             opacity: lightboxOpen ? 0.3 : (isModalClosing ? 0 : 1),
-            transform: isModalClosing ? 'scale(0.95)' : 'scale(1)',
             transition: lightboxOpen ? 'opacity 0.15s ease-in-out' : (isModalClosing ? 'all 0.2s ease-out' : 'opacity 0.15s ease-in-out')
           }}
           onEscapeKeyDown={(e) => {
