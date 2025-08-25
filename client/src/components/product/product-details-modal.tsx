@@ -45,9 +45,7 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
 
   const lightboxContent = (
     <div 
-      className={`fixed inset-0 z-[100] bg-black flex items-center justify-center transition-opacity duration-200 ease-out ${
-        isClosing ? 'opacity-0' : 'opacity-100'
-      }`}
+      className="fixed inset-0 z-[100] bg-black bg-opacity-90 flex items-center justify-center"
       style={{ backgroundColor: 'rgba(0, 0, 0, 0.9)' }}
       onClick={(e) => {
         // Only close if clicking the background, not the image or controls
