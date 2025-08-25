@@ -26,13 +26,23 @@ interface ImageLightboxProps {
 }
 
 function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNext }: ImageLightboxProps) {
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      onClose();
+      setIsClosing(false);
+    }, 200); // Smooth 200ms fadeout
+  };
+
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        onClose();
+        handleClose();
         return false;
       }
     };
@@ -56,17 +66,20 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
         });
       };
     }
-  }, [isOpen, onClose]);
+  }, [isOpen, handleClose]);
 
   if (!isOpen) return null;
 
   const lightboxContent = (
     <div 
-      className="fixed inset-0 z-[100] bg-black bg-opacity-90 flex items-center justify-center"
+      className={`fixed inset-0 z-[100] bg-black flex items-center justify-center transition-opacity duration-200 ease-out ${
+        isClosing ? 'opacity-0' : 'opacity-100'
+      }`}
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.9)' }}
       onClick={(e) => {
         // Only close if clicking the background, not the image or controls
         if (e.target === e.currentTarget) {
-          onClose();
+          handleClose();
         }
       }}
     >
@@ -75,16 +88,16 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
         onClick={(e) => {
           // Close when clicking the container but not the image
           if (e.target === e.currentTarget) {
-            onClose();
+            handleClose();
           }
         }}
       >
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onClose();
+            handleClose();
           }}
-          className="fixed top-6 right-6 text-white hover:text-gray-300 bg-black bg-opacity-50 rounded-full p-2 z-[110]"
+          className="fixed top-6 right-6 text-white hover:text-gray-300 bg-black bg-opacity-50 rounded-full p-2 z-[110] transition-all duration-200"
           data-testid="button-close-lightbox"
         >
           <X size={24} />
@@ -97,7 +110,7 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
                 e.stopPropagation();
                 onPrevious();
               }}
-              className="absolute left-4 text-white hover:text-gray-300 z-10"
+              className="absolute left-4 text-white hover:text-gray-300 z-10 transition-all duration-200"
               data-testid="button-previous-lightbox"
             >
               <ChevronLeft size={48} />
@@ -107,7 +120,7 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
                 e.stopPropagation();
                 onNext();
               }}
-              className="absolute right-4 text-white hover:text-gray-300 z-10"
+              className="absolute right-4 text-white hover:text-gray-300 z-10 transition-all duration-200"
               data-testid="button-next-lightbox"
             >
               <ChevronRight size={48} />
@@ -118,7 +131,9 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
         <img
           src={images[currentIndex]}
           alt={`Product image ${currentIndex + 1}`}
-          className="max-w-[90vw] max-h-[90vh] object-contain"
+          className={`max-w-[90vw] max-h-[90vh] object-contain transition-all duration-200 ${
+            isClosing ? 'scale-95 opacity-0' : 'scale-100 opacity-100'
+          }`}
           onClick={(e) => e.stopPropagation()}
           data-testid="lightbox-image"
         />
