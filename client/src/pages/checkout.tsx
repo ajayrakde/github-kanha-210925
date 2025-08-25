@@ -23,7 +23,7 @@ interface UserInfo {
 export default function Checkout() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { cartItems, subtotal } = useCart();
+  const { cartItems, subtotal, clearCart } = useCart();
   const [step, setStep] = useState<"phone" | "otp" | "details">("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -148,7 +148,7 @@ export default function Checkout() {
     },
     onSuccess: async (data) => {
       // Clear the cart after successful order
-      await apiRequest("DELETE", "/api/cart/clear", {});
+      clearCart.mutate();
       // Store order data in session storage for thank you page
       sessionStorage.setItem('lastOrder', JSON.stringify({
         orderId: data.order.id,
