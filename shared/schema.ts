@@ -28,6 +28,7 @@ export const products = pgTable("products", {
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   imageUrl: text("image_url"), // Primary image for backward compatibility
   images: text("images").array().default([]), // Array of image URLs (max 5)
+  displayImageUrl: text("display_image_url"), // Selected display image from the images array
   stock: integer("stock").default(0).notNull(),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),

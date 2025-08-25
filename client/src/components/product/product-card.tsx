@@ -39,7 +39,7 @@ export default function ProductCard({ product }: ProductCardProps) {
   return (
     <div className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden" data-testid={`product-card-${product.id}`}>
       <img
-        src={product.imageUrl || `https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=300`}
+        src={product.displayImageUrl || product.imageUrl || `https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=300`}
         alt={product.name}
         className="w-full h-48 object-cover"
       />
@@ -56,11 +56,11 @@ export default function ProductCard({ product }: ProductCardProps) {
           </span>
           <Button
             onClick={() => addToCartMutation.mutate()}
-            disabled={addToCartMutation.isPending || product.stock === 0}
+            disabled={addToCartMutation.isPending}
             className="bg-blue-600 hover:bg-blue-700"
             data-testid={`button-add-to-cart-${product.id}`}
           >
-            {product.stock === 0 ? 'Out of Stock' : 'Add to Cart'}
+            Add to Cart
           </Button>
         </div>
       </div>

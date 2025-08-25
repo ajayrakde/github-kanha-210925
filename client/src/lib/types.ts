@@ -9,6 +9,7 @@ export interface Product {
   price: string;
   imageUrl: string | null;
   images?: string[] | null;
+  displayImageUrl?: string | null;
   stock: number;
   isActive: boolean;
   createdAt: string;

@@ -292,7 +292,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Offer operations
-  async getOffers(): Promise<(Offer & { influencer?: Influencer })[]> {
+  async getOffers(): Promise<(Offer & { influencer: Influencer | null })[]> {
     const offersData = await db.query.offers.findMany({
       with: {
         influencer: true,

@@ -247,7 +247,7 @@ export default function OfferTable({ onEdit }: OfferTableProps) {
                   <SelectItem value="all">All Influencers</SelectItem>
                   {influencers?.map((influencer) => (
                     <SelectItem key={influencer.id} value={influencer.id}>
-                      {influencer.username}
+                      {influencer.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -377,7 +377,7 @@ export default function OfferTable({ onEdit }: OfferTableProps) {
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm text-gray-900" data-testid={`offer-influencer-${offer.id}`}>
-                  {offer.influencer?.username || 'N/A'}
+                  {offer.influencer?.name || 'N/A'}
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">

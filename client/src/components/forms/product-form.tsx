@@ -21,6 +21,7 @@ const productSchema = z.object({
   description: z.string().optional(),
   price: z.string().min(1, "Price is required").refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Price must be a positive number"),
   images: z.array(z.string()).max(5, "Maximum 5 images allowed").optional(),
+  displayImageUrl: z.string().optional(),
   isActive: z.boolean().default(true),
 });
 
@@ -45,6 +46,7 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
       description: product?.description || "",
       price: product?.price || "",
       images: product?.images || [],
+      displayImageUrl: product?.displayImageUrl || "",
       isActive: product?.isActive ?? true,
     },
   });
@@ -60,6 +62,7 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
         price: data.price,
         imageUrl: data.images?.[0] || undefined, // Use first image as primary
         images: data.images || [],
+        displayImageUrl: data.displayImageUrl || undefined,
         isActive: data.isActive,
       };
       
@@ -235,14 +238,29 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
                 <div className="flex flex-wrap gap-2">
                   {form.watch("images")?.map((imagePath: string, index: number) => (
                     <div key={index} className="relative group">
-                      <div className="w-16 h-16 bg-gray-100 rounded border flex items-center justify-center text-xs text-gray-600 relative">
+                      <div className={`w-16 h-16 bg-gray-100 rounded border-2 flex items-center justify-center text-xs text-gray-600 relative cursor-pointer transition-all ${
+                        form.watch("displayImageUrl") === imagePath ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+                      }`}
+                      onClick={() => form.setValue("displayImageUrl", imagePath)}
+                      data-testid={`image-${index}`}
+                      >
                         <i className="fas fa-image text-gray-400"></i>
+                        {form.watch("displayImageUrl") === imagePath && (
+                          <div className="absolute -top-2 -left-2 w-5 h-5 bg-blue-500 text-white rounded-full text-xs flex items-center justify-center">
+                            ✓
+                          </div>
+                        )}
                         <button
                           type="button"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             const currentImages = form.getValues("images") || [];
                             const newImages = currentImages.filter((_, i) => i !== index);
                             form.setValue("images", newImages);
+                            // Clear display image if it's being removed
+                            if (form.getValues("displayImageUrl") === imagePath) {
+                              form.setValue("displayImageUrl", newImages[0] || "");
+                            }
                           }}
                           className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-xs hover:bg-red-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                           data-testid={`button-remove-image-${index}`}
@@ -250,15 +268,21 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
                           ×
                         </button>
                       </div>
-                      <div className="text-xs text-gray-500 mt-1 w-16 truncate">
-                        Image {index + 1}
+                      <div className="text-xs text-gray-500 mt-1 w-16 truncate text-center">
+                        {form.watch("displayImageUrl") === imagePath ? "Display" : `Image ${index + 1}`}
                       </div>
                     </div>
                   ))}
                 </div>
+                <div className="text-xs text-gray-600 mb-2">
+                  <i className="fas fa-info-circle mr-1"></i>Click on an image to set it as the display image for the product card
+                </div>
                 <button
                   type="button"
-                  onClick={() => form.setValue("images", [])}
+                  onClick={() => {
+                    form.setValue("images", []);
+                    form.setValue("displayImageUrl", "");
+                  }}
                   className="text-sm text-red-600 hover:text-red-700"
                   data-testid="button-clear-all-images"
                 >
