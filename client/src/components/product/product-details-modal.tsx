@@ -30,10 +30,12 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
 
   const handleClose = () => {
     setIsClosing(true);
+    // Close state immediately, animation is just visual
+    onClose();
+    // Reset animation state after animation completes
     setTimeout(() => {
-      onClose();
       setIsClosing(false);
-    }, 200); // Smooth 200ms fadeout
+    }, 200);
   };
 
   useEffect(() => {
@@ -46,12 +48,19 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
     };
 
     if (isOpen) {
-      document.addEventListener('keydown', handleEscape, { capture: true });
+      document.addEventListener('keydown', handleEscape);
       return () => {
-        document.removeEventListener('keydown', handleEscape, { capture: true });
+        document.removeEventListener('keydown', handleEscape);
       };
     }
-  }, [isOpen, handleClose]);
+  }, [isOpen]);
+
+  // Reset animation state when opening
+  useEffect(() => {
+    if (isOpen) {
+      setIsClosing(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -151,20 +160,16 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
   const queryClient = useQueryClient();
 
   const handleModalClose = () => {
-    if (lightboxOpen) {
-      setLightboxOpen(false); // Close lightbox first if open
-      return;
-    }
     setIsModalClosing(true);
+    // Close modal state immediately, animation is just visual
+    onClose();
+    // Reset states after animation
     setTimeout(() => {
-      onClose();
       setIsModalClosing(false);
-      setHasAnimated(false); // Reset for next opening
-    }, 200); // Smooth 200ms fadeout matching lightbox
-  };
-
-  const handleLightboxClose = () => {
-    setLightboxOpen(false);
+      setHasAnimated(false);
+      setLightboxOpen(false);
+      setCurrentImageIndex(0);
+    }, 200);
   };
 
   // Mark as animated once opened
@@ -173,14 +178,6 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
       setHasAnimated(true);
     }
   }, [isOpen, hasAnimated]);
-
-  // Reset states when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      setLightboxOpen(false);
-      setCurrentImageIndex(0);
-    }
-  }, [isOpen]);
 
   // Handle body scroll locking
   useEffect(() => {
@@ -310,9 +307,9 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
   return (
     <>
       <Dialog 
-        open={isOpen && !isModalClosing} 
+        open={isOpen} 
         onOpenChange={(open) => {
-          if (!open) {
+          if (!open && !lightboxOpen) {
             handleModalClose();
           }
         }}
@@ -491,7 +488,7 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
         images={productImages}
         currentIndex={currentImageIndex}
         isOpen={lightboxOpen}
-        onClose={handleLightboxClose}
+        onClose={() => setLightboxOpen(false)}
         onPrevious={handlePreviousImage}
         onNext={handleNextImage}
       />
