@@ -1,8 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { useLocation } from "wouter";
 
 export function useAdminAuth() {
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   const { data: authStatus, isLoading } = useQuery({
     queryKey: ["/api/admin/me"],
@@ -35,6 +37,7 @@ export function useAdminAuth() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/me"] });
+      setLocation("/");
     },
   });
 
@@ -50,6 +53,7 @@ export function useAdminAuth() {
 
 export function useInfluencerAuth() {
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   const { data: authStatus, isLoading } = useQuery({
     queryKey: ["/api/influencer/me"],
@@ -80,6 +84,7 @@ export function useInfluencerAuth() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/influencer/me"] });
+      setLocation("/");
     },
   });
 

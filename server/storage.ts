@@ -292,8 +292,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Offer operations
-  async getOffers(): Promise<Offer[]> {
-    return await db.select().from(offers).orderBy(desc(offers.createdAt));
+  async getOffers(): Promise<(Offer & { influencer?: Influencer })[]> {
+    const offersData = await db.query.offers.findMany({
+      with: {
+        influencer: true,
+      },
+      orderBy: desc(offers.createdAt),
+    });
+    return offersData;
   }
 
   async getOfferByCode(code: string): Promise<Offer | undefined> {
