@@ -1,0 +1,49 @@
+**PROMPT FOR REPLIT AI (functional spec only — you write the code):**
+
+Implement Markdown support for the product **Description** with these rules. Keep changes minimal; infer stack; preserve existing styles.
+
+### Behavior
+
+* **Authoring:** Description input accepts **CommonMark**. Store **raw Markdown** (not HTML). Optional **Preview** toggle is OK.
+* **Rendering:** Wherever Description is shown (card details, product page, mini/cart previews), render **sanitized HTML**.
+
+  * **Inherit app typography & colors** (light/dark).
+  * Use app **spacing tokens** for margins between headings/paragraphs/lists/tables.
+  * Use existing **utility classes/tokens** for links, blockquotes, code blocks.
+  * **No third-party CSS** should leak styles.
+
+### Supported features (minimum)
+
+* Text: **bold**, *italic*, ~~strike~~, `inline code`.
+* Headings: `#`–`####` mapped to app type scale; slightly reduce H1/H2 inside modals.
+* Lists: ordered & unordered (nested ≤2 levels).
+* Links: `[title](url)` → open in new tab with safe `rel` attrs; app-styled; respect dark mode.
+* Blockquotes: `>` with subtle themed left border.
+* Code blocks (\`\`\`): monospaced; horizontal scroll if needed; optional copy button if trivial.
+* Tables: pipe syntax; responsive with horizontal scroll; styled header row.
+* Images: `![alt](url)` responsive (max-width:100%, aspect preserved); apply app radius/shadow tokens if present; show alt text on error.
+
+### Line breaks
+
+* Follow Markdown rules: single newline doesn’t force a break unless two trailing spaces; paragraphs via blank lines.
+
+### Security (non-negotiable)
+
+* **Sanitize** rendered HTML to prevent XSS.
+* Strip raw HTML not produced by the Markdown renderer.
+* Disallow inline event handlers, scripts, iframes, embeds.
+* Block unsafe URL schemes (e.g., `javascript:`, `data:` unless explicitly allowed).
+
+### Small surfaces
+
+* In compact views (cards/mini-cart), show a **truncated first paragraph** (no headings/images), with ellipsis.
+
+### Acceptance checks
+
+1. Save stores **raw Markdown**; display shows **sanitized** output with app styling.
+2. Links open in a **new tab** with safe rel; visible focus states.
+3. Images are responsive, keep ratio, and show **alt** text if they fail.
+4. Code blocks and tables **scroll horizontally** without breaking layout.
+5. Headings/lists/blockquote render with **app typography/spacing**; dark mode respected.
+6. Attempted XSS (scripts, event handlers, unsafe URLs) is **neutralized**.
+7. No foreign/third-party default styles appear in the UI.

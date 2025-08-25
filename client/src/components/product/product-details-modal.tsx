@@ -28,14 +28,17 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
+        e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
         onClose();
       }
     };
 
     if (isOpen) {
-      document.addEventListener('keydown', handleEscape);
-      return () => document.removeEventListener('keydown', handleEscape);
+      // Use capture phase and higher priority
+      document.addEventListener('keydown', handleEscape, { capture: true });
+      return () => document.removeEventListener('keydown', handleEscape, { capture: true });
     }
   }, [isOpen, onClose]);
 
@@ -45,7 +48,9 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
     <div 
       className="fixed inset-0 z-[100] bg-black bg-opacity-90 flex items-center justify-center"
       onClick={(e) => {
+        e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
         onClose();
       }}
     >
@@ -55,7 +60,9 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
       >
         <button
           onClick={(e) => {
+            e.preventDefault();
             e.stopPropagation();
+            e.stopImmediatePropagation();
             onClose();
           }}
           className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
@@ -139,13 +146,15 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen && !lightboxOpen) {
+        e.preventDefault();
+        e.stopPropagation();
         onClose();
       }
     };
 
     if (isOpen && !lightboxOpen) {
-      document.addEventListener('keydown', handleEscape);
-      return () => document.removeEventListener('keydown', handleEscape);
+      document.addEventListener('keydown', handleEscape, true);
+      return () => document.removeEventListener('keydown', handleEscape, true);
     }
   }, [isOpen, lightboxOpen, onClose]);
 
@@ -249,7 +258,12 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={onClose}>
+      <Dialog open={isOpen} onOpenChange={(open) => {
+        // Only allow dialog to close if lightbox is not open
+        if (!open && !lightboxOpen) {
+          onClose();
+        }
+      }}>
         <DialogContent 
           className="max-w-4xl max-h-[90vh] overflow-y-auto" 
           data-testid="product-details-modal"
@@ -257,6 +271,24 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
             pointerEvents: lightboxOpen ? 'none' : 'auto',
             opacity: lightboxOpen ? 0.3 : 1,
             transition: 'opacity 0.2s ease-in-out'
+          }}
+          onEscapeKeyDown={(e) => {
+            if (lightboxOpen) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          }}
+          onPointerDownOutside={(e) => {
+            if (lightboxOpen) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
+          }}
+          onInteractOutside={(e) => {
+            if (lightboxOpen) {
+              e.preventDefault();
+              e.stopPropagation();
+            }
           }}
         >
           <DialogHeader>
