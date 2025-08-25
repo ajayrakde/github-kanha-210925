@@ -66,10 +66,12 @@ function ImageLightbox({ images, currentIndex, isOpen, onClose, onPrevious, onNe
         <button
           onClick={(e) => {
             e.stopPropagation();
+            console.log('X button clicked!');
             onClose();
           }}
-          className="fixed top-6 right-6 text-white hover:text-gray-300 bg-black bg-opacity-50 rounded-full p-2 z-[110] transition-all duration-200"
+          className="fixed top-6 right-6 text-white hover:text-gray-300 bg-black bg-opacity-50 rounded-full p-2 z-[110] transition-all duration-200 hover:bg-opacity-70"
           data-testid="button-close-lightbox"
+          style={{ zIndex: 110 }}
         >
           <X size={24} />
         </button>
