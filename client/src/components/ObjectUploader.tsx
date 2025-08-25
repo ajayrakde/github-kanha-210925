@@ -40,7 +40,7 @@ export function ObjectUploader({
   maxFileSize = 5242880, // 5MB default for production
   onGetUploadParameters,
   onComplete,
-  buttonClassName,
+  buttonClassName = "",
   children,
 }: ObjectUploaderProps) {
   const [showModal, setShowModal] = useState(false);
@@ -69,7 +69,8 @@ export function ObjectUploader({
         type="button"
         onClick={() => setShowModal(true)} 
         className={buttonClassName}
-        data-testid="button-upload-image"
+        data-testid="button-upload-images"
+        variant="outline"
       >
         {children}
       </Button>
@@ -79,6 +80,7 @@ export function ObjectUploader({
         open={showModal}
         onRequestClose={() => setShowModal(false)}
         proudlyDisplayPoweredByUppy={false}
+        note={`Select up to ${maxNumberOfFiles} image${maxNumberOfFiles > 1 ? 's' : ''} (max ${Math.round(maxFileSize / 1024 / 1024)}MB each)`}
       />
     </div>
   );

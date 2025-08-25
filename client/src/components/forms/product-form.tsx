@@ -20,8 +20,7 @@ const productSchema = z.object({
   category: z.string().optional(),
   description: z.string().optional(),
   price: z.string().min(1, "Price is required").refine((val) => !isNaN(Number(val)) && Number(val) > 0, "Price must be a positive number"),
-  imageUrl: z.string().optional().or(z.literal("")),
-  images: z.array(z.string().url("Must be a valid URL")).max(5, "Maximum 5 images allowed").optional(),
+  images: z.array(z.string()).max(5, "Maximum 5 images allowed").optional(),
   isActive: z.boolean().default(true),
 });
 
@@ -45,7 +44,6 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
       category: product?.category || "",
       description: product?.description || "",
       price: product?.price || "",
-      imageUrl: product?.imageUrl || "",
       images: product?.images || [],
       isActive: product?.isActive ?? true,
     },
@@ -60,7 +58,7 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
         category: data.category || undefined,
         description: data.description || undefined,
         price: data.price,
-        imageUrl: data.imageUrl || undefined,
+        imageUrl: data.images?.[0] || undefined, // Use first image as primary
         images: data.images || [],
         isActive: data.isActive,
       };
@@ -190,51 +188,86 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
         </div>
 
         <div>
-          <Label htmlFor="imageUrl">Product Image</Label>
+          <Label htmlFor="images">Product Images (Max 5)</Label>
           <div className="mt-2 space-y-3">
-            <div className="flex gap-3">
-              <Input
-                id="imageUrl"
-                {...form.register("imageUrl")}
-                placeholder="Image URL or upload an image"
-                className="flex-1"
-                data-testid="input-product-image"
-              />
-              <ObjectUploader
-                maxNumberOfFiles={1}
-                maxFileSize={5242880} // 5MB
-                onGetUploadParameters={async () => {
-                  const response = await apiRequest("POST", "/api/objects/upload");
-                  const data = await response.json();
-                  return {
-                    method: "PUT" as const,
-                    url: data.uploadURL,
-                  };
-                }}
-                onComplete={(result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
-                  if (result.successful && result.successful[0]) {
-                    // Convert the upload URL to our object serving URL
-                    const uploadUrl = result.successful[0].uploadURL as string;
+            <ObjectUploader
+              maxNumberOfFiles={5}
+              maxFileSize={5242880} // 5MB each
+              onGetUploadParameters={async () => {
+                const response = await apiRequest("POST", "/api/objects/upload");
+                const data = await response.json();
+                return {
+                  method: "PUT" as const,
+                  url: data.uploadURL,
+                };
+              }}
+              onComplete={(result: UploadResult<Record<string, unknown>, Record<string, unknown>>) => {
+                if (result.successful && result.successful.length > 0) {
+                  const newImages = result.successful.map((file) => {
+                    const uploadUrl = file.uploadURL as string;
                     const url = new URL(uploadUrl);
                     const pathParts = url.pathname.split('/');
                     const objectId = pathParts[pathParts.length - 1];
-                    const objectPath = `/objects/uploads/${objectId}`;
-                    form.setValue("imageUrl", objectPath);
-                  }
-                }}
-                buttonClassName="bg-gray-600 hover:bg-gray-700"
-              >
-                📁 Upload Image
-              </ObjectUploader>
-            </div>
-            {form.watch("imageUrl") && (
-              <div className="text-sm text-gray-600">
-                Current image: {form.watch("imageUrl")}
+                    return `/objects/uploads/${objectId}`;
+                  });
+                  
+                  // Append to existing images or replace
+                  const currentImages = form.getValues("images") || [];
+                  const allImages = [...currentImages, ...newImages].slice(0, 5); // Max 5 images
+                  form.setValue("images", allImages);
+                }
+              }}
+              buttonClassName="w-full bg-blue-600 hover:bg-blue-700 h-32 border-2 border-dashed border-blue-300 hover:border-blue-400"
+            >
+              <div className="flex flex-col items-center gap-2">
+                <i className="fas fa-cloud-upload-alt text-2xl"></i>
+                <span className="text-sm font-medium">Drop files here or click to upload</span>
+                <span className="text-xs text-gray-500">Upload 1-5 product images (Max 5MB each)</span>
+              </div>
+            </ObjectUploader>
+            
+            {form.watch("images") && (form.watch("images") || []).length > 0 && (
+              <div className="space-y-2">
+                <div className="text-sm font-medium text-gray-700">
+                  Uploaded Images ({form.watch("images")?.length}/5):
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {form.watch("images")?.map((imagePath: string, index: number) => (
+                    <div key={index} className="relative group">
+                      <div className="w-16 h-16 bg-gray-100 rounded border flex items-center justify-center text-xs text-gray-600 relative">
+                        <i className="fas fa-image text-gray-400"></i>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const currentImages = form.getValues("images") || [];
+                            const newImages = currentImages.filter((_, i) => i !== index);
+                            form.setValue("images", newImages);
+                          }}
+                          className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-xs hover:bg-red-600 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          data-testid={`button-remove-image-${index}`}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1 w-16 truncate">
+                        Image {index + 1}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => form.setValue("images", [])}
+                  className="text-sm text-red-600 hover:text-red-700"
+                  data-testid="button-clear-all-images"
+                >
+                  <i className="fas fa-trash mr-1"></i>Clear All Images
+                </button>
               </div>
             )}
           </div>
-          {form.formState.errors.imageUrl && (
-            <p className="text-sm text-red-600 mt-1">{form.formState.errors.imageUrl.message}</p>
+          {form.formState.errors.images && (
+            <p className="text-sm text-red-600 mt-1">{form.formState.errors.images.message}</p>
           )}
         </div>
 
