@@ -12,12 +12,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import type { ShippingRule } from "@shared/schema";
+import QueryBuilder from "@/components/admin/query-builder";
+import type { ShippingRule, ProductQueryConditions, LocationQueryConditions } from "@shared/schema";
 
 interface ShippingRuleFormData {
   name: string;
   description: string;
-  type: "product_based" | "location_value_based";
+  type: "product_based" | "location_value_based" | "product_query_based" | "location_query_based";
   shippingCharge: string;
   isEnabled: boolean;
   priority: number;
@@ -116,7 +117,7 @@ export default function ShippingRulesManagement() {
     setFormData({
       name: rule.name,
       description: rule.description || "",
-      type: rule.type as "product_based" | "location_value_based",
+      type: rule.type as "product_based" | "location_value_based" | "product_query_based" | "location_query_based",
       shippingCharge: rule.shippingCharge,
       isEnabled: rule.isEnabled ?? true,
       priority: rule.priority ?? 0,
@@ -198,7 +199,23 @@ export default function ShippingRulesManagement() {
           </div>
         </div>
       );
-    } else {
+    } else if (formData.type === "product_query_based") {
+      return (
+        <QueryBuilder
+          type="product_query_based"
+          conditions={formData.conditions as ProductQueryConditions}
+          onChange={(conditions) => setFormData(prev => ({ ...prev, conditions }))}
+        />
+      );
+    } else if (formData.type === "location_query_based") {
+      return (
+        <QueryBuilder
+          type="location_query_based"
+          conditions={formData.conditions as LocationQueryConditions}
+          onChange={(conditions) => setFormData(prev => ({ ...prev, conditions }))}
+        />
+      );
+    } else if (formData.type === "location_value_based") {
       return (
         <div className="space-y-4">
           <div>
@@ -465,16 +482,23 @@ export default function ShippingRulesManagement() {
                 <Label htmlFor="type">Rule Type *</Label>
                 <Select
                   value={formData.type}
-                  onValueChange={(value: "product_based" | "location_value_based") => 
-                    setFormData(prev => ({ ...prev, type: value, conditions: {} }))
+                  onValueChange={(value: "product_based" | "location_value_based" | "product_query_based" | "location_query_based") => {
+                    const defaultConditions = 
+                      value === "product_query_based" ? { rules: [{ field: "productName", operator: "EQUALS", values: [""] }], logicalOperator: "AND" } :
+                      value === "location_query_based" ? { rules: [{ field: "pincode", operator: "EQUALS", values: [""] }], logicalOperator: "AND" } :
+                      {};
+                    setFormData(prev => ({ ...prev, type: value, conditions: defaultConditions }));
                   }
+                }
                 >
                   <SelectTrigger data-testid="select-rule-type">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="product_based">Product Based</SelectItem>
-                    <SelectItem value="location_value_based">Location/Value Based</SelectItem>
+                    <SelectItem value="product_based">Product Based (Legacy)</SelectItem>
+                    <SelectItem value="location_value_based">Location/Value Based (Legacy)</SelectItem>
+                    <SelectItem value="product_query_based">Product Query Builder</SelectItem>
+                    <SelectItem value="location_query_based">Location Query Builder</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -497,7 +521,11 @@ export default function ShippingRulesManagement() {
               <p className="text-sm text-gray-600 mb-4">
                 {formData.type === "product_based" 
                   ? "Specify at least one condition: product names, categories, or classifications"
-                  : "Specify at least one condition: PIN codes (individual or ranges) or order value range"
+                  : formData.type === "location_value_based"
+                  ? "Specify at least one condition: PIN codes (individual or ranges) or order value range"
+                  : formData.type === "product_query_based"
+                  ? "Build SQL-like queries for product matching using operators like IN, NOT IN, BETWEEN, etc."
+                  : "Build SQL-like queries for location and order value matching using advanced operators"
                 }
               </p>
               {renderConditionsForm()}
