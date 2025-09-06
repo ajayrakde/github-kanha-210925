@@ -14,7 +14,17 @@ interface Order {
   status: string;
   paymentStatus: string;
   paymentMethod: string;
-  deliveryAddress: string;
+  deliveryAddress: {
+    id: string;
+    userId: string;
+    name: string;
+    address: string;
+    city: string;
+    pincode: string;
+    isPreferred: boolean;
+    createdAt: string;
+    updatedAt: string;
+  };
   createdAt: string;
   items?: any[];
 }
@@ -141,7 +151,9 @@ export default function UserOrders() {
               <div className="space-y-2 text-sm">
                 <div className="flex items-start">
                   <span className="text-gray-600 mr-2">Delivery Address:</span>
-                  <span className="flex-1">{order.deliveryAddress}</span>
+                  <span className="flex-1">
+                    {order.deliveryAddress.address}, {order.deliveryAddress.city} - {order.deliveryAddress.pincode}
+                  </span>
                 </div>
                 <div className="flex items-center">
                   <span className="text-gray-600 mr-2">Payment:</span>
