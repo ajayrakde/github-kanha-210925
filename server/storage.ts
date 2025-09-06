@@ -116,6 +116,7 @@ export interface IStorage {
   deleteUserAddress(id: string): Promise<void>;
   setPreferredAddress(userId: string, addressId: string): Promise<void>;
   getPreferredAddress(userId: string): Promise<UserAddress | undefined>;
+  getLastOrderAddress(userId: string): Promise<UserAddress | null>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -639,6 +640,18 @@ export class DatabaseStorage implements IStorage {
       ...order,
       offer: order.offer || undefined
     }));
+  }
+
+  async getLastOrderAddress(userId: string): Promise<UserAddress | null> {
+    const lastOrder = await db.query.orders.findFirst({
+      where: eq(orders.userId, userId),
+      with: {
+        deliveryAddress: true,
+      },
+      orderBy: desc(orders.createdAt),
+    });
+    
+    return lastOrder?.deliveryAddress || null;
   }
 
   // Offer redemption operations

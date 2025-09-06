@@ -324,6 +324,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get last order's delivery address for UI
+  app.get('/api/auth/addresses/last', async (req: SessionRequest, res) => {
+    if (!req.session.userId || req.session.userRole !== 'buyer') {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+    
+    try {
+      const lastOrderAddress = await storage.getLastOrderAddress(req.session.userId);
+      res.json(lastOrderAddress);
+    } catch (error) {
+      console.error('Error fetching last order address:', error);
+      res.status(500).json({ message: 'Failed to fetch last order address' });
+    }
+  });
+
   app.post('/api/auth/addresses', async (req: SessionRequest, res) => {
     if (!req.session.userId || req.session.userRole !== 'buyer') {
       return res.status(401).json({ message: 'Authentication required' });
@@ -389,7 +404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const orderCreationSchema = z.object({
     userInfo: z.object({
       name: z.string().optional(),
-      email: z.string().email().optional().nullable(),
+      email: z.string().email().or(z.literal("")).optional().nullable(),
       address: z.string().min(1, 'Address is required'),
       city: z.string().min(1, 'City is required'),
       pincode: z.string().min(1, 'Pincode is required'),
@@ -478,9 +493,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (userInfo) {
         const { address, city, pincode, makePreferred, ...userInfoToUpdate } = userInfo;
         if (Object.keys(userInfoToUpdate).length > 0) {
-          // Validate user update data
-          const userUpdateSchema = insertUserSchema.partial().pick({ name: true, email: true });
+          // Validate user update data, handle empty email
+          const userUpdateSchema = insertUserSchema.partial().pick({ name: true, email: true }).extend({
+            email: z.string().email().or(z.literal("")).optional().nullable(),
+          });
           const validatedUserUpdate = userUpdateSchema.parse(userInfoToUpdate);
+          // Convert empty string to null for database
+          if (validatedUserUpdate.email === "") {
+            validatedUserUpdate.email = null;
+          }
           await storage.updateUser(userId, validatedUserUpdate);
         }
       }

@@ -53,6 +53,13 @@ export default function Checkout() {
     retry: false,
   });
 
+  // Get last order's delivery address if logged in
+  const { data: lastOrderAddress } = useQuery<any>({
+    queryKey: ["/api/auth/addresses/last"],
+    enabled: authData?.authenticated && addresses && addresses.length > 1,
+    retry: false,
+  });
+
   useEffect(() => {
     if (authData?.authenticated && authData.user) {
       setUser(authData.user);
