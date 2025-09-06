@@ -273,7 +273,89 @@ export const insertCartItemSchema = createInsertSchema(cartItems).omit({ id: tru
 export const insertOtpSchema = createInsertSchema(otps).omit({ id: true, createdAt: true });
 export const insertUserAddressSchema = createInsertSchema(userAddresses).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAppSettingsSchema = createInsertSchema(appSettings).omit({ id: true, createdAt: true, updatedAt: true });
-// Shipping rule conditions schemas with validation
+// SQL-like query operators
+const queryOperatorSchema = z.enum([
+  "IN",
+  "NOT_IN", 
+  "BETWEEN",
+  "NOT_BETWEEN",
+  "EQUALS",
+  "NOT_EQUALS"
+]);
+
+// Query fields for different rule types
+const productQueryFieldSchema = z.enum([
+  "productName",
+  "category", 
+  "classification"
+]);
+
+const locationQueryFieldSchema = z.enum([
+  "pincode",
+  "orderValue"
+]);
+
+// Query rule structure
+const baseQueryRuleSchema = z.object({
+  field: z.string(),
+  operator: queryOperatorSchema,
+  values: z.array(z.string()).min(1, "At least one value is required"),
+});
+
+// Product-based query rule
+const productQueryRuleSchema = baseQueryRuleSchema.extend({
+  field: productQueryFieldSchema,
+}).refine((data) => {
+  // BETWEEN and NOT_BETWEEN require exactly 2 values
+  if (["BETWEEN", "NOT_BETWEEN"].includes(data.operator)) {
+    return data.values.length === 2;
+  }
+  // EQUALS and NOT_EQUALS require exactly 1 value
+  if (["EQUALS", "NOT_EQUALS"].includes(data.operator)) {
+    return data.values.length === 1;
+  }
+  // IN and NOT_IN can have multiple values
+  return data.values.length >= 1;
+}, { message: "Invalid number of values for the selected operator" });
+
+// Location-based query rule  
+const locationQueryRuleSchema = baseQueryRuleSchema.extend({
+  field: locationQueryFieldSchema,
+}).refine((data) => {
+  // Validate PIN codes if field is pincode
+  if (data.field === "pincode") {
+    return data.values.every(val => /^\d{6}$/.test(val));
+  }
+  // Validate numeric values if field is orderValue
+  if (data.field === "orderValue") {
+    return data.values.every(val => !isNaN(parseFloat(val)) && parseFloat(val) >= 0);
+  }
+  return true;
+}, { message: "Invalid values for the selected field" }).refine((data) => {
+  // BETWEEN and NOT_BETWEEN require exactly 2 values
+  if (["BETWEEN", "NOT_BETWEEN"].includes(data.operator)) {
+    return data.values.length === 2;
+  }
+  // EQUALS and NOT_EQUALS require exactly 1 value
+  if (["EQUALS", "NOT_EQUALS"].includes(data.operator)) {
+    return data.values.length === 1;
+  }
+  // IN and NOT_IN can have multiple values
+  return data.values.length >= 1;
+}, { message: "Invalid number of values for the selected operator" });
+
+// Query conditions with logical operators
+const productQueryConditionsSchema = z.object({
+  rules: z.array(productQueryRuleSchema).min(1, "At least one rule is required"),
+  logicalOperator: z.enum(["AND", "OR"]).default("AND"),
+});
+
+const locationQueryConditionsSchema = z.object({
+  rules: z.array(locationQueryRuleSchema).min(1, "At least one rule is required"),
+  logicalOperator: z.enum(["AND", "OR"]).default("AND"),
+});
+
+// Legacy condition schemas for backward compatibility
 const productBasedConditionsSchema = z.object({
   productNames: z.array(z.string().min(1)).optional(),
   categories: z.array(z.string().min(1)).optional(),
@@ -305,6 +387,14 @@ export const insertShippingRuleSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("location_value_based"), 
     conditions: locationValueBasedConditionsSchema,
+  }),
+  z.object({
+    type: z.literal("product_query_based"),
+    conditions: productQueryConditionsSchema,
+  }),
+  z.object({
+    type: z.literal("location_query_based"),
+    conditions: locationQueryConditionsSchema,
   }),
 ]).and(z.object({
   name: z.string().min(1, "Name is required").max(255, "Name too long"),
@@ -340,3 +430,12 @@ export type AppSettings = typeof appSettings.$inferSelect;
 export type InsertAppSettings = z.infer<typeof insertAppSettingsSchema>;
 export type ShippingRule = typeof shippingRules.$inferSelect;
 export type InsertShippingRule = z.infer<typeof insertShippingRuleSchema>;
+
+// Query-based types
+export type QueryOperator = z.infer<typeof queryOperatorSchema>;
+export type ProductQueryField = z.infer<typeof productQueryFieldSchema>;
+export type LocationQueryField = z.infer<typeof locationQueryFieldSchema>;
+export type ProductQueryRule = z.infer<typeof productQueryRuleSchema>;
+export type LocationQueryRule = z.infer<typeof locationQueryRuleSchema>;
+export type ProductQueryConditions = z.infer<typeof productQueryConditionsSchema>;
+export type LocationQueryConditions = z.infer<typeof locationQueryConditionsSchema>;
