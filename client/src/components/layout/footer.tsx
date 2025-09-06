@@ -40,7 +40,7 @@ export default function Footer() {
             Influencer
           </button>
           <span>•</span>
-          <span>contact: +919890894335/support@panchkosha.in</span>
+          <span>contact: +919890894335/support@kanhaa.com</span>
         </div>
       </div>
     </footer>

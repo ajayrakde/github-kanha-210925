@@ -46,7 +46,7 @@ export default function RefundPolicy() {
             <ul className="list-disc list-inside ml-4 space-y-2">
               <li><strong>Accept the delivery</strong> (do not refuse or return it).</li>
               <li>Raise a refund request on the <strong>same day of delivery</strong>.</li>
-              <li>Share <strong>photos/videos of the issue</strong> with your order ID via email at <strong>support@panchkosha.in</strong>.</li>
+              <li>Share <strong>photos/videos of the issue</strong> with your order ID via email at <strong>support@kanhaa.com</strong>.</li>
             </ul>
           </div>
         </section>

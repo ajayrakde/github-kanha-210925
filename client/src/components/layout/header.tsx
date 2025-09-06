@@ -14,7 +14,7 @@ export default function Header() {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2 cursor-pointer" onClick={() => setLocation("/")}>
             <i className="fas fa-store text-blue-600 text-xl"></i>
-            <h1 className="text-lg font-semibold text-gray-900">SimpleStore</h1>
+            <h1 className="text-lg font-semibold text-gray-900">Kanhaa</h1>
           </div>
           <div className="flex items-center space-x-3">
             <UserMenu />
