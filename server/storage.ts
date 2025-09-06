@@ -9,6 +9,7 @@ import {
   cartItems,
   offerRedemptions,
   appSettings,
+  shippingRules,
   type User,
   type InsertUser,
   type Product,
@@ -30,6 +31,8 @@ import {
   type InsertUserAddress,
   type AppSettings,
   type InsertAppSettings,
+  type ShippingRule,
+  type InsertShippingRule,
   userAddresses,
 } from "@shared/schema";
 import type { AbandonedCart } from "@/lib/types";
@@ -126,6 +129,14 @@ export interface IStorage {
   getAppSetting(key: string): Promise<AppSettings | undefined>;
   updateAppSetting(key: string, value: string, updatedBy?: string): Promise<AppSettings>;
   createAppSetting(setting: InsertAppSettings): Promise<AppSettings>;
+
+  // Shipping rules operations
+  getShippingRules(): Promise<ShippingRule[]>;
+  getShippingRule(id: string): Promise<ShippingRule | undefined>;
+  createShippingRule(rule: InsertShippingRule): Promise<ShippingRule>;
+  updateShippingRule(id: string, rule: Partial<InsertShippingRule>): Promise<ShippingRule>;
+  deleteShippingRule(id: string): Promise<void>;
+  getEnabledShippingRules(): Promise<ShippingRule[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -759,6 +770,46 @@ export class DatabaseStorage implements IStorage {
   async createAppSetting(setting: InsertAppSettings): Promise<AppSettings> {
     const [created] = await db.insert(appSettings).values(setting).returning();
     return created;
+  }
+
+  // Shipping rules operations
+  async getShippingRules(): Promise<ShippingRule[]> {
+    return await db.select().from(shippingRules).orderBy(desc(shippingRules.priority), shippingRules.createdAt);
+  }
+
+  async getShippingRule(id: string): Promise<ShippingRule | undefined> {
+    const [rule] = await db.select().from(shippingRules).where(eq(shippingRules.id, id));
+    return rule;
+  }
+
+  async createShippingRule(rule: InsertShippingRule): Promise<ShippingRule> {
+    const [created] = await db.insert(shippingRules).values(rule).returning();
+    return created;
+  }
+
+  async updateShippingRule(id: string, rule: Partial<InsertShippingRule>): Promise<ShippingRule> {
+    const [updated] = await db
+      .update(shippingRules)
+      .set({ ...rule, updatedAt: new Date() })
+      .where(eq(shippingRules.id, id))
+      .returning();
+    
+    if (!updated) {
+      throw new Error(`Shipping rule with id "${id}" not found`);
+    }
+    
+    return updated;
+  }
+
+  async deleteShippingRule(id: string): Promise<void> {
+    await db.delete(shippingRules).where(eq(shippingRules.id, id));
+  }
+
+  async getEnabledShippingRules(): Promise<ShippingRule[]> {
+    return await db.select()
+      .from(shippingRules)
+      .where(eq(shippingRules.isEnabled, true))
+      .orderBy(desc(shippingRules.priority), shippingRules.createdAt);
   }
 
 }
