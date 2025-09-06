@@ -273,7 +273,46 @@ export const insertCartItemSchema = createInsertSchema(cartItems).omit({ id: tru
 export const insertOtpSchema = createInsertSchema(otps).omit({ id: true, createdAt: true });
 export const insertUserAddressSchema = createInsertSchema(userAddresses).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAppSettingsSchema = createInsertSchema(appSettings).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertShippingRuleSchema = createInsertSchema(shippingRules).omit({ id: true, createdAt: true, updatedAt: true });
+// Shipping rule conditions schemas with validation
+const productBasedConditionsSchema = z.object({
+  productNames: z.array(z.string().min(1)).optional(),
+  categories: z.array(z.string().min(1)).optional(),
+  classifications: z.array(z.string().min(1)).optional(),
+}).refine(
+  (data) => data.productNames?.length || data.categories?.length || data.classifications?.length,
+  { message: "At least one condition is required for product-based rules" }
+);
+
+const locationValueBasedConditionsSchema = z.object({
+  pincodes: z.array(z.string().regex(/^\d{6}$/, "PIN code must be 6 digits")).optional(),
+  pincodeRanges: z.array(z.object({
+    start: z.string().regex(/^\d{6}$/, "Start PIN code must be 6 digits"),
+    end: z.string().regex(/^\d{6}$/, "End PIN code must be 6 digits")
+  })).optional(),
+  minOrderValue: z.coerce.number().min(0).optional(),
+  maxOrderValue: z.coerce.number().min(0).optional(),
+}).refine(
+  (data) => data.pincodes?.length || data.pincodeRanges?.length || 
+           data.minOrderValue !== undefined || data.maxOrderValue !== undefined,
+  { message: "At least one condition is required for location/value-based rules" }
+);
+
+export const insertShippingRuleSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("product_based"),
+    conditions: productBasedConditionsSchema,
+  }),
+  z.object({
+    type: z.literal("location_value_based"), 
+    conditions: locationValueBasedConditionsSchema,
+  }),
+]).and(z.object({
+  name: z.string().min(1, "Name is required").max(255, "Name too long"),
+  description: z.string().max(2000, "Description too long").optional(),
+  shippingCharge: z.coerce.string(),
+  isEnabled: z.boolean().optional().default(true),
+  priority: z.number().int().min(0).max(1000000).optional().default(0),
+}));
 
 // Types
 export type User = typeof users.$inferSelect;

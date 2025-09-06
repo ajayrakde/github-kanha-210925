@@ -4,7 +4,7 @@ import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
 import { otpService } from "./otp-service";
 import session from "express-session";
-import { insertProductSchema, insertOfferSchema, insertUserAddressSchema, insertUserSchema } from "@shared/schema";
+import { insertProductSchema, insertOfferSchema, insertUserAddressSchema, insertUserSchema, insertShippingRuleSchema } from "@shared/schema";
 import { z } from "zod";
 
 const sessionConfig = session({
@@ -891,12 +891,21 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
 
   app.get("/api/admin/shipping-rules/:id", requireAdmin, async (req, res) => {
     try {
-      const rule = await storage.getShippingRule(req.params.id);
+      const idSchema = z.string().uuid();
+      const id = idSchema.parse(req.params.id);
+      
+      const rule = await storage.getShippingRule(id);
       if (!rule) {
         return res.status(404).json({ error: "Shipping rule not found" });
       }
       res.json(rule);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(422).json({ 
+          error: "Invalid ID parameter", 
+          details: error.errors 
+        });
+      }
       console.error("Error fetching shipping rule:", error);
       res.status(500).json({ error: "Failed to fetch shipping rule" });
     }
@@ -904,24 +913,18 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
 
   app.post("/api/admin/shipping-rules", requireAdmin, async (req, res) => {
     try {
-      const { name, description, type, shippingCharge, isEnabled, priority, conditions } = req.body;
+      const validatedData = insertShippingRuleSchema.parse(req.body);
       
-      if (!name || !type || !shippingCharge || !conditions) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-
-      const rule = await storage.createShippingRule({
-        name,
-        description,
-        type,
-        shippingCharge: shippingCharge.toString(),
-        isEnabled: isEnabled ?? true,
-        priority: priority ?? 0,
-        conditions
-      });
+      const rule = await storage.createShippingRule(validatedData);
       
       res.status(201).json(rule);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(422).json({ 
+          error: "Validation failed", 
+          details: error.errors 
+        });
+      }
       console.error("Error creating shipping rule:", error);
       res.status(500).json({ error: "Failed to create shipping rule" });
     }
@@ -929,17 +932,77 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
 
   app.patch("/api/admin/shipping-rules/:id", requireAdmin, async (req, res) => {
     try {
-      const { id } = req.params;
-      const updates = req.body;
+      const idSchema = z.string().uuid();
+      const id = idSchema.parse(req.params.id);
       
-      // Convert shippingCharge to string if provided
-      if (updates.shippingCharge !== undefined) {
-        updates.shippingCharge = updates.shippingCharge.toString();
+      // Check if request body is empty
+      if (Object.keys(req.body).length === 0) {
+        return res.status(400).json({ error: "No updates provided" });
       }
       
-      const rule = await storage.updateShippingRule(id, updates);
+      // Fetch existing rule to determine effective type
+      const existingRule = await storage.getShippingRule(id);
+      if (!existingRule) {
+        return res.status(404).json({ error: "Shipping rule not found" });
+      }
+      
+      // For update, we allow partial updates but still validate structure when provided
+      const validatedUpdates: any = {};
+      if (req.body.name) validatedUpdates.name = z.string().min(1).max(255).parse(req.body.name);
+      if (req.body.description !== undefined) validatedUpdates.description = z.string().max(2000).optional().parse(req.body.description);
+      if (req.body.shippingCharge !== undefined) validatedUpdates.shippingCharge = z.coerce.string().parse(req.body.shippingCharge);
+      if (req.body.isEnabled !== undefined) validatedUpdates.isEnabled = z.boolean().parse(req.body.isEnabled);
+      if (req.body.priority !== undefined) validatedUpdates.priority = z.number().int().min(0).max(1000000).parse(req.body.priority);
+      if (req.body.type) validatedUpdates.type = z.enum(["product_based", "location_value_based"]).parse(req.body.type);
+      
+      // Determine effective type (updated type or existing type)
+      const effectiveType = validatedUpdates.type || existingRule.type;
+      
+      // Validate conditions if provided
+      if (req.body.conditions) {
+        // Create a schema for validating conditions based on effective type
+        const productBasedConditionsSchema = z.object({
+          productNames: z.array(z.string().min(1)).optional(),
+          categories: z.array(z.string().min(1)).optional(),
+          classifications: z.array(z.string().min(1)).optional(),
+        }).refine(
+          (data) => data.productNames?.length || data.categories?.length || data.classifications?.length,
+          { message: "At least one condition is required for product-based rules" }
+        );
+        
+        const locationValueBasedConditionsSchema = z.object({
+          pincodes: z.array(z.string().regex(/^\d{6}$/, "PIN code must be 6 digits")).optional(),
+          pincodeRanges: z.array(z.object({
+            start: z.string().regex(/^\d{6}$/, "Start PIN code must be 6 digits"),
+            end: z.string().regex(/^\d{6}$/, "End PIN code must be 6 digits")
+          })).optional(),
+          minOrderValue: z.coerce.number().min(0).optional(),
+          maxOrderValue: z.coerce.number().min(0).optional(),
+        }).refine(
+          (data) => data.pincodes?.length || data.pincodeRanges?.length || 
+                   data.minOrderValue !== undefined || data.maxOrderValue !== undefined,
+          { message: "At least one condition is required for location/value-based rules" }
+        );
+        
+        if (effectiveType === "product_based") {
+          validatedUpdates.conditions = productBasedConditionsSchema.parse(req.body.conditions);
+        } else if (effectiveType === "location_value_based") {
+          validatedUpdates.conditions = locationValueBasedConditionsSchema.parse(req.body.conditions);
+        }
+      }
+      
+      const rule = await storage.updateShippingRule(id, validatedUpdates);
       res.json(rule);
-    } catch (error) {
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(422).json({ 
+          error: "Validation failed", 
+          details: error.errors 
+        });
+      }
+      if (error?.message?.includes("not found")) {
+        return res.status(404).json({ error: "Shipping rule not found" });
+      }
       console.error("Error updating shipping rule:", error);
       res.status(500).json({ error: "Failed to update shipping rule" });
     }
@@ -947,10 +1010,18 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
 
   app.delete("/api/admin/shipping-rules/:id", requireAdmin, async (req, res) => {
     try {
-      const { id } = req.params;
+      const idSchema = z.string().uuid();
+      const id = idSchema.parse(req.params.id);
+      
       await storage.deleteShippingRule(id);
       res.status(204).send();
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(422).json({ 
+          error: "Invalid ID parameter", 
+          details: error.errors 
+        });
+      }
       console.error("Error deleting shipping rule:", error);
       res.status(500).json({ error: "Failed to delete shipping rule" });
     }
