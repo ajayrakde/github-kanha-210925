@@ -4,6 +4,16 @@ This is a simple e-commerce webstore application designed for selling up to 10 p
 
 The application features a modern tech stack with React/TypeScript frontend, Express.js backend, and PostgreSQL database. It includes essential e-commerce functionality like product listings, shopping cart, checkout process with OTP verification, coupon/discount system, and comprehensive admin and influencer dashboards.
 
+# Recent Changes
+
+## 2025-01-06 - Security Fix for Address Deletion
+- **Security Vulnerability Fixed**: The DELETE /api/auth/addresses/:id endpoint now properly verifies address ownership before deletion
+- **Storage Method Updated**: The deleteUserAddress method now requires and validates userId parameter
+- **Changes Made**:
+  - Modified `server/storage.ts`: Updated deleteUserAddress signature to include userId parameter
+  - Modified `server/routes.ts`: Updated DELETE address route to pass userId for ownership verification
+  - Added database constraint using `and(eq(userAddresses.id, id), eq(userAddresses.userId, userId))` to ensure only address owners can delete their addresses
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
