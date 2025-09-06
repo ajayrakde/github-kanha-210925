@@ -103,9 +103,16 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
   });
 
   const onSubmit = (data: ProductFormData) => {
-    console.log('Form submitted with data:', data);
+    // Get current form values to ensure we have the latest image data
+    const currentFormData = {
+      ...data,
+      images: form.getValues("images") || [],
+      displayImageUrl: form.getValues("displayImageUrl") || "",
+    };
+    
+    console.log('Form submitted with data:', currentFormData);
     console.log('Form errors:', form.formState.errors);
-    createProductMutation.mutate(data);
+    createProductMutation.mutate(currentFormData);
   };
 
   return (
@@ -218,6 +225,15 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
 
         <div>
           <Label htmlFor="images">Product Images (Max 5)</Label>
+          {/* Hidden input to register the images field with React Hook Form */}
+          <input 
+            type="hidden" 
+            {...form.register("images")} 
+          />
+          <input 
+            type="hidden" 
+            {...form.register("displayImageUrl")} 
+          />
           <div className="mt-2 space-y-3">
             <ObjectUploader
               maxNumberOfFiles={5}
