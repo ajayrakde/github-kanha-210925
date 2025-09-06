@@ -98,8 +98,8 @@ export interface IStorage {
   getConversionMetrics(): Promise<{ totalSessions: number; ordersCompleted: number; conversionRate: number }>;
 
   // Order operations
-  getOrders(): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer })[]>;
-  getOrder(id: string): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer }) | undefined>;
+  getOrders(): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer; deliveryAddress: UserAddress })[]>;
+  getOrder(id: string): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer; deliveryAddress: UserAddress }) | undefined>;
   createOrder(order: InsertOrder): Promise<Order>;
   createOrderItems(items: InsertOrderItem[]): Promise<OrderItem[]>;
   updateOrderStatus(id: string, status: string): Promise<Order>;
@@ -561,7 +561,7 @@ export class DatabaseStorage implements IStorage {
 
 
   // Order operations
-  async getOrders(): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer })[]> {
+  async getOrders(): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer; deliveryAddress: UserAddress })[]> {
     const ordersData = await db.query.orders.findMany({
       with: {
         user: true,
@@ -571,6 +571,7 @@ export class DatabaseStorage implements IStorage {
           },
         },
         offer: true,
+        deliveryAddress: true,
       },
       orderBy: desc(orders.createdAt),
     });
@@ -580,7 +581,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getOrder(id: string): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer }) | undefined> {
+  async getOrder(id: string): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer; deliveryAddress: UserAddress }) | undefined> {
     const orderData = await db.query.orders.findFirst({
       where: eq(orders.id, id),
       with: {
@@ -591,6 +592,7 @@ export class DatabaseStorage implements IStorage {
           },
         },
         offer: true,
+        deliveryAddress: true,
       },
     });
     return orderData ? {
@@ -618,8 +620,25 @@ export class DatabaseStorage implements IStorage {
     return updatedOrder;
   }
 
-  async getOrdersByUser(userId: string): Promise<Order[]> {
-    return await db.select().from(orders).where(eq(orders.userId, userId));
+  async getOrdersByUser(userId: string): Promise<(Order & { items: (OrderItem & { product: Product })[]; offer?: Offer; deliveryAddress: UserAddress })[]> {
+    const ordersData = await db.query.orders.findMany({
+      where: eq(orders.userId, userId),
+      with: {
+        items: {
+          with: {
+            product: true,
+          },
+        },
+        offer: true,
+        deliveryAddress: true,
+      },
+      orderBy: desc(orders.createdAt),
+    });
+    
+    return ordersData.map(order => ({
+      ...order,
+      offer: order.offer || undefined
+    }));
   }
 
   // Offer redemption operations

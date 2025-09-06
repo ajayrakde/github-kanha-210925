@@ -102,7 +102,7 @@ export const orders = pgTable("orders", {
   offerId: varchar("offer_id").references(() => offers.id),
   paymentMethod: varchar("payment_method", { length: 50 }),
   paymentStatus: varchar("payment_status", { length: 50 }).default('pending'),
-  deliveryAddress: text("delivery_address"),
+  deliveryAddressId: varchar("delivery_address_id").references(() => userAddresses.id).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -186,6 +186,10 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
   }),
   items: many(orderItems),
   redemption: many(offerRedemptions),
+  deliveryAddress: one(userAddresses, {
+    fields: [orders.deliveryAddressId],
+    references: [userAddresses.id],
+  }),
 }));
 
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({

@@ -385,19 +385,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Order creation schema validation
+  const orderCreationSchema = z.object({
+    userInfo: z.object({
+      name: z.string().optional(),
+      email: z.string().email().optional().nullable(),
+      address: z.string().min(1, 'Address is required'),
+      city: z.string().min(1, 'City is required'),
+      pincode: z.string().min(1, 'Pincode is required'),
+      makePreferred: z.boolean().optional().default(false),
+    }).optional(),
+    offerId: z.string().optional().nullable(),
+    paymentMethod: z.string().min(1, 'Payment method is required'),
+    selectedAddressId: z.string().optional().nullable(),
+  });
+
   // Order routes
   app.post('/api/orders', async (req: SessionRequest, res) => {
+    // Authentication check
+    if (!req.session.userId || req.session.userRole !== 'buyer') {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
     try {
-      const { userId, userInfo, offerId, paymentMethod } = req.body;
+      // Validate request body
+      const validatedData = orderCreationSchema.parse(req.body);
+      const { userInfo, offerId, paymentMethod, selectedAddressId } = validatedData;
+      const userId = req.session.userId; // Use authenticated user ID
+      
       const cartItems = await storage.getCartItems(req.session.sessionId!);
       
       if (cartItems.length === 0) {
         return res.status(400).json({ message: 'Cart is empty' });
       }
 
-      // Update user info if provided
-      if (userInfo && userId) {
-        await storage.updateUser(userId, userInfo);
+      let deliveryAddressId = selectedAddressId;
+
+      // Validate selected address ownership if provided
+      if (selectedAddressId) {
+        const userAddresses = await storage.getUserAddresses(userId);
+        const selectedAddress = userAddresses.find(addr => addr.id === selectedAddressId);
+        if (!selectedAddress) {
+          return res.status(400).json({ message: 'Selected address does not belong to user' });
+        }
+      }
+
+      // Handle new address creation
+      if (!selectedAddressId && userInfo) {
+        // Validate address data
+        const addressValidationSchema = insertUserAddressSchema.omit({ userId: true }).extend({
+          makePreferred: z.boolean().optional().default(false),
+        });
+        
+        const validatedAddressData = addressValidationSchema.parse({
+          name: 'Delivery Address',
+          address: userInfo.address,
+          city: userInfo.city,
+          pincode: userInfo.pincode,
+          makePreferred: userInfo.makePreferred,
+        });
+        
+        // Check if user has any existing addresses
+        const existingAddresses = await storage.getUserAddresses(userId);
+        
+        // If no existing addresses, make this the preferred one automatically
+        const shouldBePreferred = validatedAddressData.makePreferred || existingAddresses.length === 0;
+        
+        const addressData = {
+          userId,
+          name: existingAddresses.length === 0 ? 'Primary Address' : 'Delivery Address',
+          address: validatedAddressData.address,
+          city: validatedAddressData.city,
+          pincode: validatedAddressData.pincode,
+          isPreferred: shouldBePreferred,
+        };
+        
+        const newAddress = await storage.createUserAddress(addressData);
+        
+        // If this should be preferred and there are existing addresses, update preferences
+        if (shouldBePreferred && existingAddresses.length > 0) {
+          await storage.setPreferredAddress(userId, newAddress.id);
+        }
+        
+        deliveryAddressId = newAddress.id;
+      }
+
+      if (!deliveryAddressId) {
+        return res.status(400).json({ message: 'Delivery address is required' });
+      }
+
+      // Update user info if provided (name, email)
+      if (userInfo) {
+        const { address, city, pincode, makePreferred, ...userInfoToUpdate } = userInfo;
+        if (Object.keys(userInfoToUpdate).length > 0) {
+          // Validate user update data
+          const userUpdateSchema = insertUserSchema.partial().pick({ name: true, email: true });
+          const validatedUserUpdate = userUpdateSchema.parse(userInfoToUpdate);
+          await storage.updateUser(userId, validatedUserUpdate);
+        }
       }
 
       // Calculate totals
@@ -421,7 +506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const total = subtotal - discountAmount;
 
-      // Create order
+      // Create order with validated data
       const orderData = {
         userId,
         subtotal: subtotal.toString(),
@@ -431,7 +516,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         paymentMethod,
         paymentStatus: 'completed', // Mock successful payment
         status: 'confirmed',
-        deliveryAddress: `${userInfo?.address}, ${userInfo?.city} - ${userInfo?.pincode}`,
+        deliveryAddressId,
       };
 
       const order = await storage.createOrder(orderData);
@@ -446,7 +531,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.createOrderItems(orderItems);
 
       // Create offer redemption if offer was used
-      if (offerId && userId) {
+      if (offerId) {
         const offer = await storage.getOfferByCode(offerId);
         if (offer) {
           await storage.createOfferRedemption({
@@ -465,6 +550,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ order, message: 'Order placed successfully' });
     } catch (error) {
       console.error('Error creating order:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Invalid order data', errors: error.errors });
+      }
       res.status(500).json({ message: 'Failed to create order' });
     }
   });
@@ -509,7 +597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           `₹${order.total}`,
           order.status,
           order.createdAt?.toISOString().split('T')[0] || 'N/A',
-          order.deliveryAddress || 'N/A'
+order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddress.city} - ${order.deliveryAddress.pincode}` : 'N/A'
         ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(',');
       }).join('\n');
 
