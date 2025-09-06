@@ -209,7 +209,69 @@ export default function ShippingRulesManagement() {
               placeholder="110001, 110002, 110003"
               data-testid="input-pincodes"
             />
+            <p className="text-xs text-gray-500 mt-1">Enter specific PIN codes separated by commas</p>
           </div>
+          
+          <div>
+            <Label>PIN Code Ranges</Label>
+            <div className="space-y-2">
+              {(formData.conditions.pincodeRanges || []).map((range: {start: string, end: string}, index: number) => (
+                <div key={index} className="flex gap-2 items-center">
+                  <Input
+                    value={range.start}
+                    onChange={(e) => {
+                      const ranges = [...(formData.conditions.pincodeRanges || [])];
+                      ranges[index] = { ...ranges[index], start: e.target.value };
+                      updateConditions("pincodeRanges", ranges);
+                    }}
+                    placeholder="110001"
+                    className="flex-1"
+                    data-testid={`input-pincode-range-start-${index}`}
+                  />
+                  <span className="text-gray-500">to</span>
+                  <Input
+                    value={range.end}
+                    onChange={(e) => {
+                      const ranges = [...(formData.conditions.pincodeRanges || [])];
+                      ranges[index] = { ...ranges[index], end: e.target.value };
+                      updateConditions("pincodeRanges", ranges);
+                    }}
+                    placeholder="110010"
+                    className="flex-1"
+                    data-testid={`input-pincode-range-end-${index}`}
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const ranges = [...(formData.conditions.pincodeRanges || [])];
+                      ranges.splice(index, 1);
+                      updateConditions("pincodeRanges", ranges);
+                    }}
+                    className="text-red-600 hover:text-red-700"
+                    data-testid={`button-remove-pincode-range-${index}`}
+                  >
+                    <i className="fas fa-trash text-sm"></i>
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const ranges = [...(formData.conditions.pincodeRanges || []), { start: "", end: "" }];
+                  updateConditions("pincodeRanges", ranges);
+                }}
+                data-testid="button-add-pincode-range"
+              >
+                <i className="fas fa-plus mr-2"></i>Add PIN Code Range
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Define ranges of PIN codes (e.g., 110001 to 110010)</p>
+          </div>
+          
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Min Order Value (₹)</Label>
@@ -435,7 +497,7 @@ export default function ShippingRulesManagement() {
               <p className="text-sm text-gray-600 mb-4">
                 {formData.type === "product_based" 
                   ? "Specify at least one condition: product names, categories, or classifications"
-                  : "Specify at least one condition: PIN codes or order value range"
+                  : "Specify at least one condition: PIN codes (individual or ranges) or order value range"
                 }
               </p>
               {renderConditionsForm()}
