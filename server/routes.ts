@@ -848,6 +848,36 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
     }
   });
 
+  // Admin app settings management
+  app.get("/api/admin/settings", requireAdmin, async (req, res) => {
+    try {
+      const settings = await storage.getAppSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error("Error fetching app settings:", error);
+      res.status(500).json({ error: "Failed to fetch settings" });
+    }
+  });
+
+  app.patch("/api/admin/settings/:key", requireAdmin, async (req, res) => {
+    try {
+      const { key } = req.params;
+      const { value } = req.body;
+      
+      if (!value) {
+        return res.status(400).json({ error: "Value is required" });
+      }
+
+      const admin = await storage.getAdmin(req.session.adminId!);
+      const updated = await storage.updateAppSetting(key, value, admin?.name || 'Admin');
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating app setting:", error);
+      res.status(500).json({ error: "Failed to update setting" });
+    }
+  });
+
   // Influencer authentication routes
   app.post('/api/influencer/login', async (req, res) => {
     try {

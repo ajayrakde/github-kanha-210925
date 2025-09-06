@@ -8,6 +8,7 @@ import {
   orderItems,
   cartItems,
   offerRedemptions,
+  appSettings,
   type User,
   type InsertUser,
   type Product,
@@ -27,6 +28,8 @@ import {
   type OfferRedemption,
   type UserAddress,
   type InsertUserAddress,
+  type AppSettings,
+  type InsertAppSettings,
   userAddresses,
 } from "@shared/schema";
 import type { AbandonedCart } from "@/lib/types";
@@ -117,6 +120,12 @@ export interface IStorage {
   setPreferredAddress(userId: string, addressId: string): Promise<void>;
   getPreferredAddress(userId: string): Promise<UserAddress | undefined>;
   getLastOrderAddress(userId: string): Promise<UserAddress | null>;
+
+  // App settings operations
+  getAppSettings(): Promise<AppSettings[]>;
+  getAppSetting(key: string): Promise<AppSettings | undefined>;
+  updateAppSetting(key: string, value: string, updatedBy?: string): Promise<AppSettings>;
+  createAppSetting(setting: InsertAppSettings): Promise<AppSettings>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -716,6 +725,40 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(userAddresses.userId, userId), eq(userAddresses.isPreferred, true)))
       .limit(1);
     return address;
+  }
+
+
+  // App settings operations
+  async getAppSettings(): Promise<AppSettings[]> {
+    return await db.select().from(appSettings).orderBy(appSettings.category, appSettings.key);
+  }
+
+  async getAppSetting(key: string): Promise<AppSettings | undefined> {
+    const [setting] = await db.select().from(appSettings).where(eq(appSettings.key, key));
+    return setting;
+  }
+
+  async updateAppSetting(key: string, value: string, updatedBy?: string): Promise<AppSettings> {
+    const [updated] = await db
+      .update(appSettings)
+      .set({ 
+        value, 
+        updatedBy, 
+        updatedAt: new Date() 
+      })
+      .where(eq(appSettings.key, key))
+      .returning();
+    
+    if (!updated) {
+      throw new Error(`Setting with key "${key}" not found`);
+    }
+    
+    return updated;
+  }
+
+  async createAppSetting(setting: InsertAppSettings): Promise<AppSettings> {
+    const [created] = await db.insert(appSettings).values(setting).returning();
+    return created;
   }
 
 }

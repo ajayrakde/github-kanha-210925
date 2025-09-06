@@ -65,11 +65,23 @@ export const admins = pgTable("admins", {
 export const otps = pgTable("otps", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   phone: varchar("phone", { length: 15 }).notNull(),
-  otp: varchar("otp", { length: 64 }).notNull(), // Hashed OTP
+  otp: varchar("otp", { length: 64 }).notNull(), // Hashed OTP or session ID for 2Factor
   userType: varchar("user_type", { length: 20 }).notNull(), // 'buyer', 'influencer', 'admin'
   expiresAt: timestamp("expires_at").notNull(),
   isUsed: boolean("is_used").default(false),
   createdAt: timestamp("created_at").defaultNow(),
+});
+
+// App Settings table for admin configuration
+export const appSettings = pgTable("app_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  value: text("value").notNull(),
+  description: text("description"),
+  category: varchar("category", { length: 50 }).default("general"),
+  updatedBy: varchar("updated_by", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // Offers/Coupons table with advanced features
@@ -246,6 +258,7 @@ export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: t
 export const insertCartItemSchema = createInsertSchema(cartItems).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOtpSchema = createInsertSchema(otps).omit({ id: true, createdAt: true });
 export const insertUserAddressSchema = createInsertSchema(userAddresses).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertAppSettingsSchema = createInsertSchema(appSettings).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -269,3 +282,5 @@ export type UserAddress = typeof userAddresses.$inferSelect;
 export type InsertUserAddress = z.infer<typeof insertUserAddressSchema>;
 export type Otp = typeof otps.$inferSelect;
 export type InsertOtp = z.infer<typeof insertOtpSchema>;
+export type AppSettings = typeof appSettings.$inferSelect;
+export type InsertAppSettings = z.infer<typeof insertAppSettingsSchema>;

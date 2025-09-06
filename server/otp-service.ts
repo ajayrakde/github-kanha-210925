@@ -1,7 +1,8 @@
 import { otps, admins, influencers, users, type Otp, type InsertOtp } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gt } from "drizzle-orm";
+import { eq, and, gt, lt } from "drizzle-orm";
 import { createHash } from "crypto";
+import { storage } from "./storage";
 
 export class OtpService {
   // Generate 6-digit OTP
@@ -12,6 +13,32 @@ export class OtpService {
   // Hash OTP for secure storage
   private hashOtp(otp: string): string {
     return createHash('sha256').update(otp).digest('hex');
+  }
+
+  // Verify OTP using 2Factor service
+  private async verify2FactorOtp(phone: string, otp: string): Promise<{ success: boolean; error?: string }> {
+    const apiKey = process.env.TWOFACTOR_API_KEY;
+    
+    if (!apiKey) {
+      return { success: false, error: 'SMS service not configured' };
+    }
+
+    try {
+      // Use 2Factor VERIFY3 endpoint for phone + OTP verification
+      const url = `https://2factor.in/API/V1/${apiKey}/SMS/VERIFY3/91${phone}/${otp}`;
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.Status === 'Success' && data.Details === 'OTP Matched') {
+        return { success: true };
+      } else {
+        return { success: false, error: data.Details || 'OTP verification failed' };
+      }
+    } catch (error) {
+      console.error('[SMS] Error verifying OTP via 2Factor:', error);
+      return { success: false, error: 'Verification service temporarily unavailable' };
+    }
   }
 
   // Validate Indian phone number
@@ -31,28 +58,44 @@ export class OtpService {
     return { isValid: false, cleanPhone: '' };
   }
 
-  // Send OTP (mock implementation - in production, integrate with SMS service)
-  private async sendSms(phone: string, otp: string): Promise<boolean> {
-    console.log(`[SMS] Sending OTP ${otp} to ${phone}`);
+  // Send OTP using 2Factor service
+  private async sendSms(phone: string, otp: string): Promise<{ success: boolean; sessionId?: string; error?: string }> {
+    const apiKey = process.env.TWOFACTOR_API_KEY;
     
-    // IMPORTANT: This is a mock implementation for development
-    // In production, integrate with SMS services like:
-    // - Twilio: https://www.twilio.com/docs/sms
-    // - TextLocal: https://www.textlocal.in/
-    // - AWS SNS: https://aws.amazon.com/sns/
-    // - Fast2SMS: https://www.fast2sms.com/
-    
-    // Example Twilio integration:
-    // const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    // const authToken = process.env.TWILIO_AUTH_TOKEN;
-    // const client = require('twilio')(accountSid, authToken);
-    // await client.messages.create({
-    //   body: `Your OTP is: ${otp}. Valid for 5 minutes.`,
-    //   from: process.env.TWILIO_PHONE_NUMBER,
-    //   to: `+91${phone}`
-    // });
-    
-    return true;
+    if (!apiKey) {
+      console.error('[SMS] 2Factor API key not configured');
+      return { success: false, error: 'SMS service not configured' };
+    }
+
+    try {
+      // Use 2Factor AUTOGEN endpoint to send system-generated OTP
+      const url = `https://2factor.in/API/V1/${apiKey}/SMS/+91${phone}/AUTOGEN`;
+      
+      console.log(`[SMS] Sending OTP to +91${phone} via 2Factor`);
+      
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.Status === 'Success') {
+        console.log(`[SMS] OTP sent successfully to +91${phone}`);
+        return { 
+          success: true, 
+          sessionId: data.Details 
+        };
+      } else {
+        console.error(`[SMS] Failed to send OTP: ${data.Details || 'Unknown error'}`);
+        return { 
+          success: false, 
+          error: data.Details || 'Failed to send SMS' 
+        };
+      }
+    } catch (error) {
+      console.error('[SMS] Error calling 2Factor API:', error);
+      return { 
+        success: false, 
+        error: 'SMS service temporarily unavailable' 
+      };
+    }
   }
 
   // Check if user exists based on phone and user type
@@ -75,6 +118,17 @@ export class OtpService {
   // Send OTP to phone number
   async sendOtp(phone: string, userType: 'admin' | 'influencer' | 'buyer'): Promise<{ success: boolean; message: string; otpId?: string }> {
     try {
+      // Check if OTP login is enabled for buyers
+      if (userType === 'buyer') {
+        const otpSetting = await storage.getAppSetting('otp_login_enabled');
+        if (otpSetting?.value !== 'true') {
+          return {
+            success: false,
+            message: 'OTP login is currently disabled. Please contact support.'
+          };
+        }
+      }
+
       // Validate Indian phone number
       const phoneValidation = this.validateIndianPhone(phone);
       if (!phoneValidation.isValid) {
@@ -120,30 +174,25 @@ export class OtpService {
         }
       }
 
-      // Generate OTP and set expiry (5 minutes)
-      const otp = this.generateOtp();
-      const hashedOtp = this.hashOtp(otp);
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+      // Send SMS using 2Factor (it generates OTP automatically)
+      const smsResult = await this.sendSms(cleanPhone, ''); // No OTP needed for AUTOGEN
+      
+      if (!smsResult.success) {
+        return {
+          success: false,
+          message: smsResult.error || 'Failed to send SMS. Please try again.'
+        };
+      }
 
-      // Save hashed OTP to database
+      // Save session info to database for tracking (no OTP hash needed since 2Factor handles it)
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
       const [otpRecord] = await db.insert(otps).values({
         phone: cleanPhone,
-        otp: hashedOtp,
+        otp: smsResult.sessionId || 'twofactor-session', // Store session ID from 2Factor
         userType,
         expiresAt,
         isUsed: false
       }).returning();
-
-      // Send SMS (log only first 2 digits for security)
-      const smsSent = await this.sendSms(cleanPhone, otp);
-      console.log(`[OTP] Sent OTP ${otp.substring(0, 2)}** to +91${cleanPhone}`);
-      
-      if (!smsSent) {
-        return {
-          success: false,
-          message: 'Failed to send SMS. Please try again.'
-        };
-      }
 
       return {
         success: true,
@@ -178,27 +227,37 @@ export class OtpService {
       }
       
       const cleanPhone = phoneValidation.cleanPhone;
-      const hashedInputOtp = this.hashOtp(otp);
 
-      // Find valid OTP
+      // First verify with 2Factor service
+      const verificationResult = await this.verify2FactorOtp(cleanPhone, otp);
+      
+      if (!verificationResult.success) {
+        console.log(`[OTP] 2Factor verification failed for +91${cleanPhone}: ${verificationResult.error}`);
+        return {
+          success: false,
+          message: verificationResult.error || 'Invalid or expired OTP'
+        };
+      }
+
+      // Find valid OTP record in our database (for session tracking)
       const [otpRecord] = await db.select()
         .from(otps)
         .where(
           and(
             eq(otps.phone, cleanPhone),
-            eq(otps.otp, hashedInputOtp),
             eq(otps.userType, userType),
             eq(otps.isUsed, false),
             gt(otps.expiresAt, new Date())
           )
         )
+        .orderBy(otps.createdAt)
         .limit(1);
 
       if (!otpRecord) {
-        console.log(`[OTP] Failed verification for ${otp.substring(0, 2)}** on +91${cleanPhone}`);
+        console.log(`[OTP] No valid session found for +91${cleanPhone}`);
         return {
           success: false,
-          message: 'Invalid or expired OTP'
+          message: 'OTP session expired or invalid'
         };
       }
 
