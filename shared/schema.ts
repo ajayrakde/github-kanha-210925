@@ -151,6 +151,20 @@ export const userAddresses = pgTable("user_addresses", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Shipping rules table - for managing shipping charges based on products, locations, and order values
+export const shippingRules = pgTable("shipping_rules", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  type: varchar("type", { length: 50 }).notNull(), // 'product_based' or 'location_value_based'
+  shippingCharge: decimal("shipping_charge", { precision: 10, scale: 2 }).notNull(),
+  isEnabled: boolean("is_enabled").default(true),
+  priority: integer("priority").default(0), // Higher priority rules are evaluated first
+  conditions: jsonb("conditions").notNull(), // JSON object storing rule conditions
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Offer redemptions table - tracks per-user usage
 export const offerRedemptions = pgTable("offer_redemptions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -259,6 +273,7 @@ export const insertCartItemSchema = createInsertSchema(cartItems).omit({ id: tru
 export const insertOtpSchema = createInsertSchema(otps).omit({ id: true, createdAt: true });
 export const insertUserAddressSchema = createInsertSchema(userAddresses).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAppSettingsSchema = createInsertSchema(appSettings).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertShippingRuleSchema = createInsertSchema(shippingRules).omit({ id: true, createdAt: true, updatedAt: true });
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -284,3 +299,5 @@ export type Otp = typeof otps.$inferSelect;
 export type InsertOtp = z.infer<typeof insertOtpSchema>;
 export type AppSettings = typeof appSettings.$inferSelect;
 export type InsertAppSettings = z.infer<typeof insertAppSettingsSchema>;
+export type ShippingRule = typeof shippingRules.$inferSelect;
+export type InsertShippingRule = z.infer<typeof insertShippingRuleSchema>;
