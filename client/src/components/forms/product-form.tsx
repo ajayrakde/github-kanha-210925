@@ -39,6 +39,7 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showDescriptionPreview, setShowDescriptionPreview] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   const form = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
@@ -238,6 +239,7 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
               maxNumberOfFiles={5}
               maxFileSize={5242880} // 5MB each
               onGetUploadParameters={async () => {
+                setIsUploading(true);
                 const response = await apiRequest("POST", "/api/objects/upload");
                 const data = await response.json();
                 return {
@@ -279,6 +281,7 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
                   form.trigger("displayImageUrl");
                   
                   // Show success feedback
+                  setIsUploading(false);
                   toast({
                     title: "✅ Images Uploaded Successfully",
                     description: `${newImages.length} image(s) added and ready for form submission`,
@@ -286,14 +289,30 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
                   
                   console.log('Images updated:', allImages);
                   console.log('Form images value after update:', form.getValues("images"));
+                } else {
+                  // Handle case where no files were uploaded successfully
+                  setIsUploading(false);
+                  toast({
+                    title: "Upload Failed",
+                    description: "No images were uploaded successfully. Please try again.",
+                    variant: "destructive",
+                  });
                 }
               }}
-              buttonClassName="w-full bg-green-600 hover:bg-green-700 h-24 border-2 border-dashed border-green-300 hover:border-green-400"
+              buttonClassName={`w-full h-24 border-2 border-dashed transition-all ${
+                isUploading 
+                  ? "bg-yellow-500 border-yellow-400 cursor-not-allowed opacity-75" 
+                  : "bg-green-600 hover:bg-green-700 border-green-300 hover:border-green-400"
+              }`}
             >
               <div className="flex flex-col items-center gap-1">
-                <i className="fas fa-cloud-upload-alt text-xl"></i>
-                <span className="text-sm font-medium">📸 Upload Product Images First</span>
-                <span className="text-xs opacity-75">Max 5 images, 5MB each</span>
+                <i className={`text-xl ${isUploading ? "fas fa-spinner fa-spin" : "fas fa-cloud-upload-alt"}`}></i>
+                <span className="text-sm font-medium">
+                  {isUploading ? "🔄 Uploading Images..." : "📸 Upload Product Images First"}
+                </span>
+                <span className="text-xs opacity-75">
+                  {isUploading ? "Please wait..." : "Max 5 images, 5MB each"}
+                </span>
               </div>
             </ObjectUploader>
             
@@ -385,11 +404,16 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
         </Button>
         <Button
           type="submit"
-          disabled={createProductMutation.isPending}
+          disabled={createProductMutation.isPending || isUploading}
           className="bg-blue-600 hover:bg-blue-700"
           data-testid="button-save-product"
         >
-          {createProductMutation.isPending ? "Saving..." : (product ? "Update Product" : "Create Product")}
+          {createProductMutation.isPending 
+            ? "Saving..." 
+            : isUploading 
+              ? "🔄 Upload in progress..." 
+              : (product ? "Update Product" : "Create Product")
+          }
         </Button>
       </div>
     </form>
