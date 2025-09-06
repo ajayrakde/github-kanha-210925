@@ -278,16 +278,22 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
                   form.trigger("images");
                   form.trigger("displayImageUrl");
                   
+                  // Show success feedback
+                  toast({
+                    title: "✅ Images Uploaded Successfully",
+                    description: `${newImages.length} image(s) added and ready for form submission`,
+                  });
+                  
                   console.log('Images updated:', allImages);
                   console.log('Form images value after update:', form.getValues("images"));
                 }
               }}
-              buttonClassName="w-full bg-blue-600 hover:bg-blue-700 h-32 border-2 border-dashed border-blue-300 hover:border-blue-400"
+              buttonClassName="w-full bg-green-600 hover:bg-green-700 h-24 border-2 border-dashed border-green-300 hover:border-green-400"
             >
-              <div className="flex flex-col items-center gap-2">
-                <i className="fas fa-cloud-upload-alt text-2xl"></i>
-                <span className="text-sm font-medium">Drop files here or click to upload</span>
-                <span className="text-xs text-gray-500">Upload 1-5 product images (Max 5MB each)</span>
+              <div className="flex flex-col items-center gap-1">
+                <i className="fas fa-cloud-upload-alt text-xl"></i>
+                <span className="text-sm font-medium">📸 Upload Product Images First</span>
+                <span className="text-xs opacity-75">Max 5 images, 5MB each</span>
               </div>
             </ObjectUploader>
             
