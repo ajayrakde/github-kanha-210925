@@ -42,6 +42,7 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
 
   const form = useForm<ProductFormData>({
     resolver: zodResolver(productSchema),
+    mode: "onChange", // Enable real-time validation
     defaultValues: {
       name: product?.name || "",
       brand: product?.brand || "",
@@ -242,7 +243,13 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
                   // Append to existing images or replace
                   const currentImages = form.getValues("images") || [];
                   const allImages = [...currentImages, ...newImages].slice(0, 5); // Max 5 images
-                  form.setValue("images", allImages);
+                  form.setValue("images", allImages, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+                  
+                  // Set display image if not already set and this is the first image
+                  if (!form.getValues("displayImageUrl") && allImages.length > 0) {
+                    form.setValue("displayImageUrl", allImages[0], { shouldDirty: true, shouldTouch: true });
+                  }
+                  
                   console.log('Images updated:', allImages);
                 }
               }}
@@ -305,8 +312,8 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
                 <button
                   type="button"
                   onClick={() => {
-                    form.setValue("images", []);
-                    form.setValue("displayImageUrl", "");
+                    form.setValue("images", [], { shouldDirty: true, shouldTouch: true });
+                    form.setValue("displayImageUrl", "", { shouldDirty: true, shouldTouch: true });
                   }}
                   className="text-sm text-red-600 hover:text-red-700"
                   data-testid="button-clear-all-images"
