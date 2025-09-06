@@ -32,8 +32,16 @@ interface Order {
 export default function UserOrders() {
   const [, setLocation] = useLocation();
   
+  // Check authentication status first
+  const { data: authData } = useQuery<{ authenticated: boolean; user?: any }>({
+    queryKey: ["/api/auth/me"],
+    retry: false,
+  });
+  
   const { data: orders, isLoading } = useQuery<Order[]>({
     queryKey: ["/api/auth/orders"],
+    enabled: authData?.authenticated || false, // Only run when authenticated
+    retry: false,
   });
 
   const getStatusBadge = (status: string) => {
