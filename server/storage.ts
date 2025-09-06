@@ -812,6 +812,164 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(shippingRules.priority), shippingRules.createdAt);
   }
 
+  // Query evaluation functions for SQL-like conditions
+  evaluateQueryRule(rule: any, context: any): boolean {
+    const { field, operator, values } = rule;
+    const fieldValue = context[field];
+
+    if (fieldValue === undefined || fieldValue === null) {
+      return false;
+    }
+
+    switch (operator) {
+      case "EQUALS":
+        return String(fieldValue).toLowerCase() === String(values[0]).toLowerCase();
+      
+      case "NOT_EQUALS":
+        return String(fieldValue).toLowerCase() !== String(values[0]).toLowerCase();
+      
+      case "IN":
+        return values.some((val: string) => 
+          String(fieldValue).toLowerCase() === String(val).toLowerCase()
+        );
+      
+      case "NOT_IN":
+        return !values.some((val: string) => 
+          String(fieldValue).toLowerCase() === String(val).toLowerCase()
+        );
+      
+      case "BETWEEN":
+        if (values.length !== 2) return false;
+        const numValue = parseFloat(String(fieldValue));
+        const min = parseFloat(values[0]);
+        const max = parseFloat(values[1]);
+        return !isNaN(numValue) && !isNaN(min) && !isNaN(max) && 
+               numValue >= min && numValue <= max;
+      
+      case "NOT_BETWEEN":
+        if (values.length !== 2) return false;
+        const numVal = parseFloat(String(fieldValue));
+        const minVal = parseFloat(values[0]);
+        const maxVal = parseFloat(values[1]);
+        return isNaN(numVal) || isNaN(minVal) || isNaN(maxVal) || 
+               numVal < minVal || numVal > maxVal;
+      
+      default:
+        return false;
+    }
+  }
+
+  evaluateQueryConditions(conditions: any, context: any): boolean {
+    const { rules, logicalOperator } = conditions;
+    
+    if (!rules || !Array.isArray(rules) || rules.length === 0) {
+      return false;
+    }
+
+    const results = rules.map((rule: any) => this.evaluateQueryRule(rule, context));
+
+    if (logicalOperator === "OR") {
+      return results.some(result => result);
+    } else {
+      return results.every(result => result);
+    }
+  }
+
+  // Check if shipping rule matches given context (product + order details)
+  evaluateShippingRule(rule: ShippingRule, context: {
+    productName?: string;
+    category?: string;
+    classification?: string;
+    pincode?: string;
+    orderValue?: number;
+  }): boolean {
+    const { type, conditions } = rule;
+
+    switch (type) {
+      case "product_based":
+        // Legacy product-based conditions
+        const productConditions = conditions as any;
+        if (productConditions.productNames?.length && context.productName) {
+          if (!productConditions.productNames.includes(context.productName)) {
+            return false;
+          }
+        }
+        if (productConditions.categories?.length && context.category) {
+          if (!productConditions.categories.includes(context.category)) {
+            return false;
+          }
+        }
+        if (productConditions.classifications?.length && context.classification) {
+          if (!productConditions.classifications.includes(context.classification)) {
+            return false;
+          }
+        }
+        return true;
+
+      case "location_value_based":
+        // Legacy location/value-based conditions
+        const locationConditions = conditions as any;
+        if (locationConditions.pincodes?.length && context.pincode) {
+          if (!locationConditions.pincodes.includes(context.pincode)) {
+            return false;
+          }
+        }
+        if (locationConditions.pincodeRanges?.length && context.pincode) {
+          const pinMatches = locationConditions.pincodeRanges.some((range: any) =>
+            context.pincode && context.pincode >= range.start && context.pincode <= range.end
+          );
+          if (!pinMatches) {
+            return false;
+          }
+        }
+        if (locationConditions.minOrderValue !== undefined && context.orderValue !== undefined) {
+          if (context.orderValue < locationConditions.minOrderValue) {
+            return false;
+          }
+        }
+        if (locationConditions.maxOrderValue !== undefined && context.orderValue !== undefined) {
+          if (context.orderValue > locationConditions.maxOrderValue) {
+            return false;
+          }
+        }
+        return true;
+
+      case "product_query_based":
+        return this.evaluateQueryConditions(conditions, context);
+
+      case "location_query_based":
+        return this.evaluateQueryConditions(conditions, context);
+
+      default:
+        return false;
+    }
+  }
+
+  // Find matching shipping rules for given context
+  async findMatchingShippingRules(context: {
+    productName?: string;
+    category?: string;
+    classification?: string;
+    pincode?: string;
+    orderValue?: number;
+  }): Promise<ShippingRule[]> {
+    const enabledRules = await this.getEnabledShippingRules();
+    
+    return enabledRules.filter(rule => this.evaluateShippingRule(rule, context));
+  }
+
+  // Get the best matching shipping rule (highest priority)
+  async getBestShippingRule(context: {
+    productName?: string;
+    category?: string;
+    classification?: string;
+    pincode?: string;
+    orderValue?: number;
+  }): Promise<ShippingRule | undefined> {
+    const matchingRules = await this.findMatchingShippingRules(context);
+    return matchingRules.length > 0 ? matchingRules[0] : undefined;
+  }
+
 }
 
 export const storage = new DatabaseStorage();

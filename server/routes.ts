@@ -954,7 +954,7 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
       if (req.body.shippingCharge !== undefined) validatedUpdates.shippingCharge = z.coerce.string().parse(req.body.shippingCharge);
       if (req.body.isEnabled !== undefined) validatedUpdates.isEnabled = z.boolean().parse(req.body.isEnabled);
       if (req.body.priority !== undefined) validatedUpdates.priority = z.number().int().min(0).max(1000000).parse(req.body.priority);
-      if (req.body.type) validatedUpdates.type = z.enum(["product_based", "location_value_based"]).parse(req.body.type);
+      if (req.body.type) validatedUpdates.type = z.enum(["product_based", "location_value_based", "product_query_based", "location_query_based"]).parse(req.body.type);
       
       // Determine effective type (updated type or existing type)
       const effectiveType = validatedUpdates.type || existingRule.type;
@@ -985,10 +985,33 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
           { message: "At least one condition is required for location/value-based rules" }
         );
         
+        // Import query schemas from shared schema
+        const productQueryConditionsSchema = z.object({
+          rules: z.array(z.object({
+            field: z.enum(["productName", "category", "classification"]),
+            operator: z.enum(["IN", "NOT_IN", "BETWEEN", "NOT_BETWEEN", "EQUALS", "NOT_EQUALS"]),
+            values: z.array(z.string()).min(1)
+          })).min(1),
+          logicalOperator: z.enum(["AND", "OR"]).default("AND")
+        });
+        
+        const locationQueryConditionsSchema = z.object({
+          rules: z.array(z.object({
+            field: z.enum(["pincode", "orderValue"]),
+            operator: z.enum(["IN", "NOT_IN", "BETWEEN", "NOT_BETWEEN", "EQUALS", "NOT_EQUALS"]),
+            values: z.array(z.string()).min(1)
+          })).min(1),
+          logicalOperator: z.enum(["AND", "OR"]).default("AND")
+        });
+        
         if (effectiveType === "product_based") {
           validatedUpdates.conditions = productBasedConditionsSchema.parse(req.body.conditions);
         } else if (effectiveType === "location_value_based") {
           validatedUpdates.conditions = locationValueBasedConditionsSchema.parse(req.body.conditions);
+        } else if (effectiveType === "product_query_based") {
+          validatedUpdates.conditions = productQueryConditionsSchema.parse(req.body.conditions);
+        } else if (effectiveType === "location_query_based") {
+          validatedUpdates.conditions = locationQueryConditionsSchema.parse(req.body.conditions);
         } else {
           return res.status(422).json({ error: "Invalid rule type for conditions validation" });
         }
