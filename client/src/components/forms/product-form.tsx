@@ -103,16 +103,24 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
   });
 
   const onSubmit = (data: ProductFormData) => {
-    // Get current form values to ensure we have the latest image data
-    const currentFormData = {
+    // Force get the absolute latest values from the form
+    const latestImages = form.getValues("images") || [];
+    const latestDisplayImage = form.getValues("displayImageUrl") || "";
+    
+    const finalFormData = {
       ...data,
-      images: form.getValues("images") || [],
-      displayImageUrl: form.getValues("displayImageUrl") || "",
+      images: latestImages,
+      displayImageUrl: latestDisplayImage,
     };
     
-    console.log('Form submitted with data:', currentFormData);
-    console.log('Form errors:', form.formState.errors);
-    createProductMutation.mutate(currentFormData);
+    console.log('=== FORM SUBMISSION DEBUG ===');
+    console.log('Original form data:', data);
+    console.log('Latest images from form:', latestImages);
+    console.log('Latest display image:', latestDisplayImage);
+    console.log('Final form data being sent:', finalFormData);
+    console.log('================================');
+    
+    createProductMutation.mutate(finalFormData);
   };
 
   return (
@@ -225,15 +233,6 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
 
         <div>
           <Label htmlFor="images">Product Images (Max 5)</Label>
-          {/* Hidden input to register the images field with React Hook Form */}
-          <input 
-            type="hidden" 
-            {...form.register("images")} 
-          />
-          <input 
-            type="hidden" 
-            {...form.register("displayImageUrl")} 
-          />
           <div className="mt-2 space-y-3">
             <ObjectUploader
               maxNumberOfFiles={5}
@@ -259,14 +258,28 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
                   // Append to existing images or replace
                   const currentImages = form.getValues("images") || [];
                   const allImages = [...currentImages, ...newImages].slice(0, 5); // Max 5 images
-                  form.setValue("images", allImages, { shouldDirty: true, shouldTouch: true, shouldValidate: true });
+                  
+                  // Update form values and trigger re-render
+                  form.setValue("images", allImages, { 
+                    shouldDirty: true, 
+                    shouldTouch: true, 
+                    shouldValidate: true 
+                  });
                   
                   // Set display image if not already set and this is the first image
                   if (!form.getValues("displayImageUrl") && allImages.length > 0) {
-                    form.setValue("displayImageUrl", allImages[0], { shouldDirty: true, shouldTouch: true });
+                    form.setValue("displayImageUrl", allImages[0], { 
+                      shouldDirty: true, 
+                      shouldTouch: true 
+                    });
                   }
                   
+                  // Force form re-render to update the images field
+                  form.trigger("images");
+                  form.trigger("displayImageUrl");
+                  
                   console.log('Images updated:', allImages);
+                  console.log('Form images value after update:', form.getValues("images"));
                 }
               }}
               buttonClassName="w-full bg-blue-600 hover:bg-blue-700 h-32 border-2 border-dashed border-blue-300 hover:border-blue-400"
