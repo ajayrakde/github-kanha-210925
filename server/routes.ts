@@ -413,7 +413,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     userInfo: z.object({
       name: z.string().optional(),
       email: z.string().email().or(z.literal("")).optional().nullable(),
-      address: z.string().min(1, 'Address is required'),
+      addressLine1: z.string().min(1, 'Address line 1 is required'),
+      addressLine2: z.string().min(1, 'Address line 2 is required'),
+      addressLine3: z.string().optional(),
+      landmark: z.string().optional(),
       city: z.string().min(1, 'City is required'),
       pincode: z.string().min(1, 'Pincode is required'),
       makePreferred: z.boolean().optional().default(false),
@@ -460,9 +463,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           makePreferred: z.boolean().optional().default(false),
         });
         
+        // Combine address lines into single address field for storage
+        const fullAddress = [userInfo.addressLine1, userInfo.addressLine2, userInfo.addressLine3]
+          .filter(line => line?.trim())
+          .join('\n');
+        
         const validatedAddressData = addressValidationSchema.parse({
           name: 'Delivery Address',
-          address: userInfo.address,
+          address: fullAddress,
           city: userInfo.city,
           pincode: userInfo.pincode,
           makePreferred: userInfo.makePreferred,
@@ -499,7 +507,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Update user info if provided (name, email)
       if (userInfo) {
-        const { address, city, pincode, makePreferred, ...userInfoToUpdate } = userInfo;
+        const { addressLine1, addressLine2, addressLine3, landmark, city, pincode, makePreferred, ...userInfoToUpdate } = userInfo;
         if (Object.keys(userInfoToUpdate).length > 0) {
           // Validate user update data, handle empty email
           const userUpdateSchema = insertUserSchema.partial().pick({ name: true, email: true }).extend({

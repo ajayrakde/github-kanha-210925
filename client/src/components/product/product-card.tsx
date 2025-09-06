@@ -1,11 +1,10 @@
 import { Button } from "@/components/ui/button";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Product, CartItemWithProduct } from "@/lib/types";
+import { Product } from "@/lib/types";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import { Plus, Minus } from "lucide-react";
 import { useLocation } from "wouter";
+import { useCart } from "@/hooks/use-cart";
 
 interface ProductCardProps {
   product: Product;
@@ -14,66 +13,8 @@ interface ProductCardProps {
 export default function ProductCard({ product }: ProductCardProps) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  const { data: cartItems } = useQuery<CartItemWithProduct[]>({
-    queryKey: ["/api/cart"],
-  });
-
-  const addToCartMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/cart/add", {
-        productId: product.id,
-        quantity: 1,
-      });
-      return await response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
-      toast({
-        title: "Added to cart",
-        description: `${product.name} has been added to your cart`,
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: "Failed to add item to cart",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const updateCartMutation = useMutation({
-    mutationFn: ({ productId, quantity }: { productId: string; quantity: number }) =>
-      apiRequest("PATCH", `/api/cart/${productId}`, { quantity }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
-    },
-    onError: (error: any) => {
-      console.error('Update cart error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update cart",
-        variant: "destructive",
-      });
-    },
-  });
-
-  const removeFromCartMutation = useMutation({
-    mutationFn: (productId: string) => apiRequest("DELETE", `/api/cart/${productId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/cart"] });
-    },
-    onError: (error: any) => {
-      console.error('Remove from cart error:', error);
-      toast({
-        title: "Error",
-        description: "Failed to remove from cart",
-        variant: "destructive",
-      });
-    },
-  });
+  const { cartItems, addToCart, updateCartItem, removeFromCart } = useCart();
 
   const cartItem = cartItems?.find(item => item.productId === product.id);
   const isInCart = !!cartItem;
@@ -81,7 +22,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   const handleIncreaseQuantity = () => {
     if (cartItem && cartItem.quantity < 10) {
-      updateCartMutation.mutate({
+      updateCartItem.mutate({
         productId: product.id,
         quantity: cartItem.quantity + 1
       });
@@ -91,9 +32,9 @@ export default function ProductCard({ product }: ProductCardProps) {
   const handleDecreaseQuantity = () => {
     if (cartItem) {
       if (cartItem.quantity === 1) {
-        removeFromCartMutation.mutate(product.id);
+        removeFromCart.mutate(product.id);
       } else {
-        updateCartMutation.mutate({
+        updateCartItem.mutate({
           productId: product.id,
           quantity: cartItem.quantity - 1
         });
@@ -146,7 +87,7 @@ export default function ProductCard({ product }: ProductCardProps) {
                     e.stopPropagation();
                     handleDecreaseQuantity();
                   }}
-                  disabled={updateCartMutation.isPending || removeFromCartMutation.isPending}
+                  disabled={updateCartItem.isPending || removeFromCart.isPending}
                   className="h-8 w-8 p-0"
                   data-testid={`button-decrease-quantity-${product.id}`}
                 >
@@ -162,7 +103,7 @@ export default function ProductCard({ product }: ProductCardProps) {
                     e.stopPropagation();
                     handleIncreaseQuantity();
                   }}
-                  disabled={updateCartMutation.isPending || cartQuantity >= 10}
+                  disabled={updateCartItem.isPending || cartQuantity >= 10}
                   className="h-8 w-8 p-0"
                   data-testid={`button-increase-quantity-${product.id}`}
                 >
@@ -173,9 +114,13 @@ export default function ProductCard({ product }: ProductCardProps) {
               <Button
                 onClick={(e) => {
                   e.stopPropagation();
-                  addToCartMutation.mutate();
+                  addToCart.mutate({
+                    productId: product.id,
+                    quantity: 1,
+                    product: product
+                  });
                 }}
-                disabled={addToCartMutation.isPending}
+                disabled={addToCart.isPending}
                 className="bg-blue-600 hover:bg-blue-700 text-sm px-3 py-1.5 h-8"
                 data-testid={`button-add-to-cart-${product.id}`}
               >
