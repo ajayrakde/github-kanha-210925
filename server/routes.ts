@@ -878,6 +878,84 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
     }
   });
 
+  // Shipping rules management endpoints
+  app.get("/api/admin/shipping-rules", requireAdmin, async (req, res) => {
+    try {
+      const rules = await storage.getShippingRules();
+      res.json(rules);
+    } catch (error) {
+      console.error("Error fetching shipping rules:", error);
+      res.status(500).json({ error: "Failed to fetch shipping rules" });
+    }
+  });
+
+  app.get("/api/admin/shipping-rules/:id", requireAdmin, async (req, res) => {
+    try {
+      const rule = await storage.getShippingRule(req.params.id);
+      if (!rule) {
+        return res.status(404).json({ error: "Shipping rule not found" });
+      }
+      res.json(rule);
+    } catch (error) {
+      console.error("Error fetching shipping rule:", error);
+      res.status(500).json({ error: "Failed to fetch shipping rule" });
+    }
+  });
+
+  app.post("/api/admin/shipping-rules", requireAdmin, async (req, res) => {
+    try {
+      const { name, description, type, shippingCharge, isEnabled, priority, conditions } = req.body;
+      
+      if (!name || !type || !shippingCharge || !conditions) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      const rule = await storage.createShippingRule({
+        name,
+        description,
+        type,
+        shippingCharge: shippingCharge.toString(),
+        isEnabled: isEnabled ?? true,
+        priority: priority ?? 0,
+        conditions
+      });
+      
+      res.status(201).json(rule);
+    } catch (error) {
+      console.error("Error creating shipping rule:", error);
+      res.status(500).json({ error: "Failed to create shipping rule" });
+    }
+  });
+
+  app.patch("/api/admin/shipping-rules/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      // Convert shippingCharge to string if provided
+      if (updates.shippingCharge !== undefined) {
+        updates.shippingCharge = updates.shippingCharge.toString();
+      }
+      
+      const rule = await storage.updateShippingRule(id, updates);
+      res.json(rule);
+    } catch (error) {
+      console.error("Error updating shipping rule:", error);
+      res.status(500).json({ error: "Failed to update shipping rule" });
+    }
+  });
+
+  app.delete("/api/admin/shipping-rules/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteShippingRule(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting shipping rule:", error);
+      res.status(500).json({ error: "Failed to delete shipping rule" });
+    }
+  });
+
   // Influencer authentication routes
   app.post('/api/influencer/login', async (req, res) => {
     try {
