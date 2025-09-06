@@ -198,6 +198,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete('/api/cart/clear', async (req: SessionRequest, res) => {
+    try {
+      await storage.clearCart(req.session.sessionId!);
+      res.json({ message: 'Cart cleared successfully' });
+    } catch (error) {
+      console.error('Error clearing cart:', error);
+      res.status(500).json({ message: 'Failed to clear cart' });
+    }
+  });
+
   // Offer validation and application
   app.post('/api/offers/validate', async (req: SessionRequest, res) => {
     try {
@@ -231,17 +241,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
           email: null
         });
       }
-      // Set user session and ensure it's saved
-      req.session.userId = user.id;
-      req.session.userRole = 'buyer';
-      
-      // Manually save session to ensure persistence
-      req.session.save((err) => {
+      // Regenerate session to prevent fixation attacks  
+      req.session.regenerate((err) => {
         if (err) {
-          console.error('Session save error:', err);
+          console.error('Session regenerate error:', err);
           return res.status(500).json({ message: 'Session error' });
         }
-        res.json({ verified: true, user, authenticated: true });
+        
+        // Set user session after regeneration
+        req.session.userId = user.id;
+        req.session.userRole = 'buyer';
+        
+        // Save the new session
+        req.session.save((saveErr) => {
+          if (saveErr) {
+            console.error('Session save error:', saveErr);
+            return res.status(500).json({ message: 'Session error' });
+          }
+          res.json({ verified: true, user, authenticated: true });
+        });
       });
     } else {
       res.status(400).json({ message: 'Invalid OTP' });
