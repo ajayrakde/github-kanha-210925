@@ -113,7 +113,7 @@ export interface IStorage {
   getUserAddresses(userId: string): Promise<UserAddress[]>;
   createUserAddress(address: InsertUserAddress): Promise<UserAddress>;
   updateUserAddress(id: string, address: Partial<InsertUserAddress>): Promise<UserAddress>;
-  deleteUserAddress(id: string): Promise<void>;
+  deleteUserAddress(id: string, userId: string): Promise<void>;
   setPreferredAddress(userId: string, addressId: string): Promise<void>;
   getPreferredAddress(userId: string): Promise<UserAddress | undefined>;
   getLastOrderAddress(userId: string): Promise<UserAddress | null>;
@@ -692,8 +692,8 @@ export class DatabaseStorage implements IStorage {
     return updatedAddress;
   }
 
-  async deleteUserAddress(id: string): Promise<void> {
-    await db.delete(userAddresses).where(eq(userAddresses.id, id));
+  async deleteUserAddress(id: string, userId: string): Promise<void> {
+    await db.delete(userAddresses).where(and(eq(userAddresses.id, id), eq(userAddresses.userId, userId)));
   }
 
   async setPreferredAddress(userId: string, addressId: string): Promise<void> {

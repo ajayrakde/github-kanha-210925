@@ -231,10 +231,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           email: null
         });
       }
-      // Set user session
+      // Set user session and ensure it's saved
       req.session.userId = user.id;
       req.session.userRole = 'buyer';
-      res.json({ verified: true, user });
+      
+      // Manually save session to ensure persistence
+      req.session.save((err) => {
+        if (err) {
+          console.error('Session save error:', err);
+          return res.status(500).json({ message: 'Session error' });
+        }
+        res.json({ verified: true, user, authenticated: true });
+      });
     } else {
       res.status(400).json({ message: 'Invalid OTP' });
     }
@@ -392,7 +400,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     try {
-      await storage.deleteUserAddress(req.params.id);
+      await storage.deleteUserAddress(req.params.id, req.session.userId);
       res.json({ message: 'Address deleted' });
     } catch (error) {
       console.error('Error deleting address:', error);

@@ -15,7 +15,10 @@ import { ArrowLeft, Plus } from "lucide-react";
 interface UserInfo {
   name: string;
   email: string;
-  address: string;
+  addressLine1: string;
+  addressLine2: string;
+  addressLine3: string;
+  landmark: string;
   city: string;
   pincode: string;
 }
@@ -30,7 +33,10 @@ export default function Checkout() {
   const [userInfo, setUserInfo] = useState<UserInfo>({
     name: "",
     email: "",
-    address: "",
+    addressLine1: "",
+    addressLine2: "",
+    addressLine3: "",
+    landmark: "",
     city: "",
     pincode: "",
   });
@@ -70,10 +76,15 @@ export default function Checkout() {
         const preferred = addresses.find(addr => addr.isPreferred);
         if (preferred) {
           setSelectedAddressId(preferred.id);
+          // Parse address back to lines (temporary - we'll improve this later)
+          const addressParts = preferred.address.split('\n');
           setUserInfo({
             name: authData.user.name || "",
             email: authData.user.email || "",
-            address: preferred.address,
+            addressLine1: addressParts[0] || "",
+            addressLine2: addressParts[1] || "",
+            addressLine3: addressParts[2] || "",
+            landmark: "", // Will be empty for existing addresses
             city: preferred.city,
             pincode: preferred.pincode,
           });
@@ -105,6 +116,17 @@ export default function Checkout() {
       if (result.verified) {
         setUser(result.user);
         setStep("details");
+        
+        // Update authentication cache to reflect logged-in state
+        queryClient.setQueryData(["/api/auth/me"], { 
+          authenticated: true, 
+          user: result.user 
+        });
+        
+        // Invalidate queries to refresh user data
+        queryClient.invalidateQueries({ queryKey: ["/api/auth/addresses"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/auth/orders"] });
+        
         toast({
           title: "Phone Verified",
           description: "Please fill in your delivery details",
@@ -138,7 +160,7 @@ export default function Checkout() {
       if (showNewAddressForm && authData?.authenticated) {
         const addressData = {
           name: "Delivery Address",
-          address: userInfo.address,
+          address: [userInfo.addressLine1, userInfo.addressLine2, userInfo.addressLine3].filter(line => line.trim()).join('\n'),
           city: userInfo.city,
           pincode: userInfo.pincode,
           isPreferred: makePreferred,
@@ -150,7 +172,7 @@ export default function Checkout() {
       if (authData?.authenticated && (!addresses || addresses.length === 0) && !selectedAddressId && !showNewAddressForm) {
         const addressData = {
           name: "Primary Address",
-          address: userInfo.address,
+          address: [userInfo.addressLine1, userInfo.addressLine2, userInfo.addressLine3].filter(line => line.trim()).join('\n'),
           city: userInfo.city,
           pincode: userInfo.pincode,
           isPreferred: true, // First address becomes preferred automatically
@@ -351,9 +373,13 @@ export default function Checkout() {
                             }`}
                             onClick={() => {
                               setSelectedAddressId(preferredAddress.id);
+                              const addressParts = preferredAddress.address.split('\n');
                               setUserInfo({
                                 ...userInfo,
-                                address: preferredAddress.address,
+                                addressLine1: addressParts[0] || "",
+                                addressLine2: addressParts[1] || "",
+                                addressLine3: addressParts[2] || "",
+                                landmark: "",
                                 city: preferredAddress.city,
                                 pincode: preferredAddress.pincode,
                               });
@@ -416,9 +442,13 @@ export default function Checkout() {
                                   }`}
                                   onClick={() => {
                                     setSelectedAddressId(address.id);
+                                    const addressParts = address.address.split('\n');
                                     setUserInfo({
                                       ...userInfo,
-                                      address: address.address,
+                                      addressLine1: addressParts[0] || "",
+                                      addressLine2: addressParts[1] || "",
+                                      addressLine3: addressParts[2] || "",
+                                      landmark: "",
                                       city: address.city,
                                       pincode: address.pincode,
                                     });
@@ -469,17 +499,55 @@ export default function Checkout() {
                       )}
                     </div>
                     
-                    <div className="md:col-span-2">
-                      <Label htmlFor="address">Address</Label>
-                      <Textarea
-                        id="address"
-                        placeholder="House/Building, Street, Area"
-                        rows={3}
-                        value={userInfo.address}
-                        onChange={(e) => setUserInfo({ ...userInfo, address: e.target.value })}
-                        className="mt-2"
-                        data-testid="input-address"
-                      />
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="addressLine1">Address Line 1 *</Label>
+                        <Input
+                          id="addressLine1"
+                          type="text"
+                          placeholder="House/Flat No, Building Name"
+                          value={userInfo.addressLine1}
+                          onChange={(e) => setUserInfo({ ...userInfo, addressLine1: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-address-line1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="addressLine2">Address Line 2 *</Label>
+                        <Input
+                          id="addressLine2"
+                          type="text"
+                          placeholder="Street Name, Area"
+                          value={userInfo.addressLine2}
+                          onChange={(e) => setUserInfo({ ...userInfo, addressLine2: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-address-line2"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="addressLine3">Address Line 3</Label>
+                        <Input
+                          id="addressLine3"
+                          type="text"
+                          placeholder="Sector, Locality (Optional)"
+                          value={userInfo.addressLine3}
+                          onChange={(e) => setUserInfo({ ...userInfo, addressLine3: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-address-line3"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="landmark">Nearest Landmark</Label>
+                        <Input
+                          id="landmark"
+                          type="text"
+                          placeholder="Near Mall, School, etc. (Optional)"
+                          value={userInfo.landmark}
+                          onChange={(e) => setUserInfo({ ...userInfo, landmark: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-landmark"
+                        />
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
@@ -526,17 +594,55 @@ export default function Checkout() {
                 {/* Show address form for users with no saved addresses */}
                 {(!addresses || addresses.length === 0) && !showNewAddressForm && (
                   <div className="space-y-4">
-                    <div className="md:col-span-2">
-                      <Label htmlFor="address">Address</Label>
-                      <Textarea
-                        id="address"
-                        placeholder="House/Building, Street, Area"
-                        rows={3}
-                        value={userInfo.address}
-                        onChange={(e) => setUserInfo({ ...userInfo, address: e.target.value })}
-                        className="mt-2"
-                        data-testid="input-address"
-                      />
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="addressLine1">Address Line 1 *</Label>
+                        <Input
+                          id="addressLine1"
+                          type="text"
+                          placeholder="House/Flat No, Building Name"
+                          value={userInfo.addressLine1}
+                          onChange={(e) => setUserInfo({ ...userInfo, addressLine1: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-address-line1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="addressLine2">Address Line 2 *</Label>
+                        <Input
+                          id="addressLine2"
+                          type="text"
+                          placeholder="Street Name, Area"
+                          value={userInfo.addressLine2}
+                          onChange={(e) => setUserInfo({ ...userInfo, addressLine2: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-address-line2"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="addressLine3">Address Line 3</Label>
+                        <Input
+                          id="addressLine3"
+                          type="text"
+                          placeholder="Sector, Locality (Optional)"
+                          value={userInfo.addressLine3}
+                          onChange={(e) => setUserInfo({ ...userInfo, addressLine3: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-address-line3"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="landmark">Nearest Landmark</Label>
+                        <Input
+                          id="landmark"
+                          type="text"
+                          placeholder="Near Mall, School, etc. (Optional)"
+                          value={userInfo.landmark}
+                          onChange={(e) => setUserInfo({ ...userInfo, landmark: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-landmark"
+                        />
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
@@ -644,7 +750,7 @@ export default function Checkout() {
               <Button
                 className="w-full bg-green-600 hover:bg-green-700"
                 onClick={() => placeOrderMutation.mutate()}
-                disabled={!userInfo.name || !userInfo.address || !userInfo.city || !userInfo.pincode || placeOrderMutation.isPending}
+                disabled={!userInfo.name || !userInfo.addressLine1 || !userInfo.addressLine2 || !userInfo.city || !userInfo.pincode || placeOrderMutation.isPending}
                 data-testid="button-place-order"
               >
                 <i className="fas fa-lock mr-2"></i>
