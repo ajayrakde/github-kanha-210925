@@ -28,8 +28,12 @@ export default function UserMenu() {
       return await response.json();
     },
     onSuccess: () => {
+      // Immediately clear cache data to show logged out state
+      queryClient.setQueryData(["/api/auth/me"], { authenticated: false });
+      queryClient.removeQueries({ queryKey: ["/api/auth/orders"] });
+      queryClient.removeQueries({ queryKey: ["/api/cart"] });
+      // Also invalidate to ensure fresh data on next load
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/orders"] });
       setLocation("/");
     },
   });
