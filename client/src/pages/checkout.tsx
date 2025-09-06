@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { ArrowLeft, Plus } from "lucide-react";
@@ -168,6 +168,8 @@ export default function Checkout() {
     onSuccess: async (data) => {
       // Clear the cart after successful order
       clearCart.mutate();
+      // Invalidate orders cache to show the new order
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/orders"] });
       // Store order data in session storage for thank you page
       sessionStorage.setItem('lastOrder', JSON.stringify({
         orderId: data.order.id,
