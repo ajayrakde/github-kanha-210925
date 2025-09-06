@@ -935,8 +935,9 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
       const idSchema = z.string().uuid();
       const id = idSchema.parse(req.params.id);
       
-      // Check if request body is empty
-      if (Object.keys(req.body).length === 0) {
+      // Check if request body is empty or all values are undefined
+      const bodyKeys = Object.keys(req.body).filter(key => req.body[key] !== undefined);
+      if (bodyKeys.length === 0) {
         return res.status(400).json({ error: "No updates provided" });
       }
       
@@ -988,6 +989,8 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
           validatedUpdates.conditions = productBasedConditionsSchema.parse(req.body.conditions);
         } else if (effectiveType === "location_value_based") {
           validatedUpdates.conditions = locationValueBasedConditionsSchema.parse(req.body.conditions);
+        } else {
+          return res.status(422).json({ error: "Invalid rule type for conditions validation" });
         }
       }
       
