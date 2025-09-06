@@ -4,7 +4,7 @@ import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
 import { otpService } from "./otp-service";
 import session from "express-session";
-import { insertProductSchema, insertOfferSchema } from "@shared/schema";
+import { insertProductSchema, insertOfferSchema, insertUserAddressSchema, insertUserSchema } from "@shared/schema";
 import { z } from "zod";
 
 const sessionConfig = session({
