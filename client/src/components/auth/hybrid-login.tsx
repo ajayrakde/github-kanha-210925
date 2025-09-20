@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 
 interface HybridLoginProps {
   userType: 'admin' | 'influencer' | 'buyer';
@@ -24,6 +24,14 @@ export default function HybridLogin({ userType, title, onSuccess }: HybridLoginP
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Fetch OTP length setting
+  const { data: otpLengthSetting } = useQuery({
+    queryKey: ["/api/settings/otp_length"],
+    queryFn: () => fetch("/api/settings/otp_length").then(res => res.json()),
+  });
+  
+  const otpLength = otpLengthSetting?.value ? parseInt(otpLengthSetting.value) : 6;
 
   // Format phone number with +91 prefix
   const formatPhoneNumber = (value: string) => {
@@ -52,7 +60,7 @@ export default function HybridLogin({ userType, title, onSuccess }: HybridLoginP
       setOtpStep('otp');
       toast({
         title: "OTP Sent",
-        description: `4-digit verification code sent to +91${otpPhone}`,
+        description: `${otpLength}-digit verification code sent to +91${otpPhone}`,
       });
     },
     onError: (error: Error) => {
@@ -149,10 +157,10 @@ export default function HybridLogin({ userType, title, onSuccess }: HybridLoginP
 
   const handleOtpVerify = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!otp.trim() || otp.length !== 4) {
+    if (!otp.trim() || otp.length !== otpLength) {
       toast({
         title: "Error",
-        description: "Please enter the 4-digit verification code",
+        description: `Please enter the ${otpLength}-digit verification code`,
         variant: "destructive",
       });
       return;
@@ -215,7 +223,7 @@ export default function HybridLogin({ userType, title, onSuccess }: HybridLoginP
                       />
                     </div>
                     <p className="text-sm text-gray-600 mt-2">
-                      We'll send a 6-digit verification code to your number
+                      We'll send a {otpLength}-digit verification code to your number
                     </p>
                   </div>
                   <Button 
@@ -231,16 +239,16 @@ export default function HybridLogin({ userType, title, onSuccess }: HybridLoginP
                 <form onSubmit={handleOtpVerify} className="space-y-4">
                   <div>
                     <p className="text-sm text-gray-600 mb-2">
-                      Enter the 6-digit code sent to +91{otpPhone}
+                      Enter the {otpLength}-digit code sent to +91{otpPhone}
                     </p>
                     <Input
                       type="text"
-                      placeholder="Enter 6-digit code"
+                      placeholder={`Enter ${otpLength}-digit code`}
                       value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, otpLength))}
                       disabled={verifyOtpMutation.isPending}
                       data-testid={`input-${userType}-otp-code`}
-                      maxLength={6}
+                      maxLength={otpLength}
                       className="text-center text-xl tracking-widest"
                     />
                   </div>

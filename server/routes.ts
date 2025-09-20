@@ -890,6 +890,29 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
     }
   });
 
+  // Public endpoint to get specific setting (for OTP length, etc.)
+  app.get("/api/settings/:key", async (req, res) => {
+    try {
+      const { key } = req.params;
+      
+      // Only allow public settings to be accessed
+      const publicSettings = ['otp_length', 'otp_login_enabled'];
+      if (!publicSettings.includes(key)) {
+        return res.status(403).json({ error: "Setting not publicly accessible" });
+      }
+      
+      const setting = await storage.getAppSetting(key);
+      if (!setting) {
+        return res.status(404).json({ error: "Setting not found" });
+      }
+      
+      res.json(setting);
+    } catch (error) {
+      console.error("Error fetching app setting:", error);
+      res.status(500).json({ error: "Failed to fetch setting" });
+    }
+  });
+
   // Shipping rules management endpoints
   app.get("/api/admin/shipping-rules", requireAdmin, async (req, res) => {
     try {

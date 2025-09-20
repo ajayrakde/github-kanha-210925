@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 
 interface OtpLoginProps {
   userType: 'admin' | 'influencer' | 'buyer';
@@ -18,6 +18,14 @@ export default function OtpLogin({ userType, title, onSuccess }: OtpLoginProps) 
   const [otpId, setOtpId] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  // Fetch OTP length setting
+  const { data: otpLengthSetting } = useQuery({
+    queryKey: ["/api/settings/otp_length"],
+    queryFn: () => fetch("/api/settings/otp_length").then(res => res.json()),
+  });
+  
+  const otpLength = otpLengthSetting?.value ? parseInt(otpLengthSetting.value) : 6;
 
   const sendOtpMutation = useMutation({
     mutationFn: async (phoneNumber: string) => {
@@ -159,16 +167,16 @@ export default function OtpLogin({ userType, title, onSuccess }: OtpLoginProps) 
             <form onSubmit={handleVerifyOtp} className="space-y-4">
               <div>
                 <p className="text-sm text-gray-600 mb-2">
-                  Enter the 6-digit code sent to {phone}
+                  Enter the {otpLength}-digit code sent to {phone}
                 </p>
                 <Input
                   type="text"
-                  placeholder="Enter 6-digit code"
+                  placeholder={`Enter ${otpLength}-digit code`}
                   value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, otpLength))}
                   disabled={verifyOtpMutation.isPending}
                   data-testid={`input-${userType}-otp`}
-                  maxLength={6}
+                  maxLength={otpLength}
                 />
               </div>
               <Button 
