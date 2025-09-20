@@ -365,39 +365,8 @@ const locationQueryConditionsSchema = z.object({
   logicalOperator: z.enum(["AND", "OR"]).default("AND"),
 });
 
-// Legacy condition schemas for backward compatibility
-const productBasedConditionsSchema = z.object({
-  productNames: z.array(z.string().min(1)).optional(),
-  categories: z.array(z.string().min(1)).optional(),
-  classifications: z.array(z.string().min(1)).optional(),
-}).refine(
-  (data) => data.productNames?.length || data.categories?.length || data.classifications?.length,
-  { message: "At least one condition is required for product-based rules" }
-);
-
-const locationValueBasedConditionsSchema = z.object({
-  pincodes: z.array(z.string().regex(/^\d{6}$/, "PIN code must be 6 digits")).optional(),
-  pincodeRanges: z.array(z.object({
-    start: z.string().regex(/^\d{6}$/, "Start PIN code must be 6 digits"),
-    end: z.string().regex(/^\d{6}$/, "End PIN code must be 6 digits")
-  })).optional(),
-  minOrderValue: z.coerce.number().min(0).optional(),
-  maxOrderValue: z.coerce.number().min(0).optional(),
-}).refine(
-  (data) => data.pincodes?.length || data.pincodeRanges?.length || 
-           data.minOrderValue !== undefined || data.maxOrderValue !== undefined,
-  { message: "At least one condition is required for location/value-based rules" }
-);
-
+// Modern shipping rule schema - query-based only
 export const insertShippingRuleSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("product_based"),
-    conditions: productBasedConditionsSchema,
-  }),
-  z.object({
-    type: z.literal("location_value_based"), 
-    conditions: locationValueBasedConditionsSchema,
-  }),
   z.object({
     type: z.literal("product_query_based"),
     conditions: productQueryConditionsSchema,

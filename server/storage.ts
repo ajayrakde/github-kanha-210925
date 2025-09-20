@@ -915,53 +915,6 @@ export class DatabaseStorage implements IStorage {
     const { type, conditions } = rule;
 
     switch (type) {
-      case "product_based":
-        // Legacy product-based conditions
-        const productConditions = conditions as any;
-        if (productConditions.productNames?.length && context.productName) {
-          if (!productConditions.productNames.includes(context.productName)) {
-            return false;
-          }
-        }
-        if (productConditions.categories?.length && context.category) {
-          if (!productConditions.categories.includes(context.category)) {
-            return false;
-          }
-        }
-        if (productConditions.classifications?.length && context.classification) {
-          if (!productConditions.classifications.includes(context.classification)) {
-            return false;
-          }
-        }
-        return true;
-
-      case "location_value_based":
-        // Legacy location/value-based conditions
-        const locationConditions = conditions as any;
-        if (locationConditions.pincodes?.length && context.pincode) {
-          if (!locationConditions.pincodes.includes(context.pincode)) {
-            return false;
-          }
-        }
-        if (locationConditions.pincodeRanges?.length && context.pincode) {
-          const pinMatches = locationConditions.pincodeRanges.some((range: any) =>
-            context.pincode && context.pincode >= range.start && context.pincode <= range.end
-          );
-          if (!pinMatches) {
-            return false;
-          }
-        }
-        if (locationConditions.minOrderValue !== undefined && context.orderValue !== undefined) {
-          if (context.orderValue < locationConditions.minOrderValue) {
-            return false;
-          }
-        }
-        if (locationConditions.maxOrderValue !== undefined && context.orderValue !== undefined) {
-          if (context.orderValue > locationConditions.maxOrderValue) {
-            return false;
-          }
-        }
-        return true;
 
       case "product_query_based":
         return this.evaluateQueryConditions(conditions, context);

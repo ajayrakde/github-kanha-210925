@@ -1445,6 +1445,17 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
         });
         console.log('Default shipping charge setting initialized to ₹50');
       }
+
+      const otpLengthSetting = await storage.getAppSetting('otp_length');
+      if (!otpLengthSetting) {
+        await storage.createAppSetting({
+          key: 'otp_length',
+          value: '6',
+          description: 'Number of digits in OTP (4-8 digits)',
+          category: 'authentication'
+        });
+        console.log('OTP length setting initialized to 6 digits');
+      }
     } catch (error) {
       console.error('Error initializing default settings:', error);
     }

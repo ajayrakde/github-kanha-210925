@@ -98,6 +98,7 @@ export default function SettingsManagement() {
                     {setting.key === 'otp_login_enabled' && '🔐 OTP Login for Customers'}
                     {setting.key === 'sms_service_provider' && '📱 SMS Service Provider'}
                     {setting.key === 'otp_expiry_minutes' && '⏰ OTP Expiry Time'}
+                    {setting.key === 'otp_length' && '🔢 OTP Length'}
                   </Label>
                   <p className="text-sm text-gray-600">{setting.description}</p>
                   {setting.updatedBy && (
@@ -130,6 +131,22 @@ export default function SettingsManagement() {
                         data-testid={`input-${setting.key}`}
                       />
                       <span className="text-sm text-gray-600">minutes</span>
+                    </div>
+                  )}
+                  
+                  {setting.key === 'otp_length' && (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        value={setting.value}
+                        onChange={(e) => handleUpdateValue(setting.key, e.target.value)}
+                        className="w-16"
+                        min="4"
+                        max="8"
+                        disabled={updateSettingMutation.isPending}
+                        data-testid={`input-${setting.key}`}
+                      />
+                      <span className="text-sm text-gray-600">digits</span>
                     </div>
                   )}
                   
