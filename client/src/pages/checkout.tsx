@@ -43,6 +43,41 @@ export default function Checkout() {
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
   const [showNewAddressForm, setShowNewAddressForm] = useState(false);
   const [makePreferred, setMakePreferred] = useState(false);
+  const [shippingCharge, setShippingCharge] = useState(50); // Default shipping
+  const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
+  const [isPincodeValid, setIsPincodeValid] = useState(false);
+
+  // Function to validate pincode (6 digits)
+  const validatePincode = (pincode: string): boolean => {
+    return /^\d{6}$/.test(pincode);
+  };
+
+  // Function to calculate shipping charges
+  const calculateShipping = async (pincode: string) => {
+    if (!validatePincode(pincode) || cartItems.length === 0) {
+      setShippingCharge(50); // Default fallback
+      setIsPincodeValid(false);
+      return;
+    }
+
+    setIsCalculatingShipping(true);
+    setIsPincodeValid(true);
+
+    try {
+      const response = await apiRequest("POST", "/api/shipping/calculate", {
+        cartItems,
+        pincode,
+        orderValue: subtotal
+      });
+      const result = await response.json();
+      setShippingCharge(result.shippingCharge);
+    } catch (error) {
+      console.error("Error calculating shipping:", error);
+      setShippingCharge(50); // Fall back to default
+    } finally {
+      setIsCalculatingShipping(false);
+    }
+  };
 
   // Check if user is already logged in
   const { data: authData } = useQuery<{ authenticated: boolean; user?: any }>({
@@ -220,7 +255,7 @@ export default function Checkout() {
     },
   });
 
-  const total = subtotal + 50; // Add shipping charges
+  const total = subtotal + shippingCharge; // Add dynamic shipping charges
 
   if (!cartItems || cartItems.length === 0) {
     return (
@@ -568,11 +603,26 @@ export default function Checkout() {
                           id="pincode"
                           type="text"
                           placeholder="400001"
+                          maxLength={6}
                           value={userInfo.pincode}
-                          onChange={(e) => setUserInfo({ ...userInfo, pincode: e.target.value })}
-                          className="mt-2"
+                          onChange={(e) => {
+                            const newPincode = e.target.value;
+                            setUserInfo({ ...userInfo, pincode: newPincode });
+                            
+                            // Validate and calculate shipping on every change
+                            if (validatePincode(newPincode)) {
+                              calculateShipping(newPincode);
+                            } else {
+                              setIsPincodeValid(false);
+                              setShippingCharge(50); // Default fallback
+                            }
+                          }}
+                          className={`mt-2 ${!validatePincode(userInfo.pincode) && userInfo.pincode ? 'border-red-500' : ''}`}
                           data-testid="input-pincode"
                         />
+                        {userInfo.pincode && !validatePincode(userInfo.pincode) && (
+                          <p className="text-red-500 text-sm mt-1">PIN code must be exactly 6 digits</p>
+                        )}
                       </div>
                     </div>
 
@@ -663,11 +713,26 @@ export default function Checkout() {
                           id="pincode"
                           type="text"
                           placeholder="400001"
+                          maxLength={6}
                           value={userInfo.pincode}
-                          onChange={(e) => setUserInfo({ ...userInfo, pincode: e.target.value })}
-                          className="mt-2"
+                          onChange={(e) => {
+                            const newPincode = e.target.value;
+                            setUserInfo({ ...userInfo, pincode: newPincode });
+                            
+                            // Validate and calculate shipping on every change
+                            if (validatePincode(newPincode)) {
+                              calculateShipping(newPincode);
+                            } else {
+                              setIsPincodeValid(false);
+                              setShippingCharge(50); // Default fallback
+                            }
+                          }}
+                          className={`mt-2 ${!validatePincode(userInfo.pincode) && userInfo.pincode ? 'border-red-500' : ''}`}
                           data-testid="input-pincode"
                         />
+                        {userInfo.pincode && !validatePincode(userInfo.pincode) && (
+                          <p className="text-red-500 text-sm mt-1">PIN code must be exactly 6 digits</p>
+                        )}
                       </div>
                     </div>
 
@@ -726,12 +791,18 @@ export default function Checkout() {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-600">Shipping</span>
-                <span data-testid="text-order-shipping">₹50.00</span>
+                <span data-testid="text-order-shipping">
+                  {isCalculatingShipping ? (
+                    <span className="text-blue-600">Calculating...</span>
+                  ) : (
+                    `₹${shippingCharge.toFixed(2)}`
+                  )}
+                </span>
               </div>
               <hr />
               <div className="flex justify-between font-semibold text-lg">
                 <span>Total</span>
-                <span data-testid="text-order-total">₹{(subtotal + 50).toFixed(2)}</span>
+                <span data-testid="text-order-total">₹{total.toFixed(2)}</span>
               </div>
             </div>
 
@@ -742,7 +813,7 @@ export default function Checkout() {
               </div>
               <div className="text-xs text-gray-500 flex items-center">
                 <i className="fas fa-truck mr-1"></i>
-                Delivery across India - ₹50
+                Delivery across India - ₹{shippingCharge}
               </div>
             </div>
 
