@@ -1,6 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState } from "react";
 
 interface Order {
   id: string;
@@ -14,9 +17,54 @@ interface Order {
 }
 
 export default function OrderTable() {
-  const { data: orders, isLoading } = useQuery<Order[]>({
-    queryKey: ["/api/orders"],
+  const [filters, setFilters] = useState({
+    status: 'all',
+    startDate: '',
+    endDate: ''
   });
+
+  const { data: orders, isLoading, refetch } = useQuery<Order[]>({
+    queryKey: ["/api/orders", filters],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (filters.status !== 'all') params.append('status', filters.status);
+      if (filters.startDate) params.append('startDate', filters.startDate);
+      if (filters.endDate) params.append('endDate', filters.endDate);
+      
+      const response = await fetch(`/api/orders?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to fetch orders');
+      return response.json();
+    },
+  });
+
+  const handleFilterChange = (key: string, value: string) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleExport = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (filters.status !== 'all') params.append('status', filters.status);
+      if (filters.startDate) params.append('startDate', filters.startDate);
+      if (filters.endDate) params.append('endDate', filters.endDate);
+      
+      const response = await fetch(`/api/admin/orders/export?${params.toString()}`);
+      if (!response.ok) throw new Error('Failed to export orders');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = 'orders.csv';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error exporting orders:', error);
+    }
+  };
 
   const getStatusBadgeVariant = (status: string) => {
     switch (status.toLowerCase()) {
@@ -120,6 +168,90 @@ export default function OrderTable() {
 
   return (
     <div>
+      {/* Filters and Export */}
+      <div className="bg-white p-4 rounded-lg border shadow-sm mb-6">
+        <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
+          <div className="w-full md:w-auto">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Status Filter
+            </label>
+            <Select 
+              value={filters.status} 
+              onValueChange={(value) => handleFilterChange('status', value)}
+              data-testid="select-status-filter"
+            >
+              <SelectTrigger className="w-full md:w-[180px]">
+                <SelectValue placeholder="All Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="confirmed">Confirmed</SelectItem>
+                <SelectItem value="processing">Processing</SelectItem>
+                <SelectItem value="delivered">Delivered</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="w-full md:w-auto">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Start Date
+            </label>
+            <Input
+              type="date"
+              value={filters.startDate}
+              onChange={(e) => handleFilterChange('startDate', e.target.value)}
+              className="w-full md:w-[180px]"
+              data-testid="input-start-date"
+            />
+          </div>
+          
+          <div className="w-full md:w-auto">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              End Date
+            </label>
+            <Input
+              type="date"
+              value={filters.endDate}
+              onChange={(e) => handleFilterChange('endDate', e.target.value)}
+              className="w-full md:w-[180px]"
+              data-testid="input-end-date"
+            />
+          </div>
+          
+          <div className="flex gap-2 w-full md:w-auto">
+            <Button
+              variant="outline"
+              onClick={() => setFilters({ status: 'all', startDate: '', endDate: '' })}
+              className="flex-1 md:flex-none"
+              data-testid="button-clear-filters"
+            >
+              <i className="fas fa-times mr-2"></i>
+              Clear
+            </Button>
+            
+            <Button
+              onClick={handleExport}
+              className="flex-1 md:flex-none bg-green-600 hover:bg-green-700"
+              data-testid="button-export-orders"
+            >
+              <i className="fas fa-download mr-2"></i>
+              Export CSV
+            </Button>
+          </div>
+        </div>
+        
+        {orders && (
+          <div className="mt-3 text-sm text-gray-600">
+            Showing {orders.length} order{orders.length !== 1 ? 's' : ''}
+            {(filters.status !== 'all' || filters.startDate || filters.endDate) && (
+              <span className="text-blue-600"> (filtered)</span>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Mobile Card View */}
       <div className="md:hidden space-y-4">
         {orders.map((order) => (
