@@ -628,7 +628,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/orders', async (req, res) => {
     try {
-      const orders = await storage.getOrders();
+      const filters = {
+        status: req.query.status as string,
+        startDate: req.query.startDate as string,
+        endDate: req.query.endDate as string,
+      };
+      
+      // Remove undefined values
+      const cleanFilters = Object.fromEntries(
+        Object.entries(filters).filter(([_, value]) => value && value !== 'all')
+      );
+      
+      const orders = await storage.getOrders(Object.keys(cleanFilters).length > 0 ? cleanFilters : undefined);
       res.json(orders);
     } catch (error) {
       console.error('Error fetching orders:', error);
@@ -652,7 +663,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin routes
   app.get('/api/admin/orders/export', async (req, res) => {
     try {
-      const orders = await storage.getOrders();
+      const filters = {
+        status: req.query.status as string,
+        startDate: req.query.startDate as string,
+        endDate: req.query.endDate as string,
+      };
+      
+      // Remove undefined values
+      const cleanFilters = Object.fromEntries(
+        Object.entries(filters).filter(([_, value]) => value && value !== 'all')
+      );
+      
+      const orders = await storage.getOrders(Object.keys(cleanFilters).length > 0 ? cleanFilters : undefined);
       
       // Simple CSV format
       const csvHeader = 'Order ID,Customer Name,Phone,Email,Total,Status,Date,Address\n';

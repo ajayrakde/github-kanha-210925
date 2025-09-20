@@ -104,7 +104,7 @@ export interface IStorage {
   getConversionMetrics(): Promise<{ totalSessions: number; ordersCompleted: number; conversionRate: number }>;
 
   // Order operations
-  getOrders(): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer; deliveryAddress: UserAddress })[]>;
+  getOrders(filters?: { status?: string; startDate?: string; endDate?: string }): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer; deliveryAddress: UserAddress })[]>;
   getOrder(id: string): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer; deliveryAddress: UserAddress }) | undefined>;
   createOrder(order: InsertOrder): Promise<Order>;
   createOrderItems(items: InsertOrderItem[]): Promise<OrderItem[]>;
@@ -589,8 +589,26 @@ export class DatabaseStorage implements IStorage {
 
 
   // Order operations
-  async getOrders(): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer; deliveryAddress: UserAddress })[]> {
+  async getOrders(filters?: { status?: string; startDate?: string; endDate?: string }): Promise<(Order & { user: User; items: (OrderItem & { product: Product })[]; offer?: Offer; deliveryAddress: UserAddress })[]> {
+    let whereConditions = [];
+    
+    if (filters?.status) {
+      whereConditions.push(eq(orders.status, filters.status));
+    }
+    
+    if (filters?.startDate) {
+      whereConditions.push(gte(orders.createdAt, new Date(filters.startDate)));
+    }
+    
+    if (filters?.endDate) {
+      // Add one day to endDate to include the entire end date
+      const endDate = new Date(filters.endDate);
+      endDate.setDate(endDate.getDate() + 1);
+      whereConditions.push(lt(orders.createdAt, endDate));
+    }
+    
     const ordersData = await db.query.orders.findMany({
+      where: whereConditions.length > 0 ? and(...whereConditions) : undefined,
       with: {
         user: true,
         items: {
