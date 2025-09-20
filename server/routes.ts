@@ -230,8 +230,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/otp/verify', async (req: SessionRequest, res) => {
     const { phone, otp } = req.body;
-    // Mock verification - accept any 6 digit code
-    if (otp && otp.length === 6) {
+    // Get OTP length from settings for validation
+    const otpLengthSetting = await storage.getAppSetting('otp_length');
+    const expectedOtpLength = otpLengthSetting?.value ? parseInt(otpLengthSetting.value) : 6;
+    
+    // Mock verification - accept any code with configured length
+    if (otp && otp.length === expectedOtpLength) {
       // Check if user exists, create if not
       let user = await storage.getUserByPhone(`+91${phone}`);
       if (!user) {
@@ -276,8 +280,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/auth/login', async (req: SessionRequest, res) => {
     const { phone, otp } = req.body;
-    // Mock verification - accept any 6 digit code
-    if (otp && otp.length === 6) {
+    // Get OTP length from settings for validation
+    const otpLengthSetting = await storage.getAppSetting('otp_length');
+    const expectedOtpLength = otpLengthSetting?.value ? parseInt(otpLengthSetting.value) : 6;
+    
+    // Mock verification - accept any code with configured length
+    if (otp && otp.length === expectedOtpLength) {
       // Check if user exists
       let user = await storage.getUserByPhone(`+91${phone}`);
       if (!user) {

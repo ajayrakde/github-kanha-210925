@@ -5,9 +5,15 @@ import { createHash } from "crypto";
 import { storage } from "./storage";
 
 export class OtpService {
-  // Generate 6-digit OTP
-  private generateOtp(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+  // Generate configurable-length OTP
+  private async generateOtp(): Promise<string> {
+    // Get OTP length from settings, default to 6
+    const otpLengthSetting = await storage.getAppSetting('otp_length');
+    const otpLength = otpLengthSetting?.value ? parseInt(otpLengthSetting.value) : 6;
+    
+    const min = Math.pow(10, otpLength - 1);
+    const max = Math.pow(10, otpLength) - 1;
+    return Math.floor(min + Math.random() * (max - min + 1)).toString();
   }
 
   // Hash OTP for secure storage
