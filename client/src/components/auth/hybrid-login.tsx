@@ -215,7 +215,7 @@ export default function HybridLogin({ userType, title, onSuccess }: HybridLoginP
                       />
                     </div>
                     <p className="text-sm text-gray-600 mt-2">
-                      We'll send a 4-digit verification code to your number
+                      We'll send a 6-digit verification code to your number
                     </p>
                   </div>
                   <Button 
@@ -231,16 +231,16 @@ export default function HybridLogin({ userType, title, onSuccess }: HybridLoginP
                 <form onSubmit={handleOtpVerify} className="space-y-4">
                   <div>
                     <p className="text-sm text-gray-600 mb-2">
-                      Enter the 4-digit code sent to +91{otpPhone}
+                      Enter the 6-digit code sent to +91{otpPhone}
                     </p>
                     <Input
                       type="text"
-                      placeholder="Enter 4-digit code"
+                      placeholder="Enter 6-digit code"
                       value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       disabled={verifyOtpMutation.isPending}
                       data-testid={`input-${userType}-otp-code`}
-                      maxLength={4}
+                      maxLength={6}
                       className="text-center text-xl tracking-widest"
                     />
                   </div>
