@@ -69,6 +69,14 @@ export default function Checkout() {
       setUser(authData.user);
       setStep("details");
       
+      // Auto-populate name from user data if available and not already set
+      if (authData.user.name && !userInfo.name) {
+        setUserInfo(prev => ({
+          ...prev,
+          name: authData.user.name
+        }));
+      }
+      
       // Pre-select preferred address if available
       if (addresses && addresses.length > 0) {
         const preferred = addresses.find(addr => addr.isPreferred);
@@ -76,15 +84,16 @@ export default function Checkout() {
           setSelectedAddressId(preferred.id);
           // Parse address back to lines (temporary - we'll improve this later)
           const addressParts = preferred.address.split('\n');
-          setUserInfo({
-            name: authData.user.name || "",
+          setUserInfo(prev => ({
+            ...prev,
+            name: authData.user.name || prev.name, // Keep existing name if user already filled it
             addressLine1: addressParts[0] || "",
             addressLine2: addressParts[1] || "",
             addressLine3: addressParts[2] || "",
             landmark: "", // Will be empty for existing addresses
             city: preferred.city,
             pincode: preferred.pincode,
-          });
+          }));
         }
       }
     }
@@ -113,6 +122,14 @@ export default function Checkout() {
       if (result.verified) {
         setUser(result.user);
         setStep("details");
+        
+        // Auto-populate name from user data if available
+        if (result.user.name && !userInfo.name) {
+          setUserInfo(prev => ({
+            ...prev,
+            name: result.user.name
+          }));
+        }
         
         // Update authentication cache to reflect logged-in state
         queryClient.setQueryData(["/api/auth/me"], { 
