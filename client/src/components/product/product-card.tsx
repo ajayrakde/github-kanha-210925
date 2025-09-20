@@ -63,13 +63,6 @@ export default function ProductCard({ product }: ProductCardProps) {
           <h3 className="font-medium text-gray-900 mb-2 hover:text-blue-600" data-testid={`product-name-${product.id}`}>
             {product.name}
           </h3>
-          <div data-testid={`product-description-${product.id}`}>
-            <MarkdownRenderer
-              content={product.description || ''}
-              compact
-              className="mb-3"
-            />
-          </div>
           <div className="flex items-center justify-between gap-3">
             <span className="text-lg font-semibold text-gray-900" data-testid={`product-price-${product.id}`}>
               ₹{parseFloat(product.price).toFixed(2)}
