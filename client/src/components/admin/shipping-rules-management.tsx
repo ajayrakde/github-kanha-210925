@@ -381,8 +381,14 @@ export default function ShippingRulesManagement() {
                         </div>
                       </td>
                       <td className="p-4">
-                        <Badge variant={rule.type === "product_based" ? "default" : "secondary"}>
-                          {rule.type === "product_based" ? "Product Based" : "Location/Value Based"}
+                        <Badge variant={
+                          rule.type === "product_based" || rule.type === "product_query_based" ? "default" : "secondary"
+                        }>
+                          {rule.type === "product_based" ? "Product Based" :
+                           rule.type === "location_value_based" ? "Location/Value Based" :
+                           rule.type === "product_query_based" ? "Product Query" :
+                           rule.type === "location_query_based" ? "Location Query" :
+                           rule.type}
                         </Badge>
                       </td>
                       <td className="p-4">
