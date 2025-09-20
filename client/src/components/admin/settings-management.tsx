@@ -6,6 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 
@@ -152,9 +153,19 @@ export default function SettingsManagement() {
                   
                   {setting.key === 'sms_service_provider' && (
                     <div className="flex items-center gap-2">
-                      <span className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
-                        {setting.value}
-                      </span>
+                      <Select
+                        value={setting.value}
+                        onValueChange={(value) => handleUpdateValue(setting.key, value)}
+                        disabled={updateSettingMutation.isPending}
+                      >
+                        <SelectTrigger className="w-32" data-testid={`select-${setting.key}`}>
+                          <SelectValue placeholder="Select provider" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Test">Test (Mock)</SelectItem>
+                          <SelectItem value="2Factor">2Factor API</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   )}
                 </div>

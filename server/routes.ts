@@ -1481,6 +1481,17 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
         });
         console.log('OTP length setting initialized to 6 digits');
       }
+
+      const smsProviderSetting = await storage.getAppSetting('sms_service_provider');
+      if (!smsProviderSetting) {
+        await storage.createAppSetting({
+          key: 'sms_service_provider',
+          value: '2Factor',
+          description: 'SMS service provider (Test for mock OTP, 2Factor for real API)',
+          category: 'authentication'
+        });
+        console.log('SMS service provider setting initialized to 2Factor');
+      }
     } catch (error) {
       console.error('Error initializing default settings:', error);
     }

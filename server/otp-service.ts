@@ -21,8 +21,23 @@ export class OtpService {
     return createHash('sha256').update(otp).digest('hex');
   }
 
-  // Verify OTP using 2Factor service
-  private async verify2FactorOtp(phone: string, otp: string): Promise<{ success: boolean; error?: string }> {
+  // Verify OTP using configured SMS service provider
+  private async verifyOtpWithProvider(phone: string, otp: string): Promise<{ success: boolean; error?: string }> {
+    // Check SMS service provider setting
+    const smsProviderSetting = await storage.getAppSetting('sms_service_provider');
+    const smsProvider = smsProviderSetting?.value || '2Factor';
+    
+    if (smsProvider === 'Test') {
+      // Mock verification - check if OTP is a valid number
+      if (/^\d{4,8}$/.test(otp)) {
+        console.log(`🧪 TEST MODE - Mock OTP verification successful for +91${phone}: ${otp}`);
+        return { success: true };
+      } else {
+        return { success: false, error: 'Invalid OTP format (must be 4-8 digits)' };
+      }
+    }
+    
+    // Real 2Factor API verification
     const apiKey = process.env.TWOFACTOR_API_KEY;
     
     if (!apiKey) {
@@ -64,8 +79,27 @@ export class OtpService {
     return { isValid: false, cleanPhone: '' };
   }
 
-  // Send OTP using 2Factor service
+  // Send OTP using configured SMS service provider
   private async sendSms(phone: string, otp: string): Promise<{ success: boolean; sessionId?: string; error?: string }> {
+    // Check SMS service provider setting
+    const smsProviderSetting = await storage.getAppSetting('sms_service_provider');
+    const smsProvider = smsProviderSetting?.value || '2Factor';
+    
+    if (smsProvider === 'Test') {
+      // Mock SMS flow for testing
+      console.log(`\n========================================`);
+      console.log(`🧪 TEST MODE - MOCK SMS`);
+      console.log(`📱 Phone: +91${phone}`);
+      console.log(`🔢 OTP: ${otp}`);
+      console.log(`⚠️  Use this OTP to login (TEST MODE)`);
+      console.log(`========================================\n`);
+      return { 
+        success: true, 
+        sessionId: `mock_${phone}_${Date.now()}` 
+      };
+    }
+    
+    // Real 2Factor API flow
     const apiKey = process.env.TWOFACTOR_API_KEY;
     
     if (!apiKey) {
@@ -180,8 +214,17 @@ export class OtpService {
         }
       }
 
-      // Send SMS using 2Factor (it generates OTP automatically)
-      const smsResult = await this.sendSms(cleanPhone, ''); // No OTP needed for AUTOGEN
+      // Generate OTP for mock mode or use 2Factor autogen
+      const smsProviderSetting = await storage.getAppSetting('sms_service_provider');
+      const smsProvider = smsProviderSetting?.value || '2Factor';
+      
+      let otpToSend = '';
+      if (smsProvider === 'Test') {
+        // Generate OTP for mock flow
+        otpToSend = await this.generateOtp();
+      }
+      
+      const smsResult = await this.sendSms(cleanPhone, otpToSend);
       
       if (!smsResult.success) {
         return {
@@ -234,11 +277,11 @@ export class OtpService {
       
       const cleanPhone = phoneValidation.cleanPhone;
 
-      // First verify with 2Factor service
-      const verificationResult = await this.verify2FactorOtp(cleanPhone, otp);
+      // First verify with configured SMS service provider
+      const verificationResult = await this.verifyOtpWithProvider(cleanPhone, otp);
       
       if (!verificationResult.success) {
-        console.log(`[OTP] 2Factor verification failed for +91${cleanPhone}: ${verificationResult.error}`);
+        console.log(`[OTP] Verification failed for +91${cleanPhone}: ${verificationResult.error}`);
         return {
           success: false,
           message: verificationResult.error || 'Invalid or expired OTP'
