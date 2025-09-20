@@ -436,17 +436,17 @@ export default function ShippingRulesManagement() {
 
       {/* Create/Edit Form Dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle data-testid="dialog-title-shipping-rule">
+            <DialogTitle data-testid="dialog-title-shipping-rule" className="text-lg font-semibold">
               {editingRule ? "Edit Shipping Rule" : "Create Shipping Rule"}
             </DialogTitle>
           </DialogHeader>
           
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="name">Rule Name *</Label>
+          <form onSubmit={handleSubmit} className="space-y-6 mt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="name" className="text-sm font-medium">Rule Name *</Label>
                 <Input
                   id="name"
                   value={formData.name}
@@ -454,10 +454,11 @@ export default function ShippingRulesManagement() {
                   placeholder="Enter rule name"
                   required
                   data-testid="input-rule-name"
+                  className="w-full"
                 />
               </div>
-              <div>
-                <Label htmlFor="shippingCharge">Shipping Charge (₹) *</Label>
+              <div className="space-y-2">
+                <Label htmlFor="shippingCharge" className="text-sm font-medium">Shipping Charge (₹) *</Label>
                 <Input
                   id="shippingCharge"
                   type="number"
@@ -467,12 +468,13 @@ export default function ShippingRulesManagement() {
                   placeholder="0.00"
                   required
                   data-testid="input-shipping-charge"
+                  className="w-full"
                 />
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="description">Description</Label>
+            <div className="space-y-2">
+              <Label htmlFor="description" className="text-sm font-medium">Description</Label>
               <Textarea
                 id="description"
                 value={formData.description}
@@ -480,12 +482,13 @@ export default function ShippingRulesManagement() {
                 placeholder="Optional description of this rule"
                 rows={3}
                 data-testid="input-description"
+                className="w-full resize-none"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="type">Rule Type *</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label htmlFor="type" className="text-sm font-medium">Rule Type *</Label>
                 <Select
                   value={formData.type}
                   onValueChange={(value: "product_based" | "location_value_based" | "product_query_based" | "location_query_based") => {
@@ -497,7 +500,7 @@ export default function ShippingRulesManagement() {
                   }
                 }
                 >
-                  <SelectTrigger data-testid="select-rule-type">
+                  <SelectTrigger data-testid="select-rule-type" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -508,8 +511,8 @@ export default function ShippingRulesManagement() {
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="priority">Priority</Label>
+              <div className="space-y-2">
+                <Label htmlFor="priority" className="text-sm font-medium">Priority</Label>
                 <Input
                   id="priority"
                   type="number"
@@ -517,8 +520,9 @@ export default function ShippingRulesManagement() {
                   onChange={(e) => setFormData(prev => ({ ...prev, priority: parseInt(e.target.value) || 0 }))}
                   placeholder="0"
                   data-testid="input-priority"
+                  className="w-full"
                 />
-                <p className="text-xs text-gray-500 mt-1">Higher values are evaluated first</p>
+                <p className="text-xs text-gray-500">Higher values are evaluated first</p>
               </div>
             </div>
 

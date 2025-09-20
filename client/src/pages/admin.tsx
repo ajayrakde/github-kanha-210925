@@ -149,7 +149,7 @@ function AnalyticsTab({ abandonedCarts }: { abandonedCarts: AbandonedCart[] }) {
                     </div>
                     <div>
                       <div className="font-medium text-sm">Session: {cart.sessionId.slice(0, 8)}...</div>
-                      <div className="text-xs text-gray-600">{cart.items} items • ₹{cart.totalValue.toFixed(2)}</div>
+                      <div className="text-xs text-gray-600">{cart.items} items • ₹{(cart.totalValue || 0).toFixed(2)}</div>
                     </div>
                   </div>
                   <div className="text-right">

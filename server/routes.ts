@@ -989,7 +989,7 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
         const productQueryConditionsSchema = z.object({
           rules: z.array(z.object({
             field: z.enum(["productName", "category", "classification"]),
-            operator: z.enum(["IN", "NOT_IN", "BETWEEN", "NOT_BETWEEN", "EQUALS", "NOT_EQUALS"]),
+            operator: z.enum(["IN", "NOT_IN", "BETWEEN", "NOT_BETWEEN", "EQUALS", "NOT_EQUALS", "GREATER_THAN", "LESS_THAN", "STARTS_WITH", "ENDS_WITH", "CONTAINS"]),
             values: z.array(z.string()).min(1)
           })).min(1),
           logicalOperator: z.enum(["AND", "OR"]).default("AND")
@@ -998,7 +998,7 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
         const locationQueryConditionsSchema = z.object({
           rules: z.array(z.object({
             field: z.enum(["pincode", "orderValue"]),
-            operator: z.enum(["IN", "NOT_IN", "BETWEEN", "NOT_BETWEEN", "EQUALS", "NOT_EQUALS"]),
+            operator: z.enum(["IN", "NOT_IN", "BETWEEN", "NOT_BETWEEN", "EQUALS", "NOT_EQUALS", "GREATER_THAN", "LESS_THAN", "STARTS_WITH", "ENDS_WITH", "CONTAINS"]),
             values: z.array(z.string()).min(1)
           })).min(1),
           logicalOperator: z.enum(["AND", "OR"]).default("AND")

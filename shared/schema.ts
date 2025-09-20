@@ -280,7 +280,12 @@ const queryOperatorSchema = z.enum([
   "BETWEEN",
   "NOT_BETWEEN",
   "EQUALS",
-  "NOT_EQUALS"
+  "NOT_EQUALS",
+  "GREATER_THAN",
+  "LESS_THAN",
+  "STARTS_WITH",
+  "ENDS_WITH",
+  "CONTAINS"
 ]);
 
 // Query fields for different rule types
@@ -310,8 +315,8 @@ const productQueryRuleSchema = baseQueryRuleSchema.extend({
   if (["BETWEEN", "NOT_BETWEEN"].includes(data.operator)) {
     return data.values.length === 2;
   }
-  // EQUALS and NOT_EQUALS require exactly 1 value
-  if (["EQUALS", "NOT_EQUALS"].includes(data.operator)) {
+  // Single value operators
+  if (["EQUALS", "NOT_EQUALS", "GREATER_THAN", "LESS_THAN", "STARTS_WITH", "ENDS_WITH", "CONTAINS"].includes(data.operator)) {
     return data.values.length === 1;
   }
   // IN and NOT_IN can have multiple values
@@ -324,6 +329,10 @@ const locationQueryRuleSchema = baseQueryRuleSchema.extend({
 }).refine((data) => {
   // Validate PIN codes if field is pincode
   if (data.field === "pincode") {
+    // For string operators, PIN codes can be partial for STARTS_WITH, ENDS_WITH, CONTAINS
+    if (["STARTS_WITH", "ENDS_WITH", "CONTAINS"].includes(data.operator)) {
+      return data.values.every(val => /^\d+$/.test(val) && val.length <= 6);
+    }
     return data.values.every(val => /^\d{6}$/.test(val));
   }
   // Validate numeric values if field is orderValue
@@ -336,8 +345,8 @@ const locationQueryRuleSchema = baseQueryRuleSchema.extend({
   if (["BETWEEN", "NOT_BETWEEN"].includes(data.operator)) {
     return data.values.length === 2;
   }
-  // EQUALS and NOT_EQUALS require exactly 1 value
-  if (["EQUALS", "NOT_EQUALS"].includes(data.operator)) {
+  // Single value operators
+  if (["EQUALS", "NOT_EQUALS", "GREATER_THAN", "LESS_THAN", "STARTS_WITH", "ENDS_WITH", "CONTAINS"].includes(data.operator)) {
     return data.values.length === 1;
   }
   // IN and NOT_IN can have multiple values

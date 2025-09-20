@@ -821,21 +821,24 @@ export class DatabaseStorage implements IStorage {
       return false;
     }
 
+    const fieldStr = String(fieldValue).toLowerCase();
+    const valueStr = values[0] ? String(values[0]).toLowerCase() : "";
+
     switch (operator) {
       case "EQUALS":
-        return String(fieldValue).toLowerCase() === String(values[0]).toLowerCase();
+        return fieldStr === valueStr;
       
       case "NOT_EQUALS":
-        return String(fieldValue).toLowerCase() !== String(values[0]).toLowerCase();
+        return fieldStr !== valueStr;
       
       case "IN":
         return values.some((val: string) => 
-          String(fieldValue).toLowerCase() === String(val).toLowerCase()
+          fieldStr === String(val).toLowerCase()
         );
       
       case "NOT_IN":
         return !values.some((val: string) => 
-          String(fieldValue).toLowerCase() === String(val).toLowerCase()
+          fieldStr === String(val).toLowerCase()
         );
       
       case "BETWEEN":
@@ -853,6 +856,25 @@ export class DatabaseStorage implements IStorage {
         const maxVal = parseFloat(values[1]);
         return isNaN(numVal) || isNaN(minVal) || isNaN(maxVal) || 
                numVal < minVal || numVal > maxVal;
+      
+      case "GREATER_THAN":
+        const gtValue = parseFloat(String(fieldValue));
+        const gtTarget = parseFloat(values[0]);
+        return !isNaN(gtValue) && !isNaN(gtTarget) && gtValue > gtTarget;
+      
+      case "LESS_THAN":
+        const ltValue = parseFloat(String(fieldValue));
+        const ltTarget = parseFloat(values[0]);
+        return !isNaN(ltValue) && !isNaN(ltTarget) && ltValue < ltTarget;
+      
+      case "STARTS_WITH":
+        return fieldStr.startsWith(valueStr);
+      
+      case "ENDS_WITH":
+        return fieldStr.endsWith(valueStr);
+      
+      case "CONTAINS":
+        return fieldStr.includes(valueStr);
       
       default:
         return false;

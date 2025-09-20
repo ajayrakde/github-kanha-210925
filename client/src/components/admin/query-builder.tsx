@@ -18,7 +18,7 @@ type QueryRule = ProductQueryRule | LocationQueryRule;
 const productFields: ProductQueryField[] = ["productName", "category", "classification"];
 const locationFields: LocationQueryField[] = ["pincode", "orderValue"];
 
-const operators: QueryOperator[] = ["EQUALS", "NOT_EQUALS", "IN", "NOT_IN", "BETWEEN", "NOT_BETWEEN"];
+const operators: QueryOperator[] = ["EQUALS", "NOT_EQUALS", "IN", "NOT_IN", "BETWEEN", "NOT_BETWEEN", "GREATER_THAN", "LESS_THAN", "STARTS_WITH", "ENDS_WITH", "CONTAINS"];
 
 const operatorLabels: Record<QueryOperator, string> = {
   "EQUALS": "equals",
@@ -27,6 +27,11 @@ const operatorLabels: Record<QueryOperator, string> = {
   "NOT_IN": "is not in",
   "BETWEEN": "is between",
   "NOT_BETWEEN": "is not between",
+  "GREATER_THAN": "greater than",
+  "LESS_THAN": "less than",
+  "STARTS_WITH": "starts with",
+  "ENDS_WITH": "ends with",
+  "CONTAINS": "contains",
 };
 
 const fieldLabels: Record<string, string> = {
@@ -54,7 +59,7 @@ export default function QueryBuilder({ type, conditions, onChange }: QueryBuilde
     if (updatedRule.operator) {
       if (["BETWEEN", "NOT_BETWEEN"].includes(updatedRule.operator)) {
         newRules[index].values = ["", ""];
-      } else if (["EQUALS", "NOT_EQUALS"].includes(updatedRule.operator)) {
+      } else if (["EQUALS", "NOT_EQUALS", "GREATER_THAN", "LESS_THAN", "STARTS_WITH", "ENDS_WITH", "CONTAINS"].includes(updatedRule.operator)) {
         newRules[index].values = [""];
       } else {
         // For IN/NOT_IN, keep existing values or start with one empty value
@@ -157,13 +162,19 @@ export default function QueryBuilder({ type, conditions, onChange }: QueryBuilde
       );
     }
 
-    if (["EQUALS", "NOT_EQUALS"].includes(operator)) {
+    if (["EQUALS", "NOT_EQUALS", "GREATER_THAN", "LESS_THAN", "STARTS_WITH", "ENDS_WITH", "CONTAINS"].includes(operator)) {
       return (
         <Input
           value={values[0] || ""}
           onChange={(e) => updateValues(ruleIndex, 0, e.target.value)}
-          placeholder={field === "orderValue" ? "100" : field === "pincode" ? "110001" : "Enter value"}
-          type={field === "orderValue" ? "number" : "text"}
+          placeholder={
+            field === "orderValue" ? "100" : 
+            field === "pincode" ? (
+              ["STARTS_WITH", "ENDS_WITH", "CONTAINS"].includes(operator) ? "110" : "110001"
+            ) : 
+            "Enter value"
+          }
+          type={field === "orderValue" && ["GREATER_THAN", "LESS_THAN"].includes(operator) ? "number" : "text"}
           data-testid={`input-value-${ruleIndex}`}
         />
       );
@@ -240,14 +251,14 @@ export default function QueryBuilder({ type, conditions, onChange }: QueryBuilde
                 </div>
               )}
               
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
-                  <Label className="text-xs">Field</Label>
+                  <Label className="text-xs font-medium">Field</Label>
                   <Select
                     value={rule.field}
                     onValueChange={(value) => updateRule(index, { field: value as any })}
                   >
-                    <SelectTrigger data-testid={`select-field-${index}`}>
+                    <SelectTrigger data-testid={`select-field-${index}`} className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -261,12 +272,12 @@ export default function QueryBuilder({ type, conditions, onChange }: QueryBuilde
                 </div>
 
                 <div>
-                  <Label className="text-xs">Operator</Label>
+                  <Label className="text-xs font-medium">Operator</Label>
                   <Select
                     value={rule.operator}
                     onValueChange={(value: QueryOperator) => updateRule(index, { operator: value })}
                   >
-                    <SelectTrigger data-testid={`select-operator-${index}`}>
+                    <SelectTrigger data-testid={`select-operator-${index}`} className="w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -279,8 +290,8 @@ export default function QueryBuilder({ type, conditions, onChange }: QueryBuilde
                   </Select>
                 </div>
 
-                <div className="lg:col-span-1">
-                  <Label className="text-xs">Values</Label>
+                <div className="md:col-span-2 lg:col-span-2">
+                  <Label className="text-xs font-medium">Values</Label>
                   {renderValueInputs(rule, index)}
                 </div>
               </div>
