@@ -271,12 +271,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User authentication routes
-  app.post('/api/auth/send-otp', async (req, res) => {
-    const { phone } = req.body;
-    // In production, integrate with SMS gateway
-    console.log(`Sending login OTP to ${phone}: 123456`);
-    res.json({ message: 'OTP sent successfully' });
-  });
 
   app.post('/api/auth/login', async (req: SessionRequest, res) => {
     const { phone, otp } = req.body;
