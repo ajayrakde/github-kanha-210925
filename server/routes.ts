@@ -694,8 +694,15 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
 
       const csv = csvHeader + csvRows;
       
+      // Generate filename with current date in ddmmyyyy format
+      const now = new Date();
+      const day = String(now.getDate()).padStart(2, '0');
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const year = now.getFullYear();
+      const filename = `orders_${day}${month}${year}.csv`;
+      
       res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', 'attachment; filename="orders.csv"');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.send(csv);
     } catch (error) {
       console.error('Error exporting orders:', error);
