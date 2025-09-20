@@ -14,7 +14,6 @@ import { ArrowLeft, Plus } from "lucide-react";
 
 interface UserInfo {
   name: string;
-  email: string;
   addressLine1: string;
   addressLine2: string;
   addressLine3: string;
@@ -32,7 +31,6 @@ export default function Checkout() {
   const [otp, setOtp] = useState("");
   const [userInfo, setUserInfo] = useState<UserInfo>({
     name: "",
-    email: "",
     addressLine1: "",
     addressLine2: "",
     addressLine3: "",
@@ -80,7 +78,6 @@ export default function Checkout() {
           const addressParts = preferred.address.split('\n');
           setUserInfo({
             name: authData.user.name || "",
-            email: authData.user.email || "",
             addressLine1: addressParts[0] || "",
             addressLine2: addressParts[1] || "",
             addressLine3: addressParts[2] || "",
@@ -328,32 +325,18 @@ export default function Checkout() {
                   Delivery Information
                 </h3>
 
-                {/* User Name and Email */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                  <div>
-                    <Label htmlFor="name">Full Name</Label>
-                    <Input
-                      id="name"
-                      type="text"
-                      placeholder="John Doe"
-                      value={userInfo.name}
-                      onChange={(e) => setUserInfo({ ...userInfo, name: e.target.value })}
-                      className="mt-2"
-                      data-testid="input-name"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="email">Email (Optional)</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="john@example.com"
-                      value={userInfo.email}
-                      onChange={(e) => setUserInfo({ ...userInfo, email: e.target.value })}
-                      className="mt-2"
-                      data-testid="input-email"
-                    />
-                  </div>
+                {/* User Name */}
+                <div className="mb-6">
+                  <Label htmlFor="name">Full Name</Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="John Doe"
+                    value={userInfo.name}
+                    onChange={(e) => setUserInfo({ ...userInfo, name: e.target.value })}
+                    className="mt-2"
+                    data-testid="input-name"
+                  />
                 </div>
 
                 {/* Address Selection/Management */}
