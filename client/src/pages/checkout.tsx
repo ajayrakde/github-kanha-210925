@@ -821,7 +821,16 @@ export default function Checkout() {
               <Button
                 className="w-full bg-green-600 hover:bg-green-700"
                 onClick={() => placeOrderMutation.mutate()}
-                disabled={!userInfo.name || !userInfo.addressLine1 || !userInfo.addressLine2 || !userInfo.city || !userInfo.pincode || placeOrderMutation.isPending}
+                disabled={
+                  !userInfo.name || 
+                  !userInfo.addressLine1 || 
+                  !userInfo.addressLine2 || 
+                  !userInfo.city || 
+                  !userInfo.pincode || 
+                  !isPincodeValid || 
+                  isCalculatingShipping || 
+                  placeOrderMutation.isPending
+                }
                 data-testid="button-place-order"
               >
                 <i className="fas fa-lock mr-2"></i>
