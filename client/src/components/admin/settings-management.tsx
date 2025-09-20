@@ -69,6 +69,7 @@ export default function SettingsManagement() {
   }
 
   const authSettings = settings?.filter(s => s.category === 'authentication') || [];
+  const shippingSettings = settings?.filter(s => s.category === 'shipping') || [];
   const generalSettings = settings?.filter(s => s.category === 'general') || [];
 
   return (
@@ -154,6 +155,71 @@ export default function SettingsManagement() {
               )}
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      {/* Shipping Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <i className="fas fa-truck text-green-600"></i>
+            Shipping Configuration
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {shippingSettings.map((setting) => (
+            <div key={setting.id} className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label className="font-medium">
+                    {setting.key === 'default_shipping_charge' && '💰 Default Shipping Charge'}
+                  </Label>
+                  <p className="text-sm text-gray-600">{setting.description}</p>
+                  {setting.updatedBy && (
+                    <p className="text-xs text-gray-400">
+                      Last updated by {setting.updatedBy} on {new Date(setting.updatedAt).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  {setting.key === 'default_shipping_charge' && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-600">₹</span>
+                      <Input
+                        type="number"
+                        value={setting.value}
+                        onChange={(e) => handleUpdateValue(setting.key, e.target.value)}
+                        className="w-24"
+                        min="0"
+                        step="0.01"
+                        disabled={updateSettingMutation.isPending}
+                        data-testid={`input-${setting.key}`}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {setting.key === 'default_shipping_charge' && (
+                <div className="p-3 rounded-lg bg-green-50 border border-green-200">
+                  <p className="text-sm text-green-700">
+                    💡 This charge applies when no shipping rules match the order. Use the <strong>Shipping Rules</strong> tab to create specific conditions.
+                  </p>
+                </div>
+              )}
+            </div>
+          ))}
+          
+          {shippingSettings.length === 0 && (
+            <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+              <div className="mx-auto w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mb-3">
+                <i className="fas fa-truck text-gray-400 text-xl"></i>
+              </div>
+              <div className="text-gray-600 font-medium">No Shipping Settings Found</div>
+              <div className="text-sm text-gray-500 mt-1">Default shipping settings will be initialized automatically.</div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
