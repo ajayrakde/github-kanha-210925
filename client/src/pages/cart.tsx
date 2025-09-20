@@ -3,7 +3,7 @@ import { useCart } from "@/hooks/use-cart";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import CartItem from "@/components/cart/cart-item";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -15,7 +15,37 @@ export default function Cart() {
   const [couponCode, setCouponCode] = useState("");
   const [appliedOffer, setAppliedOffer] = useState<any>(null);
   const [couponError, setCouponError] = useState("");
+  const [shippingCharge, setShippingCharge] = useState(50); // Default shipping
+  const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
   const { cartItems, isLoading, subtotal } = useCart();
+
+  // Calculate shipping charge when cart changes
+  useEffect(() => {
+    const calculateShipping = async () => {
+      if (cartItems.length === 0 || subtotal === 0) {
+        setShippingCharge(50); // Default for empty cart
+        return;
+      }
+
+      setIsCalculatingShipping(true);
+      try {
+        const response = await apiRequest("POST", "/api/shipping/calculate", {
+          cartItems,
+          pincode: "110001", // Default pincode - will be updated during checkout
+          orderValue: subtotal
+        });
+        const result = await response.json();
+        setShippingCharge(result.shippingCharge);
+      } catch (error) {
+        console.error("Error calculating shipping:", error);
+        setShippingCharge(50); // Fall back to default
+      } finally {
+        setIsCalculatingShipping(false);
+      }
+    };
+
+    calculateShipping();
+  }, [cartItems, subtotal]);
 
   const validateOfferMutation = useMutation({
     mutationFn: async (code: string) => {
@@ -100,7 +130,6 @@ export default function Cart() {
   };
 
   const discount = calculateDiscount();
-  const shippingCharge = 50; // Fixed shipping charge
   const total = subtotal - discount + shippingCharge;
 
   if (isLoading) {

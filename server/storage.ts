@@ -137,6 +137,13 @@ export interface IStorage {
   updateShippingRule(id: string, rule: Partial<InsertShippingRule>): Promise<ShippingRule>;
   deleteShippingRule(id: string): Promise<void>;
   getEnabledShippingRules(): Promise<ShippingRule[]>;
+  
+  // Shipping calculation operations
+  calculateShippingCharge(orderData: {
+    cartItems: (CartItem & { product: Product })[];
+    pincode: string;
+    orderValue: number;
+  }): Promise<number>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -990,6 +997,58 @@ export class DatabaseStorage implements IStorage {
   }): Promise<ShippingRule | undefined> {
     const matchingRules = await this.findMatchingShippingRules(context);
     return matchingRules.length > 0 ? matchingRules[0] : undefined;
+  }
+
+  // Calculate shipping charge based on rules and default value
+  async calculateShippingCharge(orderData: {
+    cartItems: (CartItem & { product: Product })[];
+    pincode: string;
+    orderValue: number;
+  }): Promise<number> {
+    const { cartItems, pincode, orderValue } = orderData;
+
+    // Get default shipping value from app settings
+    const defaultShippingSetting = await this.getAppSetting('default_shipping_charge');
+    const defaultShipping = defaultShippingSetting ? parseFloat(defaultShippingSetting.value) : 50;
+
+    let productBasedCharge: number | null = null;
+    let locationBasedCharge: number | null = null;
+
+    // Check product-based rules
+    for (const item of cartItems) {
+      const productContext = {
+        productName: item.product.name,
+        category: item.product.category,
+        classification: item.product.classification,
+        orderValue
+      };
+
+      const productRule = await this.getBestShippingRule(productContext);
+      if (productRule) {
+        const ruleCharge = parseFloat(productRule.shippingCharge);
+        productBasedCharge = productBasedCharge === null ? ruleCharge : Math.min(productBasedCharge, ruleCharge);
+      }
+    }
+
+    // Check location-based rules
+    const locationContext = {
+      pincode,
+      orderValue
+    };
+
+    const locationRule = await this.getBestShippingRule(locationContext);
+    if (locationRule) {
+      locationBasedCharge = parseFloat(locationRule.shippingCharge);
+    }
+
+    // Apply logic: minimum of applicable rules, or default if no rules apply
+    const applicableCharges = [productBasedCharge, locationBasedCharge].filter(charge => charge !== null) as number[];
+    
+    if (applicableCharges.length === 0) {
+      return defaultShipping; // No rules apply, use default
+    }
+
+    return Math.min(...applicableCharges); // Return minimum of applicable rules
   }
 
 }

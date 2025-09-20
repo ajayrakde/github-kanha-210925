@@ -559,13 +559,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const total = subtotal - discountAmount;
+      // Calculate shipping charges based on rules
+      const address = await storage.getUserAddresses(userId).then(addresses => 
+        addresses.find(addr => addr.id === deliveryAddressId)
+      );
+      
+      const shippingCharge = address ? await storage.calculateShippingCharge({
+        cartItems,
+        pincode: address.pincode,
+        orderValue: subtotal
+      }) : 50; // Fallback to default if address not found
+
+      const total = subtotal - discountAmount + shippingCharge;
 
       // Create order with validated data
       const orderData = {
         userId,
         subtotal: subtotal.toString(),
         discountAmount: discountAmount.toString(),
+        shippingCharge: shippingCharge.toString(),
         total: total.toString(),
         offerId: offerId || undefined,
         paymentMethod,
@@ -1369,6 +1381,77 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
       res.status(500).json({ message: 'Failed to create accounts' });
     }
   });
+
+  // Calculate shipping charges
+  app.post('/api/shipping/calculate', async (req, res) => {
+    try {
+      const { cartItems, pincode, orderValue } = req.body;
+
+      if (!cartItems || !pincode || orderValue === undefined) {
+        return res.status(400).json({ error: 'Missing required fields: cartItems, pincode, orderValue' });
+      }
+
+      const shippingCharge = await storage.calculateShippingCharge({
+        cartItems,
+        pincode,
+        orderValue
+      });
+
+      res.json({ shippingCharge });
+    } catch (error) {
+      console.error('Error calculating shipping charge:', error);
+      res.status(500).json({ error: 'Failed to calculate shipping charge' });
+    }
+  });
+
+  // App settings endpoints
+  app.get('/api/admin/settings', requireAdmin, async (req, res) => {
+    try {
+      const settings = await storage.getAppSettings();
+      res.json(settings);
+    } catch (error) {
+      console.error('Error fetching app settings:', error);
+      res.status(500).json({ error: 'Failed to fetch app settings' });
+    }
+  });
+
+  app.put('/api/admin/settings/:key', requireAdmin, async (req, res) => {
+    try {
+      const { key } = req.params;
+      const { value } = req.body;
+
+      if (!value) {
+        return res.status(400).json({ error: 'Value is required' });
+      }
+
+      const setting = await storage.updateAppSetting(key, value, 'admin');
+      res.json(setting);
+    } catch (error) {
+      console.error('Error updating app setting:', error);
+      res.status(500).json({ error: 'Failed to update app setting' });
+    }
+  });
+
+  // Initialize default app settings
+  async function initializeDefaultSettings() {
+    try {
+      const defaultShippingSetting = await storage.getAppSetting('default_shipping_charge');
+      if (!defaultShippingSetting) {
+        await storage.createAppSetting({
+          key: 'default_shipping_charge',
+          value: '50',
+          description: 'Default shipping charge when no rules apply',
+          category: 'shipping'
+        });
+        console.log('Default shipping charge setting initialized to ₹50');
+      }
+    } catch (error) {
+      console.error('Error initializing default settings:', error);
+    }
+  }
+
+  // Initialize settings on startup
+  initializeDefaultSettings();
 
   const httpServer = createServer(app);
   return httpServer;

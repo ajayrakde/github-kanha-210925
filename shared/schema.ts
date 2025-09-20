@@ -110,6 +110,7 @@ export const orders = pgTable("orders", {
   status: varchar("status", { length: 50 }).default('pending'), // pending, confirmed, delivered, cancelled
   subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
   discountAmount: decimal("discount_amount", { precision: 10, scale: 2 }).default(sql`'0'`),
+  shippingCharge: decimal("shipping_charge", { precision: 10, scale: 2 }).default(sql`'50'`),
   total: decimal("total", { precision: 10, scale: 2 }).notNull(),
   offerId: varchar("offer_id").references(() => offers.id),
   paymentMethod: varchar("payment_method", { length: 50 }),
