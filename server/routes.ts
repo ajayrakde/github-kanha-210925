@@ -459,7 +459,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       pincode: z.string().min(1, 'Pincode is required'),
       makePreferred: z.boolean().optional().default(false),
     }).optional(),
-    offerId: z.string().optional().nullable(),
+    offerCode: z.string().optional().nullable(),
     paymentMethod: z.string().min(1, 'Payment method is required'),
     selectedAddressId: z.string().optional().nullable(),
   });
@@ -474,7 +474,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Validate request body
       const validatedData = orderCreationSchema.parse(req.body);
-      const { userInfo, offerId, paymentMethod, selectedAddressId } = validatedData;
+      const { userInfo, offerCode, paymentMethod, selectedAddressId } = validatedData;
       const userId = req.session.userId; // Use authenticated user ID
       
       const cartItems = await storage.getCartItems(req.session.sessionId!);
@@ -563,19 +563,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Calculate totals
       const subtotal = cartItems.reduce((sum, item) => sum + (parseFloat(item.product.price) * item.quantity), 0);
       let discountAmount = 0;
+      const appliedOffer = offerCode ? await storage.getOfferByCode(offerCode) : undefined;
 
       // Apply offer if provided
-      if (offerId) {
-        const offer = await storage.getOfferByCode(offerId);
-        if (offer) {
-          if (offer.discountType === 'percentage') {
-            discountAmount = (subtotal * parseFloat(offer.discountValue)) / 100;
-            if (offer.maxDiscount) {
-              discountAmount = Math.min(discountAmount, parseFloat(offer.maxDiscount));
-            }
-          } else {
-            discountAmount = parseFloat(offer.discountValue);
+      if (appliedOffer) {
+        if (appliedOffer.discountType === 'percentage') {
+          discountAmount = (subtotal * parseFloat(appliedOffer.discountValue)) / 100;
+          if (appliedOffer.maxDiscount) {
+            discountAmount = Math.min(discountAmount, parseFloat(appliedOffer.maxDiscount));
           }
+        } else {
+          discountAmount = parseFloat(appliedOffer.discountValue);
         }
       }
 
@@ -599,7 +597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         discountAmount: discountAmount.toString(),
         shippingCharge: shippingCharge.toString(),
         total: total.toString(),
-        offerId: offerId || undefined,
+        offerId: appliedOffer?.id,
         paymentMethod,
         paymentStatus: 'completed', // Mock successful payment
         status: 'confirmed',
@@ -618,17 +616,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.createOrderItems(orderItems);
 
       // Create offer redemption if offer was used
-      if (offerId) {
-        const offer = await storage.getOfferByCode(offerId);
-        if (offer) {
-          await storage.createOfferRedemption({
-            offerId: offer.id,
-            userId,
-            orderId: order.id,
-            discountAmount: discountAmount.toString(),
-          });
-          await storage.incrementOfferUsage(offer.id);
-        }
+      if (appliedOffer) {
+        await storage.createOfferRedemption({
+          offerId: appliedOffer.id,
+          userId,
+          orderId: order.id,
+          discountAmount: discountAmount.toString(),
+        });
+        await storage.incrementOfferUsage(appliedOffer.id);
       }
 
       // Clear cart
