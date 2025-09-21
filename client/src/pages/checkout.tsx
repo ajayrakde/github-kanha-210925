@@ -135,52 +135,80 @@ export default function Checkout() {
   }, [authData, addresses]);
 
   const sendOtpMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/otp/send", { phone });
+    mutationFn: async (): Promise<{ message: string }> => {
+      const response = await apiRequest("POST", "/api/auth/send-otp", {
+        phone,
+        userType: "buyer",
+      });
       return await response.json();
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       setStep("otp");
       toast({
         title: "OTP Sent",
-        description: "Please check your phone for the verification code",
+        description: result.message ?? "Please check your phone for the verification code",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to send OTP. Please try again.",
+        variant: "destructive",
       });
     },
   });
 
   const verifyOtpMutation = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/otp/verify", { phone, otp });
+    mutationFn: async (): Promise<{ message: string; user?: any; isNewUser?: boolean }> => {
+      const response = await apiRequest("POST", "/api/auth/verify-otp", {
+        phone,
+        otp,
+        userType: "buyer",
+      });
       return await response.json();
     },
     onSuccess: (result) => {
-      if (result.verified) {
-        setUser(result.user);
-        setStep("details");
-        
-        // Auto-populate name from user data if available
-        if (result.user.name && !userInfo.name) {
-          setUserInfo(prev => ({
-            ...prev,
-            name: result.user.name
-          }));
-        }
-        
-        // Update authentication cache to reflect logged-in state
-        queryClient.setQueryData(["/api/auth/me"], { 
-          authenticated: true, 
-          user: result.user 
-        });
-        
-        // Invalidate queries to refresh user data
-        queryClient.invalidateQueries({ queryKey: ["/api/auth/addresses"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/auth/orders"] });
-        
+      if (!result.user) {
         toast({
-          title: "Phone Verified",
-          description: "Please fill in your delivery details",
+          title: "Verification Failed",
+          description: result.message || "Unable to verify OTP. Please try again.",
+          variant: "destructive",
         });
+        return;
       }
+
+      setUser(result.user);
+      setStep("details");
+
+      // Auto-populate name from user data if available
+      if (result.user.name && !userInfo.name) {
+        setUserInfo(prev => ({
+          ...prev,
+          name: result.user.name
+        }));
+      }
+
+      // Update authentication cache to reflect logged-in state
+      queryClient.setQueryData(["/api/auth/me"], {
+        authenticated: true,
+        user: result.user
+      });
+
+      // Invalidate queries to refresh user data
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/addresses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/orders"] });
+
+      toast({
+        title: "Phone Verified",
+        description: result.message || "Please fill in your delivery details",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Verification Failed",
+        description: "Invalid or expired OTP. Please try again.",
+        variant: "destructive",
+      });
     },
   });
 

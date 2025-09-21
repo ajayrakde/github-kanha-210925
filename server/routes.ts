@@ -238,53 +238,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Mock OTP routes
+  // Legacy OTP routes (deprecated) - internally route to shared OTP service
   app.post('/api/otp/send', async (req, res) => {
-    const { phone } = req.body;
-    // In production, integrate with SMS gateway
-    console.log(`Sending OTP to ${phone}: 123456`);
-    res.json({ message: 'OTP sent successfully' });
+    try {
+      const { phone } = req.body;
+
+      if (!phone) {
+        return res.status(400).json({ message: 'Phone number is required' });
+      }
+
+      const result = await otpService.sendOtp(phone, 'buyer');
+
+      if (result.success) {
+        return res.json({ message: result.message, otpId: result.otpId });
+      }
+
+      return res.status(400).json({ message: result.message });
+    } catch (error) {
+      console.error('Legacy OTP send error:', error);
+      res.status(500).json({ message: 'Failed to send OTP' });
+    }
   });
 
   app.post('/api/otp/verify', async (req: SessionRequest, res) => {
-    const { phone, otp } = req.body;
-    // Get OTP length from settings for validation
-    const otpLengthSetting = await storage.getAppSetting('otp_length');
-    const expectedOtpLength = otpLengthSetting?.value ? parseInt(otpLengthSetting.value) : 6;
-    
-    // Mock verification - accept any code with configured length
-    if (otp && otp.length === expectedOtpLength) {
-      // Check if user exists, create if not
-      let user = await storage.getUserByPhone(`+91${phone}`);
-      if (!user) {
-        user = await storage.createUser({ 
-          phone: `+91${phone}`,
-          name: '',
-          email: null
-        });
+    try {
+      const { phone, otp } = req.body;
+
+      if (!phone || !otp) {
+        return res.status(400).json({ message: 'Phone number and OTP are required' });
       }
-      // Regenerate session to prevent fixation attacks  
-      req.session.regenerate((err) => {
-        if (err) {
-          console.error('Session regenerate error:', err);
-          return res.status(500).json({ message: 'Session error' });
-        }
-        
-        // Set user session after regeneration
-        req.session.userId = user.id;
-        req.session.userRole = 'buyer';
-        
-        // Save the new session
-        req.session.save((saveErr) => {
-          if (saveErr) {
-            console.error('Session save error:', saveErr);
-            return res.status(500).json({ message: 'Session error' });
-          }
-          res.json({ verified: true, user, authenticated: true });
-        });
+
+      const result = await otpService.verifyOtp(phone, otp, 'buyer');
+
+      if (!result.success || !result.user) {
+        return res.status(400).json({ message: result.message || 'Failed to verify OTP' });
+      }
+
+      req.session.userId = result.user.id;
+      req.session.userRole = 'buyer';
+
+      return res.json({
+        verified: true,
+        authenticated: true,
+        user: result.user,
+        isNewUser: result.isNewUser,
+        message: result.message,
       });
-    } else {
-      res.status(400).json({ message: 'Invalid OTP' });
+    } catch (error) {
+      console.error('Legacy OTP verify error:', error);
+      res.status(500).json({ message: 'Failed to verify OTP' });
     }
   });
 
