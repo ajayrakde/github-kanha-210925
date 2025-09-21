@@ -5,19 +5,48 @@ import { Input } from "@/components/ui/input";
 import CartItem from "@/components/cart/cart-item";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft } from "lucide-react";
 
 export default function Cart() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const [buyerId, setBuyerId] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("buyerId");
+    }
+    return null;
+  });
   const [couponCode, setCouponCode] = useState("");
   const [appliedOffer, setAppliedOffer] = useState<any>(null);
   const [couponError, setCouponError] = useState("");
   const [shippingCharge, setShippingCharge] = useState(50); // Default shipping
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
   const { cartItems, isLoading, subtotal } = useCart();
+
+  const { data: authData, isLoading: isAuthLoading } = useQuery<{
+    authenticated: boolean;
+    user?: { id: string };
+  } | null>({
+    queryKey: ["/api/auth/me"],
+    queryFn: getQueryFn({ on401: "returnNull" }),
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (authData?.authenticated && authData.user?.id) {
+      setBuyerId(authData.user.id);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("buyerId", authData.user.id);
+      }
+    } else if (authData === null || (authData && !authData.authenticated)) {
+      setBuyerId(null);
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("buyerId");
+      }
+    }
+  }, [authData]);
 
   // Calculate shipping charge when cart changes
   useEffect(() => {
@@ -48,10 +77,10 @@ export default function Cart() {
   }, [cartItems, subtotal]);
 
   const validateOfferMutation = useMutation({
-    mutationFn: async (code: string) => {
+    mutationFn: async ({ code, userId }: { code: string; userId: string | null }) => {
       const response = await apiRequest("POST", "/api/offers/validate", {
         code,
-        userId: "temp-user", // Will be replaced during checkout
+        userId,
         cartValue: subtotal,
       });
       return await response.json();
@@ -88,7 +117,10 @@ export default function Cart() {
   const applyCoupon = () => {
     if (couponCode.trim()) {
       setCouponError("");
-      validateOfferMutation.mutate(couponCode.toUpperCase());
+      validateOfferMutation.mutate({
+        code: couponCode.toUpperCase(),
+        userId: buyerId,
+      });
     }
   };
 
@@ -233,7 +265,7 @@ export default function Cart() {
                   />
                   <Button
                     onClick={applyCoupon}
-                    disabled={!couponCode.trim() || validateOfferMutation.isPending}
+                    disabled={!couponCode.trim() || validateOfferMutation.isPending || isAuthLoading}
                     data-testid="button-apply-coupon"
                   >
                     {validateOfferMutation.isPending ? "Applying..." : "Apply"}
@@ -275,7 +307,7 @@ export default function Cart() {
                     />
                     <Button
                       onClick={applyCoupon}
-                      disabled={!couponCode.trim() || validateOfferMutation.isPending}
+                      disabled={!couponCode.trim() || validateOfferMutation.isPending || isAuthLoading}
                       data-testid="button-replace-coupon"
                     >
                       {validateOfferMutation.isPending ? "Applying..." : "Replace"}
