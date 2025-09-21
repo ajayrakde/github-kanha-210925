@@ -56,7 +56,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         <img
           src={product.displayImageUrl || product.imageUrl || `https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=300`}
           alt={product.name}
-          className="w-full h-48 object-cover"
+          className="w-full aspect-[2/3] object-cover"
           data-testid={`product-image-${product.id}`}
         />
         <div className="p-4">
