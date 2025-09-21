@@ -83,7 +83,11 @@ export interface IStorage {
   createOffer(offer: InsertOffer): Promise<Offer>;
   updateOffer(id: string, offer: Partial<InsertOffer>): Promise<Offer>;
   deleteOffer(id: string): Promise<void>;
-  validateOffer(code: string, userId: string, cartValue: number): Promise<{ valid: boolean; offer?: Offer; message?: string }>;
+  validateOffer(
+    code: string,
+    userId: string | null,
+    cartValue: number,
+  ): Promise<{ valid: boolean; offer?: Offer; message?: string }>;
   incrementOfferUsage(offerId: string): Promise<void>;
 
   // Cart operations
@@ -372,7 +376,11 @@ export class DatabaseStorage implements IStorage {
     await db.delete(offers).where(eq(offers.id, id));
   }
 
-  async validateOffer(code: string, userId: string, cartValue: number): Promise<{ valid: boolean; offer?: Offer; message?: string }> {
+  async validateOffer(
+    code: string,
+    userId: string | null,
+    cartValue: number,
+  ): Promise<{ valid: boolean; offer?: Offer; message?: string }> {
     const offer = await this.getOfferByCode(code);
     
     if (!offer) {
@@ -400,7 +408,7 @@ export class DatabaseStorage implements IStorage {
       return { valid: false, message: "Coupon usage limit reached" };
     }
 
-    if (offer.perUserUsageLimit) {
+    if (offer.perUserUsageLimit && userId) {
       const userRedemptions = await this.getOfferRedemptionsByUser(userId, offer.id);
       if (userRedemptions.length >= offer.perUserUsageLimit) {
         return { valid: false, message: "You have already used this coupon maximum times" };

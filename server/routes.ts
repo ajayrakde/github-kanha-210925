@@ -211,8 +211,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Offer validation and application
   app.post('/api/offers/validate', async (req: SessionRequest, res) => {
     try {
-      const { code, userId, cartValue } = req.body;
-      const validation = await storage.validateOffer(code, userId, cartValue);
+      const { code, userId: requestUserId, cartValue } = req.body;
+      const sessionUserId = req.session.userId ?? null;
+
+      if (
+        sessionUserId &&
+        typeof requestUserId === 'string' &&
+        requestUserId.trim() &&
+        requestUserId !== sessionUserId
+      ) {
+        console.warn('Offer validation user mismatch', {
+          sessionUserId,
+          requestUserId,
+        });
+      }
+
+      const validation = await storage.validateOffer(
+        code,
+        sessionUserId ?? null,
+        cartValue,
+      );
       res.json(validation);
     } catch (error) {
       console.error('Error validating offer:', error);
