@@ -77,9 +77,9 @@ export default function OtpLogin({ userType, title, onSuccess }: OtpLoginProps) 
       });
       
       // Invalidate auth queries based on user type
-      const authKey = userType === 'admin' ? '/api/admin/me' : 
-                     userType === 'influencer' ? '/api/influencer/me' : 
-                     '/api/auth/user';
+      const authKey = userType === 'admin' ? '/api/admin/me' :
+                     userType === 'influencer' ? '/api/influencer/me' :
+                     '/api/auth/me';
       
       queryClient.invalidateQueries({ queryKey: [authKey] });
       
