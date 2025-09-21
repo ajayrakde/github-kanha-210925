@@ -1470,34 +1470,6 @@ order.deliveryAddress ? `${order.deliveryAddress.address}, ${order.deliveryAddre
     }
   });
 
-  // App settings endpoints
-  app.get('/api/admin/settings', requireAdmin, async (req, res) => {
-    try {
-      const settings = await storage.getAppSettings();
-      res.json(settings);
-    } catch (error) {
-      console.error('Error fetching app settings:', error);
-      res.status(500).json({ error: 'Failed to fetch app settings' });
-    }
-  });
-
-  app.put('/api/admin/settings/:key', requireAdmin, async (req, res) => {
-    try {
-      const { key } = req.params;
-      const { value } = req.body;
-
-      if (!value) {
-        return res.status(400).json({ error: 'Value is required' });
-      }
-
-      const setting = await storage.updateAppSetting(key, value, 'admin');
-      res.json(setting);
-    } catch (error) {
-      console.error('Error updating app setting:', error);
-      res.status(500).json({ error: 'Failed to update app setting' });
-    }
-  });
-
   // Initialize default app settings
   async function initializeDefaultSettings() {
     try {
