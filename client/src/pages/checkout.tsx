@@ -229,10 +229,16 @@ export default function Checkout() {
         await createAddressMutation.mutateAsync(addressData);
       }
 
+      const selectedOffer = queryClient.getQueryData<{ id: string; code: string } | null>([
+        "checkout",
+        "selectedOffer"
+      ]);
+
       const response = await apiRequest("POST", "/api/orders", {
         userId: user.id,
         userInfo,
         paymentMethod,
+        offerCode: selectedOffer?.code ?? null,
       });
       return await response.json();
     },
@@ -241,6 +247,7 @@ export default function Checkout() {
       clearCart.mutate();
       // Invalidate orders cache to show the new order
       queryClient.invalidateQueries({ queryKey: ["/api/auth/orders"] });
+      queryClient.setQueryData(["checkout", "selectedOffer"], null);
       // Store order data in session storage for thank you page
       sessionStorage.setItem('lastOrder', JSON.stringify({
         orderId: data.order.id,

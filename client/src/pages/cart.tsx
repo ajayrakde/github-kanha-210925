@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCart } from "@/hooks/use-cart";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,16 +8,27 @@ import { useLocation } from "wouter";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft } from "lucide-react";
+import type { Offer } from "@/lib/types";
 
 export default function Cart() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [couponCode, setCouponCode] = useState("");
-  const [appliedOffer, setAppliedOffer] = useState<any>(null);
+  const [appliedOffer, setAppliedOffer] = useState<Offer | null>(null);
   const [couponError, setCouponError] = useState("");
   const [shippingCharge, setShippingCharge] = useState(50); // Default shipping
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
   const { cartItems, isLoading, subtotal } = useCart();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    queryClient.setQueryData(
+      ["checkout", "selectedOffer"],
+      appliedOffer
+        ? { id: appliedOffer.id, code: appliedOffer.code }
+        : null
+    );
+  }, [appliedOffer, queryClient]);
 
   // Calculate shipping charge when cart changes
   useEffect(() => {
