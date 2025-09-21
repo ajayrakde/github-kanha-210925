@@ -11,7 +11,6 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Product } from "@/lib/types";
 import { ObjectUploader } from "@/components/ObjectUploader";
-import type { UploadResult } from "@uppy/core";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import { Eye, FileText } from "lucide-react";
 import { useState } from "react";
