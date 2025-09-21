@@ -355,12 +355,12 @@ const locationQueryRuleSchema = baseQueryRuleSchema.extend({
 }, { message: "Invalid number of values for the selected operator" });
 
 // Query conditions with logical operators
-const productQueryConditionsSchema = z.object({
+export const productQueryConditionsSchema = z.object({
   rules: z.array(productQueryRuleSchema).min(1, "At least one rule is required"),
   logicalOperator: z.enum(["AND", "OR"]).default("AND"),
 });
 
-const locationQueryConditionsSchema = z.object({
+export const locationQueryConditionsSchema = z.object({
   rules: z.array(locationQueryRuleSchema).min(1, "At least one rule is required"),
   logicalOperator: z.enum(["AND", "OR"]).default("AND"),
 });
