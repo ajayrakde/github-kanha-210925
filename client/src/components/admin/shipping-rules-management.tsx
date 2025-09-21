@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
@@ -15,30 +15,160 @@ import { Badge } from "@/components/ui/badge";
 import QueryBuilder from "@/components/admin/query-builder";
 import type { ShippingRule, ProductQueryConditions, LocationQueryConditions } from "@shared/schema";
 
+type ShippingRuleType = "product_query_based" | "location_query_based";
+type ShippingRuleConditions = ProductQueryConditions | LocationQueryConditions;
+type QueryRule = ProductQueryConditions["rules"][number] | LocationQueryConditions["rules"][number];
+
 interface ShippingRuleFormData {
   name: string;
   description: string;
-  type: "product_based" | "location_value_based" | "product_query_based" | "location_query_based";
+  type: ShippingRuleType;
   shippingCharge: string;
   isEnabled: boolean;
   priority: number;
-  conditions: any;
+  conditions: ShippingRuleConditions;
 }
+
+const PRODUCT_FIELDS = new Set<string>([
+  "productName",
+  "category",
+  "classification",
+]);
+
+const LOCATION_FIELDS = new Set<string>([
+  "pincode",
+  "orderValue",
+]);
+
+const VALID_OPERATORS = new Set<string>([
+  "EQUALS",
+  "NOT_EQUALS",
+  "IN",
+  "NOT_IN",
+  "BETWEEN",
+  "NOT_BETWEEN",
+  "GREATER_THAN",
+  "LESS_THAN",
+  "STARTS_WITH",
+  "ENDS_WITH",
+  "CONTAINS",
+]);
+
+const SINGLE_VALUE_OPERATORS = new Set<string>([
+  "EQUALS",
+  "NOT_EQUALS",
+  "GREATER_THAN",
+  "LESS_THAN",
+  "STARTS_WITH",
+  "ENDS_WITH",
+  "CONTAINS",
+]);
+
+const DOUBLE_VALUE_OPERATORS = new Set<string>(["BETWEEN", "NOT_BETWEEN"]);
+
+const createDefaultProductConditions = (): ProductQueryConditions => ({
+  rules: [{ field: "productName", operator: "EQUALS", values: [""] }],
+  logicalOperator: "AND",
+});
+
+const createDefaultLocationConditions = (): LocationQueryConditions => ({
+  rules: [{ field: "pincode", operator: "EQUALS", values: [""] }],
+  logicalOperator: "AND",
+});
+
+const getDefaultConditions = (type: ShippingRuleType): ShippingRuleConditions =>
+  type === "product_query_based"
+    ? createDefaultProductConditions()
+    : createDefaultLocationConditions();
+
+const sanitizeConditions = (
+  type: ShippingRuleType,
+  rawConditions: any
+): ShippingRuleConditions => {
+  if (!rawConditions || !Array.isArray(rawConditions.rules)) {
+    return getDefaultConditions(type);
+  }
+
+  const logicalOperator = rawConditions.logicalOperator === "OR" ? "OR" : "AND";
+  const allowedFieldSet = type === "product_query_based" ? PRODUCT_FIELDS : LOCATION_FIELDS;
+
+  const sanitizedRules = rawConditions.rules
+    .map((rule: any) => {
+      if (
+        !rule ||
+        typeof rule.field !== "string" ||
+        typeof rule.operator !== "string" ||
+        !Array.isArray(rule.values)
+      ) {
+        return null;
+      }
+
+      const field = rule.field;
+      const operator = rule.operator;
+
+      if (!allowedFieldSet.has(field) || !VALID_OPERATORS.has(operator)) {
+        return null;
+      }
+
+      const values = rule.values.map((value: any) => String(value ?? ""));
+
+      if (DOUBLE_VALUE_OPERATORS.has(operator) && values.length !== 2) {
+        return null;
+      }
+
+      if (SINGLE_VALUE_OPERATORS.has(operator) && values.length !== 1) {
+        return null;
+      }
+
+      if (
+        !SINGLE_VALUE_OPERATORS.has(operator) &&
+        !DOUBLE_VALUE_OPERATORS.has(operator) &&
+        values.length === 0
+      ) {
+        return null;
+      }
+
+      return {
+        field,
+        operator,
+        values,
+      } as QueryRule;
+    })
+    .filter((rule: QueryRule | null): rule is QueryRule => rule !== null);
+
+  if (sanitizedRules.length === 0) {
+    return getDefaultConditions(type);
+  }
+
+  return {
+    rules: sanitizedRules as ShippingRuleConditions["rules"],
+    logicalOperator,
+  } as ShippingRuleConditions;
+};
+
+const mapRuleType = (type: string): ShippingRuleType => {
+  if (type === "location_query_based" || type === "location_value_based") {
+    return "location_query_based";
+  }
+  return "product_query_based";
+};
+
+const createDefaultFormData = (): ShippingRuleFormData => ({
+  name: "",
+  description: "",
+  type: "product_query_based",
+  shippingCharge: "0",
+  isEnabled: true,
+  priority: 0,
+  conditions: getDefaultConditions("product_query_based"),
+});
 
 export default function ShippingRulesManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [editingRule, setEditingRule] = useState<ShippingRule | null>(null);
-  const [formData, setFormData] = useState<ShippingRuleFormData>({
-    name: "",
-    description: "",
-    type: "product_based",
-    shippingCharge: "0",
-    isEnabled: true,
-    priority: 0,
-    conditions: {}
-  });
+  const [formData, setFormData] = useState<ShippingRuleFormData>(() => createDefaultFormData());
 
   // Fetch shipping rules
   const { data: shippingRules = [], isLoading } = useQuery<ShippingRule[]>({
@@ -113,15 +243,16 @@ export default function ShippingRulesManagement() {
   });
 
   const handleEdit = (rule: ShippingRule) => {
+    const normalizedType = mapRuleType(rule.type);
     setEditingRule(rule);
     setFormData({
       name: rule.name,
       description: rule.description || "",
-      type: rule.type as "product_based" | "location_value_based" | "product_query_based" | "location_query_based",
+      type: normalizedType,
       shippingCharge: rule.shippingCharge,
       isEnabled: rule.isEnabled ?? true,
       priority: rule.priority ?? 0,
-      conditions: rule.conditions
+      conditions: sanitizeConditions(normalizedType, rule.conditions)
     });
     setShowForm(true);
   };
@@ -135,184 +266,16 @@ export default function ShippingRulesManagement() {
   const handleCloseForm = () => {
     setShowForm(false);
     setEditingRule(null);
-    setFormData({
-      name: "",
-      description: "",
-      type: "product_based",
-      shippingCharge: "0",
-      isEnabled: true,
-      priority: 0,
-      conditions: {}
-    });
+    setFormData(createDefaultFormData());
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (editingRule) {
       updateRuleMutation.mutate({ id: editingRule.id, updates: formData });
     } else {
       createRuleMutation.mutate(formData);
-    }
-  };
-
-  const updateConditions = (field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      conditions: {
-        ...prev.conditions,
-        [field]: value
-      }
-    }));
-  };
-
-  const renderConditionsForm = () => {
-    if (formData.type === "product_based") {
-      return (
-        <div className="space-y-4">
-          <div>
-            <Label>Product Names (comma-separated)</Label>
-            <Input
-              value={formData.conditions.productNames?.join(", ") || ""}
-              onChange={(e) => updateConditions("productNames", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-              placeholder="Product1, Product2, Product3"
-              data-testid="input-product-names"
-            />
-          </div>
-          <div>
-            <Label>Categories (comma-separated)</Label>
-            <Input
-              value={formData.conditions.categories?.join(", ") || ""}
-              onChange={(e) => updateConditions("categories", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-              placeholder="Category1, Category2, Category3"
-              data-testid="input-categories"
-            />
-          </div>
-          <div>
-            <Label>Classifications (comma-separated)</Label>
-            <Input
-              value={formData.conditions.classifications?.join(", ") || ""}
-              onChange={(e) => updateConditions("classifications", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-              placeholder="Class1, Class2, Class3"
-              data-testid="input-classifications"
-            />
-          </div>
-        </div>
-      );
-    } else if (formData.type === "product_query_based") {
-      return (
-        <QueryBuilder
-          type="product_query_based"
-          conditions={formData.conditions as ProductQueryConditions}
-          onChange={(conditions) => setFormData(prev => ({ ...prev, conditions }))}
-        />
-      );
-    } else if (formData.type === "location_query_based") {
-      return (
-        <QueryBuilder
-          type="location_query_based"
-          conditions={formData.conditions as LocationQueryConditions}
-          onChange={(conditions) => setFormData(prev => ({ ...prev, conditions }))}
-        />
-      );
-    } else if (formData.type === "location_value_based") {
-      return (
-        <div className="space-y-4">
-          <div>
-            <Label>PIN Codes (comma-separated)</Label>
-            <Input
-              value={formData.conditions.pincodes?.join(", ") || ""}
-              onChange={(e) => updateConditions("pincodes", e.target.value.split(",").map(s => s.trim()).filter(Boolean))}
-              placeholder="110001, 110002, 110003"
-              data-testid="input-pincodes"
-            />
-            <p className="text-xs text-gray-500 mt-1">Enter specific PIN codes separated by commas</p>
-          </div>
-          
-          <div>
-            <Label>PIN Code Ranges</Label>
-            <div className="space-y-2">
-              {(formData.conditions.pincodeRanges || []).map((range: {start: string, end: string}, index: number) => (
-                <div key={index} className="flex gap-2 items-center">
-                  <Input
-                    value={range.start}
-                    onChange={(e) => {
-                      const ranges = [...(formData.conditions.pincodeRanges || [])];
-                      ranges[index] = { ...ranges[index], start: e.target.value };
-                      updateConditions("pincodeRanges", ranges);
-                    }}
-                    placeholder="110001"
-                    className="flex-1"
-                    data-testid={`input-pincode-range-start-${index}`}
-                  />
-                  <span className="text-gray-500">to</span>
-                  <Input
-                    value={range.end}
-                    onChange={(e) => {
-                      const ranges = [...(formData.conditions.pincodeRanges || [])];
-                      ranges[index] = { ...ranges[index], end: e.target.value };
-                      updateConditions("pincodeRanges", ranges);
-                    }}
-                    placeholder="110010"
-                    className="flex-1"
-                    data-testid={`input-pincode-range-end-${index}`}
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const ranges = [...(formData.conditions.pincodeRanges || [])];
-                      ranges.splice(index, 1);
-                      updateConditions("pincodeRanges", ranges);
-                    }}
-                    className="text-red-600 hover:text-red-700"
-                    data-testid={`button-remove-pincode-range-${index}`}
-                  >
-                    <i className="fas fa-trash text-sm"></i>
-                  </Button>
-                </div>
-              ))}
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  const ranges = [...(formData.conditions.pincodeRanges || []), { start: "", end: "" }];
-                  updateConditions("pincodeRanges", ranges);
-                }}
-                data-testid="button-add-pincode-range"
-              >
-                <i className="fas fa-plus mr-2"></i>Add PIN Code Range
-              </Button>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Define ranges of PIN codes (e.g., 110001 to 110010)</p>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Min Order Value (₹)</Label>
-              <Input
-                type="number"
-                value={formData.conditions.minOrderValue || ""}
-                onChange={(e) => updateConditions("minOrderValue", e.target.value ? parseFloat(e.target.value) : undefined)}
-                placeholder="500"
-                data-testid="input-min-order-value"
-              />
-            </div>
-            <div>
-              <Label>Max Order Value (₹)</Label>
-              <Input
-                type="number"
-                value={formData.conditions.maxOrderValue || ""}
-                onChange={(e) => updateConditions("maxOrderValue", e.target.value ? parseFloat(e.target.value) : undefined)}
-                placeholder="1000"
-                data-testid="input-max-order-value"
-              />
-            </div>
-          </div>
-        </div>
-      );
     }
   };
 
@@ -331,8 +294,12 @@ export default function ShippingRulesManagement() {
           <h2 className="text-2xl font-bold">Shipping Rules</h2>
           <p className="text-gray-600">Manage shipping charges based on products, locations, and order values</p>
         </div>
-        <Button 
-          onClick={() => setShowForm(true)}
+        <Button
+          onClick={() => {
+            setEditingRule(null);
+            setFormData(createDefaultFormData());
+            setShowForm(true);
+          }}
           data-testid="button-create-shipping-rule"
           className="bg-blue-600 hover:bg-blue-700 text-white"
         >
@@ -381,14 +348,20 @@ export default function ShippingRulesManagement() {
                         </div>
                       </td>
                       <td className="p-4">
-                        <Badge variant={
-                          rule.type === "product_based" || rule.type === "product_query_based" ? "default" : "secondary"
-                        }>
-                          {rule.type === "product_based" ? "Product Based" :
-                           rule.type === "location_value_based" ? "Location/Value Based" :
-                           rule.type === "product_query_based" ? "Product Query" :
-                           rule.type === "location_query_based" ? "Location Query" :
-                           rule.type}
+                        <Badge
+                          variant={
+                            rule.type === "product_query_based"
+                              ? "default"
+                              : rule.type === "location_query_based"
+                              ? "secondary"
+                              : "outline"
+                          }
+                        >
+                          {rule.type === "product_query_based"
+                            ? "Product Query"
+                            : rule.type === "location_query_based"
+                            ? "Location Query"
+                            : rule.type}
                         </Badge>
                       </td>
                       <td className="p-4">
@@ -491,21 +464,19 @@ export default function ShippingRulesManagement() {
                 <Label htmlFor="type" className="text-sm font-medium">Rule Type *</Label>
                 <Select
                   value={formData.type}
-                  onValueChange={(value: "product_based" | "location_value_based" | "product_query_based" | "location_query_based") => {
-                    const defaultConditions = 
-                      value === "product_query_based" ? { rules: [{ field: "productName", operator: "EQUALS", values: [""] }], logicalOperator: "AND" } :
-                      value === "location_query_based" ? { rules: [{ field: "pincode", operator: "EQUALS", values: [""] }], logicalOperator: "AND" } :
-                      {};
-                    setFormData(prev => ({ ...prev, type: value, conditions: defaultConditions }));
-                  }
-                }
+                  onValueChange={(value) => {
+                    const nextType = value as ShippingRuleType;
+                    setFormData(prev => ({
+                      ...prev,
+                      type: nextType,
+                      conditions: getDefaultConditions(nextType)
+                    }));
+                  }}
                 >
                   <SelectTrigger data-testid="select-rule-type" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="product_based">Product Based (Legacy)</SelectItem>
-                    <SelectItem value="location_value_based">Location/Value Based (Legacy)</SelectItem>
                     <SelectItem value="product_query_based">Product Query Builder</SelectItem>
                     <SelectItem value="location_query_based">Location Query Builder</SelectItem>
                   </SelectContent>
@@ -529,16 +500,19 @@ export default function ShippingRulesManagement() {
             <div>
               <Label className="text-base font-medium">Rule Conditions *</Label>
               <p className="text-sm text-gray-600 mb-4">
-                {formData.type === "product_based" 
-                  ? "Specify at least one condition: product names, categories, or classifications"
-                  : formData.type === "location_value_based"
-                  ? "Specify at least one condition: PIN codes (individual or ranges) or order value range"
-                  : formData.type === "product_query_based"
+                {formData.type === "product_query_based"
                   ? "Build SQL-like queries for product matching using operators like IN, NOT IN, BETWEEN, etc."
-                  : "Build SQL-like queries for location and order value matching using advanced operators"
-                }
+                  : "Build SQL-like queries for location and order value matching using advanced operators"}
               </p>
-              {renderConditionsForm()}
+              <QueryBuilder
+                type={formData.type}
+                conditions={
+                  formData.type === "product_query_based"
+                    ? (formData.conditions as ProductQueryConditions)
+                    : (formData.conditions as LocationQueryConditions)
+                }
+                onChange={(conditions) => setFormData(prev => ({ ...prev, conditions }))}
+              />
             </div>
 
             <div className="flex items-center space-x-2">
