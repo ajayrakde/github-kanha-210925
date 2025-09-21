@@ -113,13 +113,6 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
       displayImageUrl: latestDisplayImage,
     };
     
-    console.log('=== FORM SUBMISSION DEBUG ===');
-    console.log('Original form data:', data);
-    console.log('Latest images from form:', latestImages);
-    console.log('Latest display image:', latestDisplayImage);
-    console.log('Final form data being sent:', finalFormData);
-    console.log('================================');
-    
     createProductMutation.mutate(finalFormData);
   };
 
@@ -286,8 +279,6 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
                     description: `${newImages.length} image(s) added and ready for form submission`,
                   });
                   
-                  console.log('Images updated:', allImages);
-                  console.log('Form images value after update:', form.getValues("images"));
                 } else {
                   // Handle case where no files were uploaded successfully
                   setIsUploading(false);
