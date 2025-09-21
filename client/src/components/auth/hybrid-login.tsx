@@ -131,9 +131,9 @@ export default function HybridLogin({ userType, title, onSuccess }: HybridLoginP
     });
     
     // Invalidate auth queries based on user type
-    const authKey = userType === 'admin' ? '/api/admin/me' : 
-                   userType === 'influencer' ? '/api/influencer/me' : 
-                   '/api/auth/user';
+    const authKey = userType === 'admin' ? '/api/admin/me' :
+                   userType === 'influencer' ? '/api/influencer/me' :
+                   '/api/auth/me';
     
     queryClient.invalidateQueries({ queryKey: [authKey] });
     
