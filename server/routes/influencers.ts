@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { storage } from "../storage";
+import { usersRepository } from "../storage";
 import type { SessionRequest } from "./types";
 
 export function createInfluencersRouter() {
@@ -8,7 +8,7 @@ export function createInfluencersRouter() {
 
   router.get("/", async (_req, res) => {
     try {
-      const influencers = await storage.getInfluencers();
+      const influencers = await usersRepository.getInfluencers();
       res.json(influencers);
     } catch (error) {
       console.error("Error fetching influencers:", error);
@@ -18,7 +18,7 @@ export function createInfluencersRouter() {
 
   router.post("/", async (req, res) => {
     try {
-      const newInfluencer = await storage.createInfluencer(req.body);
+      const newInfluencer = await usersRepository.createInfluencer(req.body);
       res.status(201).json(newInfluencer);
     } catch (error) {
       console.error("Error creating influencer:", error);
@@ -28,7 +28,7 @@ export function createInfluencersRouter() {
 
   router.patch("/:id/deactivate", async (req, res) => {
     try {
-      await storage.deactivateInfluencer(req.params.id);
+      await usersRepository.deactivateInfluencer(req.params.id);
       res.json({ message: "Influencer deactivated successfully" });
     } catch (error) {
       console.error("Error deactivating influencer:", error);
@@ -45,7 +45,7 @@ export function createInfluencerAuthRouter() {
   router.post("/login", async (req: SessionRequest, res) => {
     try {
       const { phone, password } = req.body;
-      const influencer = await storage.authenticateInfluencer(phone, password);
+      const influencer = await usersRepository.authenticateInfluencer(phone, password);
       if (influencer) {
         req.session.influencerId = influencer.id;
         req.session.userRole = "influencer";
@@ -71,7 +71,7 @@ export function createInfluencerAuthRouter() {
   router.get("/me", async (req: SessionRequest, res) => {
     if (req.session.influencerId && req.session.userRole === "influencer") {
       try {
-        const influencer = await storage.getInfluencer(req.session.influencerId);
+        const influencer = await usersRepository.getInfluencer(req.session.influencerId);
         if (influencer) {
           res.json({ authenticated: true, role: "influencer", influencer });
         } else {

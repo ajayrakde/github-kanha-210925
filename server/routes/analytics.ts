@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { storage } from "../storage";
+import { ordersRepository } from "../storage";
 import type { SessionRequest } from "./types";
 
 export function createAnalyticsRouter() {
@@ -8,7 +8,7 @@ export function createAnalyticsRouter() {
 
   router.get("/popular-products", async (_req, res) => {
     try {
-      const popularProducts = await storage.getPopularProducts();
+      const popularProducts = await ordersRepository.getPopularProducts();
       res.json(popularProducts);
     } catch (error) {
       console.error("Error fetching popular products:", error);
@@ -19,7 +19,7 @@ export function createAnalyticsRouter() {
   router.get("/sales-trends", async (req, res) => {
     try {
       const days = parseInt(req.query.days as string) || 30;
-      const salesTrends = await storage.getSalesTrends(days);
+      const salesTrends = await ordersRepository.getSalesTrends(days);
       res.json(salesTrends);
     } catch (error) {
       console.error("Error fetching sales trends:", error);
@@ -29,7 +29,7 @@ export function createAnalyticsRouter() {
 
   router.get("/conversion-metrics", async (_req, res) => {
     try {
-      const conversionMetrics = await storage.getConversionMetrics();
+      const conversionMetrics = await ordersRepository.getConversionMetrics();
       res.json(conversionMetrics);
     } catch (error) {
       console.error("Error fetching conversion metrics:", error);
@@ -45,7 +45,7 @@ export function createCartAnalyticsRouter() {
 
   router.get("/abandoned-carts", async (_req, res) => {
     try {
-      const abandonedCarts = await storage.getAbandonedCarts();
+      const abandonedCarts = await ordersRepository.getAbandonedCarts();
       res.json(abandonedCarts);
     } catch (error) {
       console.error("Error fetching abandoned carts:", error);
@@ -57,7 +57,7 @@ export function createCartAnalyticsRouter() {
     try {
       const sessionId = req.session.sessionId;
       if (sessionId) {
-        await storage.trackCartActivity(sessionId);
+        await ordersRepository.trackCartActivity(sessionId);
       }
       res.json({ message: "Cart activity tracked" });
     } catch (error) {

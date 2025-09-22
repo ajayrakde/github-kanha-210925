@@ -1,6 +1,10 @@
 import { Router } from "express";
 
-import { storage } from "../storage";
+import {
+  settingsRepository,
+  usersRepository,
+  ordersRepository,
+} from "../storage";
 import { otpService } from "../otp-service";
 import type { SessionRequest } from "./types";
 
@@ -9,15 +13,15 @@ export function createAuthRouter() {
 
   router.post("/login", async (req: SessionRequest, res) => {
     const { phone, otp } = req.body;
-    const otpLengthSetting = await storage.getAppSetting("otp_length");
+    const otpLengthSetting = await settingsRepository.getAppSetting("otp_length");
     const expectedOtpLength = otpLengthSetting?.value
       ? parseInt(otpLengthSetting.value)
       : 6;
 
     if (otp && otp.length === expectedOtpLength) {
-      let user = await storage.getUserByPhone(`+91${phone}`);
+      let user = await usersRepository.getUserByPhone(`+91${phone}`);
       if (!user) {
-        user = await storage.createUser({
+        user = await usersRepository.createUser({
           phone: `+91${phone}`,
           name: "",
           email: null,
@@ -40,7 +44,7 @@ export function createAuthRouter() {
   router.get("/me", async (req: SessionRequest, res) => {
     if (req.session.userId && req.session.userRole === "buyer") {
       try {
-        const user = await storage.getUser(req.session.userId);
+        const user = await usersRepository.getUser(req.session.userId);
         if (user) {
           res.json({ authenticated: true, user });
         } else {
@@ -61,7 +65,7 @@ export function createAuthRouter() {
     }
 
     try {
-      const orders = await storage.getOrdersByUser(req.session.userId);
+      const orders = await ordersRepository.getOrdersByUser(req.session.userId);
       res.json(orders);
     } catch (error) {
       console.error("Error fetching user orders:", error);
@@ -75,7 +79,7 @@ export function createAuthRouter() {
     }
 
     try {
-      const addresses = await storage.getUserAddresses(req.session.userId);
+      const addresses = await usersRepository.getUserAddresses(req.session.userId);
       res.json(addresses);
     } catch (error) {
       console.error("Error fetching user addresses:", error);
@@ -89,7 +93,7 @@ export function createAuthRouter() {
     }
 
     try {
-      const lastOrderAddress = await storage.getLastOrderAddress(req.session.userId);
+      const lastOrderAddress = await ordersRepository.getLastOrderAddress(req.session.userId);
       res.json(lastOrderAddress);
     } catch (error) {
       console.error("Error fetching last order address:", error);
@@ -104,10 +108,10 @@ export function createAuthRouter() {
 
     try {
       const { name, address, city, pincode, isPreferred } = req.body;
-      const existingAddresses = await storage.getUserAddresses(req.session.userId);
+      const existingAddresses = await usersRepository.getUserAddresses(req.session.userId);
       const shouldBePreferred = isPreferred || existingAddresses.length === 0;
 
-      const newAddress = await storage.createUserAddress({
+      const newAddress = await usersRepository.createUserAddress({
         userId: req.session.userId,
         name,
         address,
@@ -117,7 +121,7 @@ export function createAuthRouter() {
       });
 
       if (shouldBePreferred && existingAddresses.length > 0) {
-        await storage.setPreferredAddress(req.session.userId, newAddress.id);
+        await usersRepository.setPreferredAddress(req.session.userId, newAddress.id);
       }
 
       res.json(newAddress);
@@ -133,7 +137,7 @@ export function createAuthRouter() {
     }
 
     try {
-      await storage.setPreferredAddress(req.session.userId, req.params.id);
+      await usersRepository.setPreferredAddress(req.session.userId, req.params.id);
       res.json({ message: "Preferred address updated" });
     } catch (error) {
       console.error("Error setting preferred address:", error);
@@ -147,7 +151,7 @@ export function createAuthRouter() {
     }
 
     try {
-      await storage.deleteUserAddress(req.params.id, req.session.userId);
+      await usersRepository.deleteUserAddress(req.params.id, req.session.userId);
       res.json({ message: "Address deleted" });
     } catch (error) {
       console.error("Error deleting address:", error);
@@ -245,7 +249,7 @@ export function createAuthRouter() {
 
       switch (userType) {
         case "admin": {
-          const admin = await storage.authenticateAdmin(cleanPhone, password);
+          const admin = await usersRepository.authenticateAdmin(cleanPhone, password);
           if (admin) {
             user = admin;
             req.session.adminId = admin.id;
@@ -254,7 +258,7 @@ export function createAuthRouter() {
           break;
         }
         case "influencer": {
-          const influencer = await storage.authenticateInfluencer(cleanPhone, password);
+          const influencer = await usersRepository.authenticateInfluencer(cleanPhone, password);
           if (influencer) {
             user = influencer;
             req.session.influencerId = influencer.id;
@@ -263,7 +267,7 @@ export function createAuthRouter() {
           break;
         }
         case "buyer": {
-          const buyer = await storage.authenticateUser(cleanPhone, password);
+          const buyer = await usersRepository.authenticateUser(cleanPhone, password);
           if (buyer) {
             user = buyer;
             req.session.userId = buyer.id;

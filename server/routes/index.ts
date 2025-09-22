@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import rateLimit from "express-rate-limit";
 import session from "express-session";
 
-import { storage } from "../storage";
+import { settingsRepository } from "../storage";
 import type { RequireAdminMiddleware, SessionRequest } from "./types";
 import { createProductsRouter } from "./products";
 import { createCartRouter } from "./cart";
@@ -109,9 +109,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   async function initializeDefaultSettings() {
     try {
-      const defaultShippingSetting = await storage.getAppSetting("default_shipping_charge");
+      const defaultShippingSetting = await settingsRepository.getAppSetting("default_shipping_charge");
       if (!defaultShippingSetting) {
-        await storage.createAppSetting({
+        await settingsRepository.createAppSetting({
           key: "default_shipping_charge",
           value: "50",
           description: "Default shipping charge when no rules apply",
@@ -120,9 +120,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log("Default shipping charge setting initialized to ₹50");
       }
 
-      const otpLengthSetting = await storage.getAppSetting("otp_length");
+      const otpLengthSetting = await settingsRepository.getAppSetting("otp_length");
       if (!otpLengthSetting) {
-        await storage.createAppSetting({
+        await settingsRepository.createAppSetting({
           key: "otp_length",
           value: "6",
           description: "Number of digits in OTP (4-8 digits)",
@@ -131,9 +131,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log("OTP length setting initialized to 6 digits");
       }
 
-      const smsProviderSetting = await storage.getAppSetting("sms_service_provider");
+      const smsProviderSetting = await settingsRepository.getAppSetting("sms_service_provider");
       if (!smsProviderSetting) {
-        await storage.createAppSetting({
+        await settingsRepository.createAppSetting({
           key: "sms_service_provider",
           value: "2Factor",
           description: "SMS service provider (Test for mock OTP, 2Factor for real API)",
