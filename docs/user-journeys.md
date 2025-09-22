@@ -1,38 +1,95 @@
-# User Journey Overview
+# User Journey Reference
 
-This document summarizes the primary user journeys that the platform supports. The recent storage refactor
-only reorganizes the server-side data access layer, so no behavioural changes are expected for these flows.
+This document summarizes the primary user journeys supported by the backend API.  
+Two recent refactors were applied:
+1. **Storage Layer Refactor** – migrated to per-domain repositories (`productsRepository`, `ordersRepository`, `usersRepository`, etc.).
+2. **Route Modularization** – split Express routes into feature-specific routers (e.g., `server/routes/products.ts`, `server/routes/auth.ts`, etc.).
 
-## Buyer
-1. **Browse Products** – The buyer loads `/api/products` to view the active catalog. Product read operations
-   now use the `productsRepository`, but the API response remains unchanged.
-2. **Manage Cart** – Adding, updating, and clearing cart items goes through `/api/cart` endpoints backed by the
-   `ordersRepository` cart helpers. Cart persistence and validation continue to behave identically.
-3. **Checkout** – During `/api/orders` creation the service still enriches the order with addresses, offers,
-   and shipping rules via the specialised repositories. The overall order placement flow, including offer
-   validation and shipping calculation, is unaffected.
-4. **Account Management** – Authentication, OTP verification, and address CRUD operations now leverage the
-   `usersRepository` and `settingsRepository`. Session handling and exposed responses are preserved.
+Both refactors improved maintainability but did not change **endpoint URLs** or **response contracts**. Customer-facing behavior remains consistent.
 
-## Admin
-1. **Authenticate** – Admin login (`/api/admin/login`) validates credentials through the `usersRepository`.
-   Session creation and response payloads remain the same.
-2. **Manage Catalog & Offers** – CRUD endpoints for products, offers, and shipping rules continue to operate
-   with the new repositories. Authorisation and validation logic is unchanged.
-3. **View Orders & Analytics** – Order exports and analytics dashboards rely on the `ordersRepository` for
-   data retrieval. The returned datasets match the previous implementation.
-4. **Configure Settings** – Application configuration calls (`/api/admin/settings`) now use the
-   `settingsRepository`, but setting keys, values, and auditing semantics are consistent.
+---
 
-## Influencer
-1. **Authentication** – Influencer login and profile retrieval continue to function via the `usersRepository`.
-2. **Lifecycle Management** – Admin-led creation/deactivation of influencers map to the same routes, now backed
-   by the dedicated repository without changing validations or responses.
+## Buyer Flow
+1. **Browse Catalog**  
+   - `GET /api/products` and `GET /api/products/:id` now handled by `server/routes/products.ts`, backed by `productsRepository`.
+   - API responses unchanged.
 
-## Shipping & Offers Behaviour
-Shipping charge calculation and coupon validation were moved into `shippingRepository` and `offersRepository`
-respectively. Both modules retain the previous logic for matching rules, computing costs, and enforcing
-redemption limits, so customer-facing behaviour is preserved.
+2. **Manage Cart**  
+   - Endpoints:  
+     - `POST /api/cart/items`  
+     - `PATCH /api/cart/items/:id`  
+     - `DELETE /api/cart/items/:id`  
+   - Implemented in `server/routes/cart.ts`, using `ordersRepository` cart helpers.  
+   - Persistence, validation, and session handling unchanged.
 
-Should a future change adjust any flow above, update this document with the new steps and highlight
-dependencies between repositories and routes to keep implementation and documentation aligned.
+3. **Authenticate with OTP**  
+   - `POST /api/auth/send-otp`, `POST /api/auth/login` in `server/routes/auth.ts`, backed by `usersRepository`.  
+   - Successful login attaches buyer context to session.
+
+4. **Manage Addresses**  
+   - `/api/auth/addresses` endpoints (create/list/update/delete) in `server/routes/auth.ts`.  
+   - Enforce ownership checks via `userId` in session.  
+   - Data stored via `usersRepository`.
+
+5. **Checkout / Place Order**  
+   - `POST /api/orders` handled by `server/routes/orders.ts`.  
+   - Enriches order with addresses, offers, and shipping rules using domain repositories.  
+   - Order placement flow, including offer validation and shipping, is unchanged.
+
+6. **Shipping Charges**  
+   - Shipping calculation moved to `shippingRepository`.  
+   - Buyers can preview with `GET /api/shipping/calculate` in `server/routes/shipping.ts`.  
+   - Logic for matching rules and computing costs unchanged.
+
+---
+
+## Administrator Flow
+1. **Authentication**  
+   - `/api/admin/login` handled in `server/routes/admin.ts`, backed by `usersRepository`.  
+   - `requireAdmin` middleware from `server/routes/index.ts` protects routes.
+
+2. **Product & Offer Management**  
+   - CRUD operations under `/api/products` and `/api/admin/offers`.  
+   - Encapsulated in `server/routes/products.ts` and backed by `productsRepository` & `offersRepository`.  
+   - Validation and authorization unchanged.
+
+3. **Shipping Rule Configuration**  
+   - `/api/admin/shipping-rules` in `server/routes/shipping.ts`, validated via Zod.  
+   - Backed by `shippingRepository`.
+
+4. **Orders & Analytics**  
+   - `/api/admin/orders` in `server/routes/admin.ts`, backed by `ordersRepository`.  
+   - `/api/analytics` in `server/routes/analytics.ts`.  
+   - Returned datasets and dashboards unchanged.
+
+5. **Settings**  
+   - `/api/admin/settings` in `server/routes/admin.ts`, backed by `settingsRepository`.  
+   - Setting keys/values and auditing semantics preserved.
+
+---
+
+## Influencer Flow
+1. **Authentication**  
+   - Influencer login/profile handled by `server/routes/influencers.ts`, backed by `usersRepository`.
+
+2. **Lifecycle Management**  
+   - Admin creates/deactivates influencers using the same routes, now backed by `usersRepository`.
+
+3. **Coupon & Analytics**  
+   - Coupon redemption logic moved to `offersRepository`.  
+   - Analytics under `/api/analytics` reference influencer coupons and conversions.
+
+---
+
+## Impact of Refactors
+- **Repositories**: Per-domain repositories centralize data logic, improving maintainability.  
+- **Routers**: Modular routers clarify ownership of endpoints and middleware.  
+- **Contracts**: No change in request/response schemas.  
+- **Middleware**: Sessions, rate limiting, and role checks (`requireAdmin`) remain enforced.  
+- **Customer Behavior**: Unchanged across all journeys.
+
+---
+
+⚠️ **Next Step:** If future changes modify request/response contracts or flow logic, this document should be updated to capture:
+- Dependencies between repositories and routes.
+- Any changed behavior for buyers, admins, or influencers.
