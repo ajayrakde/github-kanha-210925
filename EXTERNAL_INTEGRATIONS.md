@@ -91,7 +91,7 @@ await fast2sms.sendMessage({
 ## 💳 Payment Gateway Integration
 
 ### Current Implementation
-- **File**: `server/routes.ts` (checkout endpoint)
+- **File**: `server/routes/orders.ts` (checkout endpoint)
 - **Status**: Currently mocked - automatically marks payments as "completed"
 - **Mock Behavior**: Accepts UPI payment method and simulates success
 
@@ -205,7 +205,7 @@ const paymentIntent = await stripe.paymentIntents.create({
 1. Choose a payment gateway from above
 2. Sign up for merchant account and get API credentials
 3. Set environment variables in your deployment
-4. Update the checkout endpoint in `server/routes.ts`:
+4. Update the checkout endpoint in `server/routes/orders.ts`:
    - Replace mock payment completion with real payment processing
    - Add payment verification logic
    - Handle payment success/failure scenarios
@@ -214,7 +214,7 @@ const paymentIntent = await stripe.paymentIntents.create({
 
 ### Integration Points in Code
 
-#### Backend (server/routes.ts)
+#### Backend (server/routes/orders.ts)
 ```javascript
 // Current mock implementation (line ~226):
 paymentStatus: 'completed', // Mock successful payment

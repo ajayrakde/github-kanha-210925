@@ -11,7 +11,7 @@ The application features a modern tech stack with React/TypeScript frontend, Exp
 - **Storage Method Updated**: The deleteUserAddress method now requires and validates userId parameter
 - **Changes Made**:
   - Modified `server/storage.ts`: Updated deleteUserAddress signature to include userId parameter
-  - Modified `server/routes.ts`: Updated DELETE address route to pass userId for ownership verification
+  - Modified `server/routes/auth.ts`: Updated DELETE address route to pass userId for ownership verification
   - Added database constraint using `and(eq(userAddresses.id, id), eq(userAddresses.userId, userId))` to ensure only address owners can delete their addresses
 
 # User Preferences
