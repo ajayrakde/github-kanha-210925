@@ -1,6 +1,10 @@
 import { Router } from "express";
 
-import { storage } from "../storage";
+import {
+  usersRepository,
+  ordersRepository,
+  settingsRepository,
+} from "../storage";
 import type { RequireAdminMiddleware, SessionRequest } from "./types";
 
 export function createAdminRouter(requireAdmin: RequireAdminMiddleware) {
@@ -9,7 +13,7 @@ export function createAdminRouter(requireAdmin: RequireAdminMiddleware) {
   router.post("/login", async (req: SessionRequest, res) => {
     try {
       const { username, password } = req.body;
-      const admin = await storage.validateAdminLogin(username, password);
+      const admin = await usersRepository.validateAdminLogin(username, password);
       if (admin) {
         req.session.adminId = admin.id;
         req.session.userRole = "admin";
@@ -44,7 +48,7 @@ export function createAdminRouter(requireAdmin: RequireAdminMiddleware) {
         Object.entries(filters).filter(([_, value]) => value && value !== "all"),
       );
 
-      const orders = await storage.getOrders(
+      const orders = await ordersRepository.getOrders(
         Object.keys(cleanFilters).length > 0 ? cleanFilters : undefined,
       );
 
@@ -96,7 +100,7 @@ export function createAdminRouter(requireAdmin: RequireAdminMiddleware) {
 
   router.get("/settings", requireAdmin, async (_req, res) => {
     try {
-      const settings = await storage.getAppSettings();
+      const settings = await settingsRepository.getAppSettings();
       res.json(settings);
     } catch (error) {
       console.error("Error fetching app settings:", error);
@@ -113,8 +117,8 @@ export function createAdminRouter(requireAdmin: RequireAdminMiddleware) {
         return res.status(400).json({ error: "Value is required" });
       }
 
-      const admin = await storage.getAdmin(req.session.adminId!);
-      const updated = await storage.updateAppSetting(key, value, admin?.name || "Admin");
+      const admin = await usersRepository.getAdmin(req.session.adminId!);
+      const updated = await settingsRepository.updateAppSetting(key, value, admin?.name || "Admin");
 
       res.json(updated);
     } catch (error) {
@@ -125,7 +129,7 @@ export function createAdminRouter(requireAdmin: RequireAdminMiddleware) {
 
   router.get("/admins", requireAdmin, async (_req, res) => {
     try {
-      const admins = await storage.getAdmins();
+      const admins = await usersRepository.getAdmins();
       res.json(admins);
     } catch (error: any) {
       console.error("Error fetching admins:", error);
@@ -136,7 +140,7 @@ export function createAdminRouter(requireAdmin: RequireAdminMiddleware) {
   router.post("/admins", requireAdmin, async (req, res) => {
     try {
       const { name, phone, email, password, username } = req.body;
-      const admin = await storage.createAdmin({
+      const admin = await usersRepository.createAdmin({
         name,
         phone,
         email,
@@ -154,7 +158,7 @@ export function createAdminRouter(requireAdmin: RequireAdminMiddleware) {
     try {
       const { id } = req.params;
       const updateData = req.body;
-      const admin = await storage.updateAdmin(id, updateData);
+      const admin = await usersRepository.updateAdmin(id, updateData);
       res.json({ admin });
     } catch (error: any) {
       console.error("Error updating admin:", error);
@@ -165,7 +169,7 @@ export function createAdminRouter(requireAdmin: RequireAdminMiddleware) {
   router.delete("/admins/:id", requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      await storage.deleteAdmin(id);
+      await usersRepository.deleteAdmin(id);
       res.json({ message: "Admin removed successfully" });
     } catch (error: any) {
       console.error("Error removing admin:", error);

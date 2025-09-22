@@ -1,28 +1,95 @@
 # User Journey Reference
 
-This document captures the primary user journeys supported by the backend API after modularizing the Express routes into feature-specific routers (for example: `server/routes/products.ts`, `server/routes/auth.ts`, `server/routes/orders.ts`, and `server/routes/shipping.ts`). The endpoint structure remains unchanged, but the new routing layout makes the flows easier to reason about and maintain.
+This document summarizes the primary user journeys supported by the backend API.  
+Two recent refactors were applied:
+1. **Storage Layer Refactor** – migrated to per-domain repositories (`productsRepository`, `ordersRepository`, `usersRepository`, etc.).
+2. **Route Modularization** – split Express routes into feature-specific routers (e.g., `server/routes/products.ts`, `server/routes/auth.ts`, etc.).
 
-## Buyer Checkout Flow
-1. **Browse catalog** – `GET /api/products` served from `server/routes/products.ts` returns the curated list of products. Individual product details are fetched with `GET /api/products/:id` from the same module.
-2. **Build the cart** – cart operations (`POST /api/cart/items`, `PATCH /api/cart/items/:id`, `DELETE /api/cart/items/:id`) remain in `server/routes/cart.ts` and continue to rely on the anonymous session that `registerRoutes` seeds in `server/routes/index.ts`.
-3. **Authenticate with OTP** – buyers request an OTP through `POST /api/auth/send-otp` and validate it via `POST /api/auth/login`, both implemented in `server/routes/auth.ts`. Successful login attaches the buyer context to the session.
-4. **Manage addresses** – saved address endpoints under `/api/auth/addresses` (create, list, update preferred, delete) live in `server/routes/auth.ts` and enforce ownership checks through the session-bound `userId`.
-5. **Place order** – submitting the checkout form still calls `POST /api/orders` handled by `server/routes/orders.ts`, which validates payloads, persists order data, redeems offers, and clears the cart.
-6. **Shipping charge confirmation** – `server/routes/orders.ts` leverages the helper in `server/storage.ts` to compute shipping; buyers can also query `/api/shipping/calculate` (implemented in `server/routes/shipping.ts`) to preview charges before finalizing.
+Both refactors improved maintainability but did not change **endpoint URLs** or **response contracts**. Customer-facing behavior remains consistent.
 
-## Administrator Management Flow
-1. **Session & auth** – administrators authenticate through the dedicated `/api/admin` endpoints backed by `server/routes/admin.ts`. The shared `requireAdmin` middleware is created in `server/routes/index.ts` and injected into routers that need elevated privileges.
-2. **Product operations** – CRUD endpoints for products (`/api/products`) are now encapsulated in `server/routes/products.ts`, ensuring only admins (via `requireAdmin`) can create, edit, or delete entries.
-3. **Shipping rule configuration** – `server/routes/shipping.ts` provides `/api/admin/shipping-rules` to create, update, and delete shipping rules while validating schemas with Zod. These endpoints continue to require an authenticated admin session.
-4. **Order oversight** – admin-specific order management remains available under `/api/admin/orders` (in `server/routes/admin.ts`), unaffected by the refactor.
+---
 
-## Influencer Coupon Flow
-1. **Influencer onboarding** – influencer login and coupon management flows are implemented in `server/routes/influencers.ts`. Sessions are seeded in the same way as other routes via `registerRoutes`.
-2. **Offer performance** – analytics endpoints under `/api/analytics` (`server/routes/analytics.ts`) remain unchanged, supplying dashboards that reference influencer coupons and conversion statistics.
+## Buyer Flow
+1. **Browse Catalog**  
+   - `GET /api/products` and `GET /api/products/:id` now handled by `server/routes/products.ts`, backed by `productsRepository`.
+   - API responses unchanged.
 
-## Impact of Route Modularization
-- **Shared middleware** (sessions, rate limiting, and `requireAdmin`) is still established in `server/routes/index.ts` before any feature router is mounted, so all journeys above retain their expected protections.
-- **Endpoint URLs and request/response contracts** did not change. Frontend flows, automated smoke tests, and external integrations continue to operate without modification.
-- **Ownership and role checks** continue to occur inside their respective modules (e.g., address deletion in `server/routes/auth.ts`, admin-only access in `server/routes/products.ts` and `server/routes/shipping.ts`).
+2. **Manage Cart**  
+   - Endpoints:  
+     - `POST /api/cart/items`  
+     - `PATCH /api/cart/items/:id`  
+     - `DELETE /api/cart/items/:id`  
+   - Implemented in `server/routes/cart.ts`, using `ordersRepository` cart helpers.  
+   - Persistence, validation, and session handling unchanged.
 
-These notes should be reviewed whenever a journey is expanded to ensure the modular router structure continues to cover the required middleware and authorization behaviors.
+3. **Authenticate with OTP**  
+   - `POST /api/auth/send-otp`, `POST /api/auth/login` in `server/routes/auth.ts`, backed by `usersRepository`.  
+   - Successful login attaches buyer context to session.
+
+4. **Manage Addresses**  
+   - `/api/auth/addresses` endpoints (create/list/update/delete) in `server/routes/auth.ts`.  
+   - Enforce ownership checks via `userId` in session.  
+   - Data stored via `usersRepository`.
+
+5. **Checkout / Place Order**  
+   - `POST /api/orders` handled by `server/routes/orders.ts`.  
+   - Enriches order with addresses, offers, and shipping rules using domain repositories.  
+   - Order placement flow, including offer validation and shipping, is unchanged.
+
+6. **Shipping Charges**  
+   - Shipping calculation moved to `shippingRepository`.  
+   - Buyers can preview with `GET /api/shipping/calculate` in `server/routes/shipping.ts`.  
+   - Logic for matching rules and computing costs unchanged.
+
+---
+
+## Administrator Flow
+1. **Authentication**  
+   - `/api/admin/login` handled in `server/routes/admin.ts`, backed by `usersRepository`.  
+   - `requireAdmin` middleware from `server/routes/index.ts` protects routes.
+
+2. **Product & Offer Management**  
+   - CRUD operations under `/api/products` and `/api/admin/offers`.  
+   - Encapsulated in `server/routes/products.ts` and backed by `productsRepository` & `offersRepository`.  
+   - Validation and authorization unchanged.
+
+3. **Shipping Rule Configuration**  
+   - `/api/admin/shipping-rules` in `server/routes/shipping.ts`, validated via Zod.  
+   - Backed by `shippingRepository`.
+
+4. **Orders & Analytics**  
+   - `/api/admin/orders` in `server/routes/admin.ts`, backed by `ordersRepository`.  
+   - `/api/analytics` in `server/routes/analytics.ts`.  
+   - Returned datasets and dashboards unchanged.
+
+5. **Settings**  
+   - `/api/admin/settings` in `server/routes/admin.ts`, backed by `settingsRepository`.  
+   - Setting keys/values and auditing semantics preserved.
+
+---
+
+## Influencer Flow
+1. **Authentication**  
+   - Influencer login/profile handled by `server/routes/influencers.ts`, backed by `usersRepository`.
+
+2. **Lifecycle Management**  
+   - Admin creates/deactivates influencers using the same routes, now backed by `usersRepository`.
+
+3. **Coupon & Analytics**  
+   - Coupon redemption logic moved to `offersRepository`.  
+   - Analytics under `/api/analytics` reference influencer coupons and conversions.
+
+---
+
+## Impact of Refactors
+- **Repositories**: Per-domain repositories centralize data logic, improving maintainability.  
+- **Routers**: Modular routers clarify ownership of endpoints and middleware.  
+- **Contracts**: No change in request/response schemas.  
+- **Middleware**: Sessions, rate limiting, and role checks (`requireAdmin`) remain enforced.  
+- **Customer Behavior**: Unchanged across all journeys.
+
+---
+
+⚠️ **Next Step:** If future changes modify request/response contracts or flow logic, this document should be updated to capture:
+- Dependencies between repositories and routes.
+- Any changed behavior for buyers, admins, or influencers.

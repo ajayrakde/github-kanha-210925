@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 
-import { storage } from "../storage";
+import { offersRepository } from "../storage";
 import { insertOfferSchema } from "@shared/schema";
 import type { SessionRequest, RequireAdminMiddleware } from "./types";
 
@@ -25,7 +25,7 @@ export function createOffersRouter(requireAdmin: RequireAdminMiddleware) {
         });
       }
 
-      const validation = await storage.validateOffer(
+      const validation = await offersRepository.validateOffer(
         code,
         sessionUserId ?? null,
         cartValue,
@@ -44,7 +44,7 @@ export function createOffersRouter(requireAdmin: RequireAdminMiddleware) {
       const influencerId = req.query.influencerId as string;
       const isActiveParam = req.query.isActive as string;
 
-      let allOffers = await storage.getOffers();
+      let allOffers = await offersRepository.getOffers();
 
       if (influencerId && influencerId !== "all") {
         allOffers = allOffers.filter(offer => offer.influencerId === influencerId);
@@ -80,7 +80,7 @@ export function createOffersRouter(requireAdmin: RequireAdminMiddleware) {
   router.post("/", requireAdmin, async (req, res) => {
     try {
       const offerData = insertOfferSchema.parse(req.body);
-      const offer = await storage.createOffer(offerData);
+      const offer = await offersRepository.createOffer(offerData);
       res.json(offer);
     } catch (error) {
       console.error("Error creating offer:", error);
@@ -96,7 +96,7 @@ export function createOffersRouter(requireAdmin: RequireAdminMiddleware) {
   router.patch("/:id", requireAdmin, async (req, res) => {
     try {
       const offerData = insertOfferSchema.partial().parse(req.body);
-      const offer = await storage.updateOffer(req.params.id, offerData);
+      const offer = await offersRepository.updateOffer(req.params.id, offerData);
       res.json(offer);
     } catch (error) {
       console.error("Error updating offer:", error);
@@ -106,7 +106,7 @@ export function createOffersRouter(requireAdmin: RequireAdminMiddleware) {
 
   router.delete("/:id", requireAdmin, async (req, res) => {
     try {
-      await storage.deleteOffer(req.params.id);
+      await offersRepository.deleteOffer(req.params.id);
       res.json({ message: "Offer deleted successfully" });
     } catch (error) {
       console.error("Error deleting offer:", error);
