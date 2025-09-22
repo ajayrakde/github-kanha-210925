@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 
-import { storage } from "../storage";
+import { shippingRepository } from "../storage";
 import {
   insertShippingRuleSchema,
   locationQueryConditionsSchema,
@@ -15,7 +15,7 @@ export function createAdminShippingRouter(requireAdmin: RequireAdminMiddleware) 
 
   router.get("/", requireAdmin, async (_req, res) => {
     try {
-      const rules = await storage.getShippingRules();
+      const rules = await shippingRepository.getShippingRules();
       res.json(rules);
     } catch (error) {
       console.error("Error fetching shipping rules:", error);
@@ -28,7 +28,7 @@ export function createAdminShippingRouter(requireAdmin: RequireAdminMiddleware) 
       const idSchema = z.string().uuid();
       const id = idSchema.parse(req.params.id);
 
-      const rule = await storage.getShippingRule(id);
+      const rule = await shippingRepository.getShippingRule(id);
       if (!rule) {
         return res.status(404).json({ error: "Shipping rule not found" });
       }
@@ -49,7 +49,7 @@ export function createAdminShippingRouter(requireAdmin: RequireAdminMiddleware) 
     try {
       const validatedData = insertShippingRuleSchema.parse(req.body);
 
-      const rule = await storage.createShippingRule(validatedData);
+      const rule = await shippingRepository.createShippingRule(validatedData);
 
       res.status(201).json(rule);
     } catch (error) {
@@ -88,7 +88,7 @@ export function createAdminShippingRouter(requireAdmin: RequireAdminMiddleware) 
         return res.status(400).json({ error: "No updates provided" });
       }
 
-      const existingRule = await storage.getShippingRule(id);
+      const existingRule = await shippingRepository.getShippingRule(id);
       if (!existingRule) {
         return res.status(404).json({ error: "Shipping rule not found" });
       }
@@ -145,7 +145,7 @@ export function createAdminShippingRouter(requireAdmin: RequireAdminMiddleware) 
 
       insertShippingRuleSchema.parse(finalRuleForValidation);
 
-      const rule = await storage.updateShippingRule(id, validatedUpdates);
+      const rule = await shippingRepository.updateShippingRule(id, validatedUpdates);
       res.json(rule);
     } catch (error: any) {
       if (error instanceof z.ZodError) {
@@ -167,7 +167,7 @@ export function createAdminShippingRouter(requireAdmin: RequireAdminMiddleware) 
       const idSchema = z.string().uuid();
       const id = idSchema.parse(req.params.id);
 
-      await storage.deleteShippingRule(id);
+      await shippingRepository.deleteShippingRule(id);
       res.status(204).send();
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -197,7 +197,7 @@ export function createShippingRouter() {
           .json({ error: "Missing required fields: cartItems, pincode, orderValue" });
       }
 
-      const shippingCharge = await storage.calculateShippingCharge({
+      const shippingCharge = await shippingRepository.calculateShippingCharge({
         cartItems,
         pincode,
         orderValue,

@@ -2,13 +2,13 @@ import { otps, admins, influencers, users, type Otp, type InsertOtp } from "@sha
 import { db } from "./db";
 import { eq, and, gt, lt } from "drizzle-orm";
 import { createHash } from "crypto";
-import { storage } from "./storage";
+import { settingsRepository } from "./storage";
 
 export class OtpService {
   // Generate configurable-length OTP
   private async generateOtp(): Promise<string> {
     // Get OTP length from settings, default to 6
-    const otpLengthSetting = await storage.getAppSetting('otp_length');
+    const otpLengthSetting = await settingsRepository.getAppSetting('otp_length');
     const otpLength = otpLengthSetting?.value ? parseInt(otpLengthSetting.value) : 6;
     
     const min = Math.pow(10, otpLength - 1);
@@ -24,7 +24,7 @@ export class OtpService {
   // Verify OTP using configured SMS service provider
   private async verifyOtpWithProvider(phone: string, otp: string): Promise<{ success: boolean; error?: string }> {
     // Check SMS service provider setting
-    const smsProviderSetting = await storage.getAppSetting('sms_service_provider');
+    const smsProviderSetting = await settingsRepository.getAppSetting('sms_service_provider');
     const smsProvider = smsProviderSetting?.value || '2Factor';
     
     if (smsProvider === 'Test') {
@@ -82,7 +82,7 @@ export class OtpService {
   // Send OTP using configured SMS service provider
   private async sendSms(phone: string, otp: string): Promise<{ success: boolean; sessionId?: string; error?: string }> {
     // Check SMS service provider setting
-    const smsProviderSetting = await storage.getAppSetting('sms_service_provider');
+    const smsProviderSetting = await settingsRepository.getAppSetting('sms_service_provider');
     const smsProvider = smsProviderSetting?.value || '2Factor';
     
     if (smsProvider === 'Test') {
@@ -160,7 +160,7 @@ export class OtpService {
     try {
       // Check if OTP login is enabled for buyers
       if (userType === 'buyer') {
-        const otpSetting = await storage.getAppSetting('otp_login_enabled');
+      const otpSetting = await settingsRepository.getAppSetting('otp_login_enabled');
         if (otpSetting?.value !== 'true') {
           return {
             success: false,
@@ -215,7 +215,7 @@ export class OtpService {
       }
 
       // Generate OTP for mock mode or use 2Factor autogen
-      const smsProviderSetting = await storage.getAppSetting('sms_service_provider');
+      const smsProviderSetting = await settingsRepository.getAppSetting('sms_service_provider');
       const smsProvider = smsProviderSetting?.value || '2Factor';
       
       let otpToSend = '';

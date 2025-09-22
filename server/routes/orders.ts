@@ -1,7 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
 
-import { storage } from "../storage";
+import {
+  ordersRepository,
+  usersRepository,
+  offersRepository,
+  shippingRepository,
+} from "../storage";
 import {
   insertUserAddressSchema,
   insertUserSchema,
@@ -40,7 +45,7 @@ export function createOrdersRouter() {
       const { userInfo, offerCode, paymentMethod, selectedAddressId } = validatedData;
       const userId = req.session.userId;
 
-      const cartItems = await storage.getCartItems(req.session.sessionId!);
+      const cartItems = await ordersRepository.getCartItems(req.session.sessionId!);
 
       if (cartItems.length === 0) {
         return res.status(400).json({ message: "Cart is empty" });
@@ -49,7 +54,7 @@ export function createOrdersRouter() {
       let deliveryAddressId = selectedAddressId ?? undefined;
 
       if (selectedAddressId) {
-        const userAddresses = await storage.getUserAddresses(userId);
+        const userAddresses = await usersRepository.getUserAddresses(userId);
         const selectedAddress = userAddresses.find(addr => addr.id === selectedAddressId);
         if (!selectedAddress) {
           return res.status(400).json({ message: "Selected address does not belong to user" });
@@ -79,7 +84,7 @@ export function createOrdersRouter() {
           makePreferred: userInfo.makePreferred,
         });
 
-        const existingAddresses = await storage.getUserAddresses(userId);
+        const existingAddresses = await usersRepository.getUserAddresses(userId);
         const shouldBePreferred =
           validatedAddressData.makePreferred || existingAddresses.length === 0;
 
@@ -92,10 +97,10 @@ export function createOrdersRouter() {
           isPreferred: shouldBePreferred,
         };
 
-        const newAddress = await storage.createUserAddress(addressData);
+        const newAddress = await usersRepository.createUserAddress(addressData);
 
         if (shouldBePreferred && existingAddresses.length > 0) {
-          await storage.setPreferredAddress(userId, newAddress.id);
+          await usersRepository.setPreferredAddress(userId, newAddress.id);
         }
 
         deliveryAddressId = newAddress.id;
@@ -127,7 +132,7 @@ export function createOrdersRouter() {
           if (validatedUserUpdate.email === "") {
             validatedUserUpdate.email = null;
           }
-          await storage.updateUser(userId, validatedUserUpdate);
+          await usersRepository.updateUser(userId, validatedUserUpdate);
         }
       }
 
@@ -136,7 +141,7 @@ export function createOrdersRouter() {
         0,
       );
       let discountAmount = 0;
-      const appliedOffer = offerCode ? await storage.getOfferByCode(offerCode) : undefined;
+      const appliedOffer = offerCode ? await offersRepository.getOfferByCode(offerCode) : undefined;
 
       if (appliedOffer) {
         if (appliedOffer.discountType === "percentage") {
@@ -152,12 +157,12 @@ export function createOrdersRouter() {
         }
       }
 
-      const address = await storage
+      const address = await usersRepository
         .getUserAddresses(userId)
         .then(addresses => addresses.find(addr => addr.id === deliveryAddressId));
 
       const shippingCharge = address
-        ? await storage.calculateShippingCharge({
+        ? await shippingRepository.calculateShippingCharge({
             cartItems,
             pincode: address.pincode,
             orderValue: subtotal,
@@ -179,7 +184,7 @@ export function createOrdersRouter() {
         deliveryAddressId,
       };
 
-      const order = await storage.createOrder(orderData);
+      const order = await ordersRepository.createOrder(orderData);
 
       const orderItems = cartItems.map(item => ({
         productId: item.productId,
@@ -188,19 +193,19 @@ export function createOrdersRouter() {
         orderId: order.id,
       }));
 
-      await storage.createOrderItems(orderItems);
+      await ordersRepository.createOrderItems(orderItems);
 
       if (appliedOffer) {
-        await storage.createOfferRedemption({
+        await offersRepository.createOfferRedemption({
           offerId: appliedOffer.id,
           userId,
           orderId: order.id,
           discountAmount: discountAmount.toString(),
         });
-        await storage.incrementOfferUsage(appliedOffer.id);
+        await offersRepository.incrementOfferUsage(appliedOffer.id);
       }
 
-      await storage.clearCart(req.session.sessionId!);
+      await ordersRepository.clearCart(req.session.sessionId!);
 
       res.json({ order, message: "Order placed successfully" });
     } catch (error) {
@@ -226,7 +231,7 @@ export function createOrdersRouter() {
         Object.entries(filters).filter(([_, value]) => value && value !== "all"),
       );
 
-      const orders = await storage.getOrders(
+      const orders = await ordersRepository.getOrders(
         Object.keys(cleanFilters).length > 0 ? cleanFilters : undefined,
       );
       res.json(orders);
@@ -238,7 +243,7 @@ export function createOrdersRouter() {
 
   router.get("/:id", async (req, res) => {
     try {
-      const order = await storage.getOrder(req.params.id);
+      const order = await ordersRepository.getOrder(req.params.id);
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
       }

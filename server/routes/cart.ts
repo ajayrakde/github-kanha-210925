@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { storage } from "../storage";
+import { ordersRepository } from "../storage";
 import type { SessionRequest } from "./types";
 
 export function createCartRouter() {
@@ -8,7 +8,7 @@ export function createCartRouter() {
 
   router.get("/", async (req: SessionRequest, res) => {
     try {
-      const cartItems = await storage.getCartItems(req.session.sessionId!);
+      const cartItems = await ordersRepository.getCartItems(req.session.sessionId!);
       res.json(cartItems);
     } catch (error) {
       console.error("Error fetching cart:", error);
@@ -19,7 +19,7 @@ export function createCartRouter() {
   router.post("/add", async (req: SessionRequest, res) => {
     try {
       const { productId, quantity = 1 } = req.body;
-      const cartItem = await storage.addToCart(
+      const cartItem = await ordersRepository.addToCart(
         req.session.sessionId!,
         productId,
         quantity,
@@ -34,7 +34,7 @@ export function createCartRouter() {
   router.patch("/:productId", async (req: SessionRequest, res) => {
     try {
       const { quantity } = req.body;
-      const cartItem = await storage.updateCartItem(
+      const cartItem = await ordersRepository.updateCartItem(
         req.session.sessionId!,
         req.params.productId,
         quantity,
@@ -48,7 +48,7 @@ export function createCartRouter() {
 
   router.delete("/:productId", async (req: SessionRequest, res) => {
     try {
-      await storage.removeFromCart(req.session.sessionId!, req.params.productId);
+      await ordersRepository.removeFromCart(req.session.sessionId!, req.params.productId);
       res.json({ message: "Item removed from cart" });
     } catch (error) {
       console.error("Error removing from cart:", error);
@@ -58,7 +58,7 @@ export function createCartRouter() {
 
   router.delete("/clear", async (req: SessionRequest, res) => {
     try {
-      await storage.clearCart(req.session.sessionId!);
+      await ordersRepository.clearCart(req.session.sessionId!);
       res.json({ message: "Cart cleared successfully" });
     } catch (error) {
       console.error("Error clearing cart:", error);

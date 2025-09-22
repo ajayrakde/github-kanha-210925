@@ -22,13 +22,15 @@ interface Offer {
   endDate: string | null;
   influencer?: {
     id: string;
-    username: string;
+    name: string;
+    username?: string;
   };
 }
 
 interface Influencer {
   id: string;
-  username: string;
+  name: string;
+  username?: string;
 }
 
 interface PaginatedResponse<T> {
@@ -324,7 +326,7 @@ export default function OfferTable({ onEdit }: OfferTableProps) {
                 <SelectItem value="all">All Influencers</SelectItem>
                 {influencers?.map((influencer) => (
                   <SelectItem key={influencer.id} value={influencer.id}>
-                    {influencer.username}
+                    {influencer.username ?? influencer.name}
                   </SelectItem>
                 ))}
               </SelectContent>

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 
-import { storage } from "../storage";
+import { productsRepository } from "../storage";
 import { insertProductSchema } from "@shared/schema";
 import type { SessionRequest, RequireAdminMiddleware } from "./types";
 
@@ -10,7 +10,7 @@ export function createProductsRouter(requireAdmin: RequireAdminMiddleware) {
 
   router.get("/", async (_req, res) => {
     try {
-      const products = await storage.getProducts();
+      const products = await productsRepository.getProducts();
       res.json(products);
     } catch (error) {
       console.error("Error fetching products:", error);
@@ -20,7 +20,7 @@ export function createProductsRouter(requireAdmin: RequireAdminMiddleware) {
 
   router.get("/:id", async (req, res) => {
     try {
-      const product = await storage.getProduct(req.params.id);
+      const product = await productsRepository.getProduct(req.params.id);
       if (!product) {
         return res.status(404).json({ message: "Product not found" });
       }
@@ -33,7 +33,7 @@ export function createProductsRouter(requireAdmin: RequireAdminMiddleware) {
 
   router.post("/", requireAdmin, async (req: SessionRequest, res) => {
     try {
-      const existingProducts = await storage.getProducts();
+      const existingProducts = await productsRepository.getProducts();
       if (existingProducts.length >= 10) {
         return res.status(400).json({
           message:
@@ -42,7 +42,7 @@ export function createProductsRouter(requireAdmin: RequireAdminMiddleware) {
       }
 
       const productData = insertProductSchema.parse(req.body);
-      const product = await storage.createProduct(productData);
+      const product = await productsRepository.createProduct(productData);
       res.json(product);
     } catch (error) {
       console.error("Error creating product:", error);
@@ -58,7 +58,7 @@ export function createProductsRouter(requireAdmin: RequireAdminMiddleware) {
   router.patch("/:id", requireAdmin, async (req: SessionRequest, res) => {
     try {
       const productData = insertProductSchema.partial().parse(req.body);
-      const product = await storage.updateProduct(req.params.id, productData);
+      const product = await productsRepository.updateProduct(req.params.id, productData);
       res.json(product);
     } catch (error) {
       console.error("Error updating product:", error);
@@ -68,7 +68,7 @@ export function createProductsRouter(requireAdmin: RequireAdminMiddleware) {
 
   router.delete("/:id", requireAdmin, async (req: SessionRequest, res) => {
     try {
-      await storage.deleteProduct(req.params.id);
+      await productsRepository.deleteProduct(req.params.id);
       res.json({ message: "Product deleted successfully" });
     } catch (error) {
       console.error("Error deleting product:", error);

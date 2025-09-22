@@ -1,13 +1,13 @@
 import { Router } from "express";
 
-import { storage } from "../storage";
+import { usersRepository } from "../storage";
 
 export function createSeedRouter() {
   const router = Router();
 
   router.post("/", async (_req, res) => {
     try {
-      await storage.createAdmin({
+      await usersRepository.createAdmin({
         username: "admin",
         password: "password123",
         name: "Admin User",
