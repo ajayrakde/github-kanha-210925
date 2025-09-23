@@ -18,6 +18,7 @@ import { createAdminRouter } from "./admin";
 import { createAnalyticsRouter, createCartAnalyticsRouter } from "./analytics";
 import { createAdminShippingRouter, createShippingRouter } from "./shipping";
 import { createSeedRouter } from "./seed";
+import { createPaymentsRouter } from "./payments";
 
 const sessionConfig = session({
   secret: process.env.SESSION_SECRET || "your-secret-key",
@@ -115,6 +116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api", createCartAnalyticsRouter());
   app.use("/api/admin/shipping-rules", createAdminShippingRouter(requireAdmin));
   app.use("/api/shipping", createShippingRouter());
+  app.use("/api/payments", createPaymentsRouter(requireAdmin));
   app.use("/api/seed-accounts", createSeedRouter());
 
   async function initializeDefaultSettings() {
