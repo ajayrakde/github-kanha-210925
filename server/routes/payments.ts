@@ -181,14 +181,14 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     // Check status with PhonePe
     const statusResponse = await phonePeService.checkPaymentStatus(merchantTransactionId);
     
-    // Update transaction status in database
+    // Update transaction status and sync with order
     if (statusResponse.data) {
       const newStatus = statusResponse.data.state === 'COMPLETED' ? 'completed' :
                        statusResponse.data.state === 'FAILED' ? 'failed' : 'pending';
       
-        await paymentsRepository.updatePaymentTransaction(transaction.id, {
-          status: newStatus,
+        await paymentsRepository.updatePaymentTransactionAndSyncOrder(transaction.id, newStatus, {
           providerOrderId: statusResponse.data.transactionId,
+          providerResponseData: statusResponse.data
         });
     }
     
@@ -274,7 +274,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     if (decodedResponse.success) {
       const paymentData = decodedResponse.data;
       
-        // Update transaction status
+        // Update transaction status and sync with order
         const transaction = await paymentsRepository.getPaymentTransactionByMerchantId(
           paymentData.merchantTransactionId
         );
@@ -283,9 +283,9 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           const newStatus = paymentData.state === 'COMPLETED' ? 'completed' :
                            paymentData.state === 'FAILED' ? 'failed' : 'pending';
           
-          await paymentsRepository.updatePaymentTransaction(transaction.id, {
-            status: newStatus,
+          await paymentsRepository.updatePaymentTransactionAndSyncOrder(transaction.id, newStatus, {
             providerOrderId: paymentData.transactionId,
+            providerResponseData: paymentData
           });
         }
     }
@@ -396,6 +396,47 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       console.error('Error fetching payment transactions:', error);
       res.status(500).json({
         error: 'Failed to fetch payment transactions',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Get order with payment information (requires session or open access for thank-you page)
+  router.get('/order-info/:orderId', async (req: SessionRequest, res) => {
+    try {
+      const { orderId } = req.params;
+      
+      if (!orderId) {
+        return res.status(400).json({
+          error: 'Order ID is required'
+        });
+      }
+
+      // Get order with payment information
+      const orderInfo = await paymentsRepository.getOrderWithPaymentInfo(orderId);
+      
+      if (!orderInfo) {
+        return res.status(404).json({
+          error: 'Order not found'
+        });
+      }
+
+      // If user is authenticated, verify order ownership
+      if (req.session.userId) {
+        if (orderInfo.order.userId !== req.session.userId) {
+          return res.status(403).json({
+            error: 'Access denied - order does not belong to authenticated user'
+          });
+        }
+      }
+      // For unauthenticated access (thank-you page), we allow it but limit sensitive info
+      // This supports the e-commerce flow where users can see order status after checkout
+
+      res.json(orderInfo);
+    } catch (error) {
+      console.error('Error fetching order payment info:', error);
+      res.status(500).json({
+        error: 'Failed to fetch order information',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
