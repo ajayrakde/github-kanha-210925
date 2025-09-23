@@ -14,10 +14,11 @@ import HybridLogin from "@/components/auth/hybrid-login";
 import { useAdminAuth } from "@/hooks/use-auth";
 import SettingsManagement from "@/components/admin/settings-management";
 import ShippingRulesManagement from "@/components/admin/shipping-rules-management";
+import PaymentProvidersManagement from "@/components/admin/payment-providers-management";
 import type { Product, Offer } from "@shared/schema";
 import type { AbandonedCart, PopularProduct, SalesTrend, ConversionMetrics } from "@/lib/types";
 
-type TabValue = 'products' | 'orders' | 'offers' | 'users' | 'analytics' | 'shipping' | 'settings';
+type TabValue = 'products' | 'orders' | 'offers' | 'users' | 'analytics' | 'shipping' | 'payments' | 'settings';
 
 interface OrderStats {
   totalOrders: number;
@@ -244,6 +245,7 @@ export default function Admin() {
     { id: 'users', label: 'Users', icon: 'fas fa-users' },
     { id: 'analytics', label: 'Analytics', icon: 'fas fa-chart-bar' },
     { id: 'shipping', label: 'Shipping', icon: 'fas fa-truck' },
+    { id: 'payments', label: 'Payments', icon: 'fas fa-credit-card' },
     { id: 'settings', label: 'Settings', icon: 'fas fa-cog' },
   ];
 
@@ -464,6 +466,14 @@ export default function Admin() {
               <div className="h-full flex flex-col bg-gray-50">
                 <div className="flex-1 overflow-y-auto p-4">
                   <ShippingRulesManagement />
+                </div>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="payments" className="h-full">
+              <div className="h-full flex flex-col bg-gray-50">
+                <div className="flex-1 overflow-y-auto p-4">
+                  <PaymentProvidersManagement />
                 </div>
               </div>
             </TabsContent>
