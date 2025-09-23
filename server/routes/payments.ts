@@ -5,6 +5,7 @@ import { paymentsRepository } from '../storage';
 import { insertPaymentProviderSchema, insertPaymentTransactionSchema } from '@shared/schema';
 import type { SessionRequest, RequireAdminMiddleware } from './types';
 import type { PaymentProvider, PaymentProviderSettings } from '@shared/schema';
+import { mergeProviderCredentials, validateProviderCredentials } from '../utils/payment-env';
 
 export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   const router = Router();
@@ -51,12 +52,23 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       });
     }
 
-      // Initialize PhonePe service
+      // Initialize PhonePe service with merged credentials (env vars + database)
       const settingsData = activeSettings.settings as any;
+      const mergedCredentials = mergeProviderCredentials('phonepe', settingsData);
+      
+      // Validate required credentials
+      const validation = validateProviderCredentials('phonepe', mergedCredentials, ['merchantId', 'saltKey', 'saltIndex']);
+      if (!validation.isValid) {
+        return res.status(400).json({
+          error: `Missing required PhonePe credentials: ${validation.missingFields.join(', ')}`,
+          missingFields: validation.missingFields
+        });
+      }
+      
       const credentials = {
-        merchantId: settingsData.merchantId,
-        saltKey: settingsData.saltKey,
-        saltIndex: settingsData.saltIndex,
+        merchantId: mergedCredentials.merchantId,
+        saltKey: mergedCredentials.saltKey || mergedCredentials.secretKey, // Support both naming conventions
+        saltIndex: mergedCredentials.saltIndex,
         apiHost: activeSettings.mode === 'test' 
           ? 'https://api-preprod.phonepe.com/apis/hermes' 
           : 'https://api.phonepe.com/apis/hermes'
@@ -165,12 +177,23 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       });
     }
 
-      // Initialize PhonePe service
+      // Initialize PhonePe service with merged credentials (env vars + database)
       const settingsData = activeSettings.settings as any;
+      const mergedCredentials = mergeProviderCredentials('phonepe', settingsData);
+      
+      // Validate required credentials
+      const validation = validateProviderCredentials('phonepe', mergedCredentials, ['merchantId', 'saltKey', 'saltIndex']);
+      if (!validation.isValid) {
+        return res.status(400).json({
+          error: `Missing required PhonePe credentials: ${validation.missingFields.join(', ')}`,
+          missingFields: validation.missingFields
+        });
+      }
+      
       const credentials = {
-        merchantId: settingsData.merchantId,
-        saltKey: settingsData.saltKey,
-        saltIndex: settingsData.saltIndex,
+        merchantId: mergedCredentials.merchantId,
+        saltKey: mergedCredentials.saltKey || mergedCredentials.secretKey, // Support both naming conventions
+        saltIndex: mergedCredentials.saltIndex,
         apiHost: activeSettings.mode === 'test' 
           ? 'https://api-preprod.phonepe.com/apis/hermes' 
           : 'https://api.phonepe.com/apis/hermes'

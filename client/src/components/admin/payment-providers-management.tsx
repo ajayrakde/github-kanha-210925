@@ -265,6 +265,10 @@ export default function PaymentProvidersManagement() {
                       placeholder="MERCHANT_ID"
                       required
                     />
+                    <p className="text-xs text-gray-500">
+                      Environment Variable: <code>VITE_PHONEPE_PUBLIC_KEY</code><br/>
+                      This acts as the public identifier (Merchant ID) for PhonePe
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="saltIndex">Salt Index</Label>
@@ -279,7 +283,7 @@ export default function PaymentProvidersManagement() {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="saltKey">Salt Key</Label>
+                  <Label htmlFor="saltKey">Salt Key (Client Secret)</Label>
                   <Input
                     id="saltKey"
                     name="saltKey"
@@ -287,6 +291,10 @@ export default function PaymentProvidersManagement() {
                     placeholder="Salt key for API authentication"
                     required
                   />
+                  <p className="text-xs text-gray-500">
+                    Environment Variable: <code>PHONEPE_SECRET_KEY</code><br/>
+                    This is your PhonePe Salt Key for API authentication
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -314,11 +322,12 @@ export default function PaymentProvidersManagement() {
                       required
                     />
                     <p className="text-xs text-gray-500">
+                      Environment Variable: <code>VITE_STRIPE_PUBLIC_KEY</code><br/>
                       Get from Stripe Dashboard → API Keys → Publishable key
                     </p>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="secretKey">Secret Key</Label>
+                    <Label htmlFor="secretKey">Secret Key (Client Secret)</Label>
                     <Input
                       id="secretKey"
                       name="secretKey"
@@ -327,6 +336,7 @@ export default function PaymentProvidersManagement() {
                       required
                     />
                     <p className="text-xs text-gray-500">
+                      Environment Variable: <code>STRIPE_SECRET_KEY</code><br/>
                       Get from Stripe Dashboard → API Keys → Secret key
                     </p>
                   </div>
