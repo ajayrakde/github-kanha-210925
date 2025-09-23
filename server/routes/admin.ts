@@ -4,6 +4,7 @@ import {
   usersRepository,
   ordersRepository,
   settingsRepository,
+  paymentsRepository,
 } from "../storage";
 import type { RequireAdminMiddleware, SessionRequest } from "./types";
 
@@ -174,6 +175,76 @@ export function createAdminRouter(requireAdmin: RequireAdminMiddleware) {
     } catch (error: any) {
       console.error("Error removing admin:", error);
       res.status(500).json({ error: error.message || "Failed to remove admin" });
+    }
+  });
+
+  // Payment provider management endpoints
+  router.get("/payment-providers", requireAdmin, async (req: SessionRequest, res) => {
+    try {
+      const providers = await paymentsRepository.getPaymentProviders();
+      
+      // Get settings for each provider to include in response
+      const providersWithSettings = await Promise.all(
+        providers.map(async (provider) => {
+          const settings = await paymentsRepository.getPaymentProviderSettings(provider.id);
+          return {
+            ...provider,
+            settings,
+            activeSettings: settings.find(s => s.isActive) || null,
+          };
+        })
+      );
+      
+      res.json(providersWithSettings);
+    } catch (error) {
+      console.error('Error fetching payment providers:', error);
+      res.status(500).json({
+        error: 'Failed to fetch payment providers',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  router.put("/payment-providers/:id", requireAdmin, async (req: SessionRequest, res) => {
+    try {
+      const { id } = req.params;
+      const updateData = req.body;
+      
+      const updatedProvider = await paymentsRepository.updatePaymentProvider(id, updateData);
+      res.json(updatedProvider);
+    } catch (error) {
+      console.error('Error updating payment provider:', error);
+      res.status(500).json({
+        error: 'Failed to update payment provider',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  router.post("/payment-provider-settings", requireAdmin, async (req: SessionRequest, res) => {
+    try {
+      const { providerId, mode, settings, isActive } = req.body;
+      
+      if (!providerId || !mode || !settings) {
+        return res.status(400).json({
+          error: 'Provider ID, mode, and settings are required'
+        });
+      }
+      
+      const result = await paymentsRepository.createOrUpdatePaymentProviderSettings(providerId, {
+        mode,
+        settings,
+        isActive: isActive || false,
+        updatedBy: req.session.adminId,
+      });
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Error saving provider settings:', error);
+      res.status(500).json({
+        error: 'Failed to save provider settings',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 
