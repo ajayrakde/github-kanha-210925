@@ -1,6 +1,10 @@
 import { Router } from "express";
 
-export function createObjectStorageRouter() {
+import { ObjectStorageService } from "../objectStorage";
+
+export function createObjectStorageRouter(
+  objectStorageService: ObjectStorageService = new ObjectStorageService(),
+) {
   const router = Router();
 
   router.post("/upload", async (req, res) => {
@@ -16,8 +20,6 @@ export function createObjectStorageRouter() {
         });
       }
 
-      const { ObjectStorageService } = await import("../objectStorage");
-      const objectStorageService = new ObjectStorageService();
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
       res.json({ uploadURL });
     } catch (error) {
@@ -29,17 +31,17 @@ export function createObjectStorageRouter() {
   return router;
 }
 
-export function createPublicObjectRouter() {
+export function createPublicObjectRouter(
+  objectStorageService: ObjectStorageService = new ObjectStorageService(),
+) {
   const router = Router();
 
   router.get("/:objectPath(*)", async (req, res) => {
     try {
-      const { ObjectStorageService } = await import("../objectStorage");
-      const objectStorageService = new ObjectStorageService();
       const objectFile = await objectStorageService.getObjectEntityFile(
         `${req.baseUrl}${req.path}`,
       );
-      const stream = objectFile.createReadStream();
+      const stream = await objectFile.createReadStream();
       stream.pipe(res);
     } catch (error) {
       console.error("Error serving object:", error);

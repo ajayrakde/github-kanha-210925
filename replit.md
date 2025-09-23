@@ -14,6 +14,37 @@ The application features a modern tech stack with React/TypeScript frontend, Exp
   - Modified `server/routes/auth.ts`: Updated DELETE address route to pass userId for ownership verification
   - Added database constraint using `and(eq(userAddresses.id, id), eq(userAddresses.userId, userId))` to ensure only address owners can delete their addresses
 
+## Object Storage Configuration
+
+The backend auto-detects the Replit Object Storage sidecar. When the sidecar responds, it provisions Google Cloud Storage credentials dynamically and no additional configuration is required beyond the existing `PRIVATE_OBJECT_DIR` and `PUBLIC_OBJECT_SEARCH_PATHS` values.
+
+For self-hosted deployments or in any environment where the sidecar is unreachable, set `OBJECT_STORAGE_PROVIDER` and supply credentials for the desired backend:
+
+- `OBJECT_STORAGE_PROVIDER`
+  - `replit` – attempt to use the sidecar (default behaviour when the variable is unset)
+  - `gcs` – force Google Cloud Storage credentials from environment variables
+  - `s3` – force S3-compatible credentials
+
+### Google Cloud Storage (GCS)
+
+Provide the following variables when using a service account:
+
+- `OBJECT_STORAGE_GCS_PROJECT_ID`
+- `OBJECT_STORAGE_GCS_CLIENT_EMAIL`
+- `OBJECT_STORAGE_GCS_PRIVATE_KEY` (escape newlines as `\n` if stored inline)
+
+### Amazon S3 or S3-Compatible Providers
+
+Provide these variables when targeting S3:
+
+- `OBJECT_STORAGE_S3_ACCESS_KEY_ID`
+- `OBJECT_STORAGE_S3_SECRET_ACCESS_KEY`
+- `OBJECT_STORAGE_S3_REGION`
+- `OBJECT_STORAGE_S3_ENDPOINT` (optional for custom endpoints, e.g. MinIO, Cloudflare R2)
+- `OBJECT_STORAGE_S3_FORCE_PATH_STYLE` (optional, set to `true` for providers that require path-style URLs)
+
+`PRIVATE_OBJECT_DIR` must continue to reference the bucket and prefix (e.g. `/my-bucket/private`) and `PUBLIC_OBJECT_SEARCH_PATHS` should list any public prefixes that the application should scan.
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.
