@@ -9,6 +9,7 @@ import Products from "@/pages/products";
 import ProductDetails from "@/pages/product-details";
 import Cart from "@/pages/cart";
 import Checkout from "@/pages/checkout";
+import Payment from "@/pages/payment";
 import Admin from "@/pages/admin";
 import Influencer from "@/pages/influencer";
 import ThankYou from "@/pages/thank-you";
@@ -39,6 +40,7 @@ function Router() {
                   <Route path="/product/:id" component={ProductDetails} />
                   <Route path="/cart" component={Cart} />
                   <Route path="/checkout" component={Checkout} />
+                  <Route path="/payment" component={Payment} />
                   <Route path="/thank-you" component={ThankYou} />
                   <Route path="/orders" component={UserOrders} />
                   <Route path="/terms-of-service" component={TermsOfService} />

@@ -276,7 +276,7 @@ export default function Checkout() {
       // Invalidate orders cache to show the new order
       queryClient.invalidateQueries({ queryKey: ["/api/auth/orders"] });
       queryClient.setQueryData(["checkout", "selectedOffer"], null);
-      // Store order data in session storage for thank you page
+      // Store order data in session storage
       sessionStorage.setItem('lastOrder', JSON.stringify({
         orderId: data.order.id,
         total: data.order.total,
@@ -286,7 +286,13 @@ export default function Checkout() {
         deliveryAddress: data.order.deliveryAddress,
         userInfo: userInfo
       }));
-      setLocation("/thank-you");
+      
+      // Redirect based on payment method
+      if (paymentMethod === 'upi') {
+        setLocation(`/payment?orderId=${data.order.id}`);
+      } else {
+        setLocation("/thank-you");
+      }
     },
   });
 
