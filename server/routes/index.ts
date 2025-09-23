@@ -11,6 +11,7 @@ import { createOffersRouter } from "./offers";
 import { createOrdersRouter } from "./orders";
 import { createAuthRouter } from "./auth";
 import { createLegacyOtpRouter } from "./legacy-otp";
+import { ObjectStorageService } from "../objectStorage";
 import { createObjectStorageRouter, createPublicObjectRouter } from "./object-storage";
 import { createInfluencersRouter, createInfluencerAuthRouter } from "./influencers";
 import { createAdminRouter } from "./admin";
@@ -72,6 +73,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.use(sessionConfig);
 
+  const objectStorageService = new ObjectStorageService();
+  try {
+    const backendType = await objectStorageService.getBackendType();
+    console.log(`Object storage backend initialized: ${backendType}`);
+  } catch (error) {
+    console.error("Failed to initialize object storage backend:", error);
+    throw error;
+  }
+
   const requireAdmin: RequireAdminMiddleware = (req, res, next) => {
     if (req.session.adminId && req.session.userRole === "admin") {
       next();
@@ -96,8 +106,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/orders", createOrdersRouter());
   app.use("/api/auth", createAuthRouter());
   app.use("/api/otp", createLegacyOtpRouter());
-  app.use("/api/objects", createObjectStorageRouter());
-  app.use("/objects", createPublicObjectRouter());
+  app.use("/api/objects", createObjectStorageRouter(objectStorageService));
+  app.use("/objects", createPublicObjectRouter(objectStorageService));
   app.use("/api/influencers", createInfluencersRouter());
   app.use("/api/influencer", createInfluencerAuthRouter());
   app.use("/api/admin", createAdminRouter(requireAdmin));
