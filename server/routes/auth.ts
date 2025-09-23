@@ -12,26 +12,30 @@ export function createAuthRouter() {
   const router = Router();
 
   router.post("/login", async (req: SessionRequest, res) => {
-    const { phone, otp } = req.body;
-    const otpLengthSetting = await settingsRepository.getAppSetting("otp_length");
-    const expectedOtpLength = otpLengthSetting?.value
-      ? parseInt(otpLengthSetting.value)
-      : 6;
+    try {
+      const { phone, otp } = req.body;
 
-    if (otp && otp.length === expectedOtpLength) {
-      let user = await usersRepository.getUserByPhone(`+91${phone}`);
-      if (!user) {
-        user = await usersRepository.createUser({
-          phone: `+91${phone}`,
-          name: "",
-          email: null,
-        });
+      if (!phone || !otp) {
+        return res.status(400).json({ message: "Phone number and OTP are required" });
       }
-      req.session.userId = user.id;
-      req.session.userRole = "buyer";
-      res.json({ success: true, user });
-    } else {
-      res.status(400).json({ message: "Invalid OTP" });
+
+      // Use the proper OTP verification service
+      const result = await otpService.verifyOtp(phone, otp, "buyer");
+
+      if (result.success && result.user) {
+        req.session.userId = result.user.id;
+        req.session.userRole = "buyer";
+        res.json({ 
+          success: true, 
+          user: result.user,
+          isNewUser: result.isNewUser 
+        });
+      } else {
+        res.status(400).json({ message: result.message || "Invalid OTP" });
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(500).json({ message: "Login failed. Please try again." });
     }
   });
 
