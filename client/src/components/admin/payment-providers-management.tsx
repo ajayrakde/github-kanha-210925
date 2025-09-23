@@ -7,23 +7,21 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient } from "@/lib/queryClient";
 import type { PaymentProvider, PaymentProviderSettings } from "@shared/schema";
-import { CreditCard, Shield, Settings2, Plus, Edit2, Key } from "lucide-react";
+import { CreditCard, Shield, Settings2, Key } from "lucide-react";
 
 interface PaymentProviderWithSettings extends PaymentProvider {
   settings?: PaymentProviderSettings[];
+  activeSettings?: PaymentProviderSettings;
 }
 
 export default function PaymentProvidersManagement() {
   const { toast } = useToast();
-  const [showProviderForm, setShowProviderForm] = useState(false);
   const [showSettingsForm, setShowSettingsForm] = useState(false);
-  const [editingProvider, setEditingProvider] = useState<PaymentProvider | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<PaymentProvider | null>(null);
   const [selectedMode, setSelectedMode] = useState<'test' | 'live'>('test');
 
@@ -32,34 +30,13 @@ export default function PaymentProvidersManagement() {
     queryKey: ['/api/admin/payment-providers'],
   });
 
-  // Provider mutations
-  const createProviderMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const response = await fetch('/api/admin/payment-providers', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      if (!response.ok) throw new Error('Failed to create provider');
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/payment-providers'] });
-      toast({ title: "Success", description: "Payment provider created successfully" });
-      setShowProviderForm(false);
-      setEditingProvider(null);
-    },
-    onError: () => {
-      toast({ title: "Error", description: "Failed to create payment provider", variant: "destructive" });
-    }
-  });
-
-  const updateProviderMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string, data: any }) => {
+  // Provider enable/disable mutation
+  const toggleProviderMutation = useMutation({
+    mutationFn: async ({ id, isEnabled }: { id: string, isEnabled: boolean }) => {
       const response = await fetch(`/api/admin/payment-providers/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ isEnabled }),
       });
       if (!response.ok) throw new Error('Failed to update provider');
       return response.json();
@@ -67,8 +44,6 @@ export default function PaymentProvidersManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/payment-providers'] });
       toast({ title: "Success", description: "Payment provider updated successfully" });
-      setShowProviderForm(false);
-      setEditingProvider(null);
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to update payment provider", variant: "destructive" });
@@ -95,24 +70,9 @@ export default function PaymentProvidersManagement() {
     }
   });
 
-  const handleProviderSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const data = {
-      name: formData.get('name') as string,
-      displayName: formData.get('displayName') as string,
-      description: formData.get('description') as string,
-      isEnabled: formData.get('isEnabled') === 'on',
-      isDefault: formData.get('isDefault') === 'on',
-      priority: parseInt(formData.get('priority') as string) || 0,
-    };
-
-    if (editingProvider) {
-      updateProviderMutation.mutate({ id: editingProvider.id, data });
-    } else {
-      createProviderMutation.mutate(data);
-    }
-  }, [editingProvider, createProviderMutation, updateProviderMutation]);
+  const handleProviderToggle = useCallback((provider: PaymentProvider, enabled: boolean) => {
+    toggleProviderMutation.mutate({ id: provider.id, isEnabled: enabled });
+  }, [toggleProviderMutation]);
 
   const handleSettingsSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -121,10 +81,9 @@ export default function PaymentProvidersManagement() {
     if (!selectedProvider) return;
 
     const settings = {
-      clientId: formData.get('clientId') as string,
-      clientSecret: formData.get('clientSecret') as string,
-      clientVersion: formData.get('clientVersion') as string,
       merchantId: formData.get('merchantId') as string,
+      saltKey: formData.get('saltKey') as string,
+      saltIndex: formData.get('saltIndex') as string,
       webhookUrl: formData.get('webhookUrl') as string,
     };
 
@@ -138,384 +97,232 @@ export default function PaymentProvidersManagement() {
     updateSettingsMutation.mutate(data);
   }, [selectedProvider, selectedMode, updateSettingsMutation]);
 
+  const handleConfigureProvider = useCallback((provider: PaymentProvider) => {
+    setSelectedProvider(provider);
+    setSelectedMode('test');
+    setShowSettingsForm(true);
+  }, []);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="text-gray-600">Loading payment providers...</div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900">Payment Gateway Management</h3>
-          <p className="text-sm text-gray-600 mt-1">Configure payment providers and manage credentials</p>
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold text-gray-900">Payment Providers</h2>
+        <div className="text-sm text-gray-600">
+          Configure payment gateways and credentials
         </div>
-        <Button 
-          onClick={() => setShowProviderForm(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white"
-          data-testid="button-add-provider"
-        >
-          <Plus size={16} className="mr-2" />
-          Add Provider
-        </Button>
       </div>
 
-      {/* Provider Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {providers.map((provider) => {
-          const providerWithSettings = provider as PaymentProviderWithSettings;
-          const testSettings = providerWithSettings.settings?.find((s: PaymentProviderSettings) => s.mode === 'test' && s.isActive);
-          const liveSettings = providerWithSettings.settings?.find((s: PaymentProviderSettings) => s.mode === 'live' && s.isActive);
-          
-          return (
-            <Card key={provider.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg flex items-center">
-                    <CreditCard size={20} className="mr-2 text-blue-600" />
-                    {provider.displayName}
-                  </CardTitle>
-                  <div className="flex gap-2">
-                    <Badge variant={provider.isEnabled ? "default" : "secondary"}>
-                      {provider.isEnabled ? "Enabled" : "Disabled"}
-                    </Badge>
-                    {provider.isDefault && (
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        Default
+      {providers.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Payment Providers Available</h3>
+            <p className="text-gray-600">Contact your system administrator to add payment providers.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-6">
+          {providers.map((provider) => {
+            const hasTestSettings = provider.settings?.some(s => s.mode === 'test');
+            const hasLiveSettings = provider.settings?.some(s => s.mode === 'live');
+            const activeSettings = provider.settings?.find(s => s.isActive);
+            
+            return (
+              <Card key={provider.id} className="overflow-hidden">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg">
+                        <CreditCard className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">{provider.displayName}</CardTitle>
+                        <p className="text-sm text-gray-600 mt-1">{provider.description}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <Switch
+                        checked={provider.isEnabled ?? false}
+                        onCheckedChange={(checked) => handleProviderToggle(provider, checked)}
+                        data-testid={`toggle-${provider.name}`}
+                      />
+                      <Badge variant={provider.isEnabled ? "default" : "secondary"}>
+                        {provider.isEnabled ? "Enabled" : "Disabled"}
                       </Badge>
-                    )}
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              
-              <CardContent className="pt-0">
-                <p className="text-sm text-gray-600 mb-4">{provider.description}</p>
-                
-                {/* Configuration Status */}
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center text-sm">
-                    <Shield size={14} className="mr-2" />
-                    <span className="text-gray-600">Test Mode:</span>
-                    <Badge 
-                      variant={testSettings ? "default" : "outline"}
-                      className="ml-2 text-xs"
-                    >
-                      {testSettings ? "Configured" : "Not Configured"}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center text-sm">
-                    <Shield size={14} className="mr-2" />
-                    <span className="text-gray-600">Live Mode:</span>
-                    <Badge 
-                      variant={liveSettings ? "default" : "outline"}
-                      className="ml-2 text-xs"
-                    >
-                      {liveSettings ? "Configured" : "Not Configured"}
-                    </Badge>
-                  </div>
-                </div>
+                </CardHeader>
 
-                {/* Actions */}
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setEditingProvider(provider);
-                      setShowProviderForm(true);
-                    }}
-                    data-testid={`button-edit-provider-${provider.id}`}
-                  >
-                    <Edit2 size={14} className="mr-1" />
-                    Edit
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setSelectedProvider(provider);
-                      setShowSettingsForm(true);
-                    }}
-                    data-testid={`button-settings-provider-${provider.id}`}
-                  >
-                    <Key size={14} className="mr-1" />
-                    Settings
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-        
-        {providers.length === 0 && (
-          <div className="col-span-full">
-            <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-              <CreditCard size={48} className="mx-auto text-gray-400 mb-4" />
-              <div className="text-gray-600 font-medium">No Payment Providers Configured</div>
-              <div className="text-sm text-gray-500 mt-2">Add your first payment provider to start accepting payments</div>
-              <Button 
-                onClick={() => setShowProviderForm(true)}
-                className="mt-4 bg-blue-600 hover:bg-blue-700 text-white"
-              >
-                <Plus size={16} className="mr-2" />
-                Add Payment Provider
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
+                <CardContent className="pt-0">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4 text-sm">
+                      <div className="flex items-center space-x-1">
+                        <Shield className="w-4 h-4 text-gray-400" />
+                        <span className="text-gray-600">Test:</span>
+                        <Badge variant={hasTestSettings ? "default" : "outline"} className="text-xs">
+                          {hasTestSettings ? "Configured" : "Not Set"}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <Key className="w-4 h-4 text-gray-400" />
+                        <span className="text-gray-600">Live:</span>
+                        <Badge variant={hasLiveSettings ? "default" : "outline"} className="text-xs">
+                          {hasLiveSettings ? "Configured" : "Not Set"}
+                        </Badge>
+                      </div>
+                      {activeSettings && (
+                        <div className="flex items-center space-x-1">
+                          <Settings2 className="w-4 h-4 text-green-500" />
+                          <span className="text-gray-600">Active:</span>
+                          <Badge variant="default" className="text-xs bg-green-100 text-green-800">
+                            {activeSettings.mode.toUpperCase()}
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      onClick={() => handleConfigureProvider(provider)}
+                      size="sm"
+                      variant="outline"
+                      data-testid={`configure-${provider.name}`}
+                    >
+                      <Settings2 className="w-4 h-4 mr-2" />
+                      Configure
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
-      {/* Provider Form Dialog */}
-      <Dialog open={showProviderForm} onOpenChange={setShowProviderForm}>
-        <DialogContent className="max-w-md" aria-describedby="provider-form-description">
+      {/* Settings Configuration Dialog */}
+      <Dialog open={showSettingsForm} onOpenChange={setShowSettingsForm}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>
-              {editingProvider ? 'Edit Payment Provider' : 'Add Payment Provider'}
+            <DialogTitle className="flex items-center">
+              <Settings2 className="w-5 h-5 mr-2" />
+              Configure {selectedProvider?.displayName} Settings
             </DialogTitle>
           </DialogHeader>
-          <div id="provider-form-description" className="sr-only">
-            Form to add or edit payment provider information
-          </div>
-          
-          <form onSubmit={handleProviderSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="name">Provider Name</Label>
-              <Input
-                id="name"
-                name="name"
-                placeholder="e.g. phonepe"
-                defaultValue={editingProvider?.name}
-                required
-                data-testid="input-provider-name"
-              />
+
+          <form onSubmit={handleSettingsSubmit} className="space-y-6">
+            {/* Mode Selection */}
+            <div className="space-y-2">
+              <Label>Environment Mode</Label>
+              <Tabs value={selectedMode} onValueChange={(value) => setSelectedMode(value as 'test' | 'live')}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="test">Test Mode</TabsTrigger>
+                  <TabsTrigger value="live">Live Mode</TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="test" className="space-y-4 mt-4">
+                  <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      <strong>Test Mode:</strong> Use sandbox credentials for testing payments without real transactions.
+                    </p>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="live" className="space-y-4 mt-4">
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-800">
+                      <strong>Live Mode:</strong> Use production credentials for real transactions. Handle with care.
+                    </p>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </div>
-            
-            <div>
-              <Label htmlFor="displayName">Display Name</Label>
-              <Input
-                id="displayName"
-                name="displayName"
-                placeholder="e.g. PhonePe"
-                defaultValue={editingProvider?.displayName}
-                required
-                data-testid="input-provider-display-name"
+
+            {/* PhonePe Specific Settings */}
+            {selectedProvider?.name === 'phonepe' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="merchantId">Merchant ID</Label>
+                    <Input
+                      id="merchantId"
+                      name="merchantId"
+                      placeholder="MERCHANT_ID"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="saltIndex">Salt Index</Label>
+                    <Input
+                      id="saltIndex"
+                      name="saltIndex"
+                      placeholder="1"
+                      type="number"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="saltKey">Salt Key</Label>
+                  <Input
+                    id="saltKey"
+                    name="saltKey"
+                    type="password"
+                    placeholder="Salt key for API authentication"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="webhookUrl">Webhook URL (Optional)</Label>
+                  <Input
+                    id="webhookUrl"
+                    name="webhookUrl"
+                    type="url"
+                    placeholder={`${window.location.origin}/api/payments/webhook/phonepe`}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Active Configuration */}
+            <div className="flex items-center space-x-2 p-4 bg-gray-50 rounded-lg">
+              <input
+                type="checkbox"
+                id="isActive"
+                name="isActive"
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
+              <Label htmlFor="isActive" className="text-sm font-medium">
+                Set this configuration as active for {selectedMode} mode
+              </Label>
             </div>
-            
-            <div>
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                name="description"
-                placeholder="Brief description of the payment provider"
-                defaultValue={editingProvider?.description || ''}
-                data-testid="input-provider-description"
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="priority">Priority</Label>
-              <Input
-                id="priority"
-                name="priority"
-                type="number"
-                placeholder="0"
-                defaultValue={editingProvider?.priority || 0}
-                data-testid="input-provider-priority"
-              />
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Switch 
-                id="isEnabled" 
-                name="isEnabled"
-                defaultChecked={editingProvider?.isEnabled !== false}
-                data-testid="switch-provider-enabled"
-              />
-              <Label htmlFor="isEnabled">Enabled</Label>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Switch 
-                id="isDefault" 
-                name="isDefault"
-                defaultChecked={editingProvider?.isDefault || false}
-                data-testid="switch-provider-default"
-              />
-              <Label htmlFor="isDefault">Set as Default</Label>
-            </div>
-            
-            <div className="flex gap-2 justify-end pt-4">
-              <Button type="button" variant="outline" onClick={() => setShowProviderForm(false)}>
+
+            <div className="flex justify-end space-x-3 pt-4 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowSettingsForm(false)}
+              >
                 Cancel
               </Button>
-              <Button 
-                type="submit" 
-                disabled={createProviderMutation.isPending || updateProviderMutation.isPending}
-                data-testid="button-save-provider"
+              <Button
+                type="submit"
+                disabled={updateSettingsMutation.isPending}
+                data-testid="save-provider-settings"
               >
-                {createProviderMutation.isPending || updateProviderMutation.isPending ? 'Saving...' : 'Save'}
+                {updateSettingsMutation.isPending ? "Saving..." : "Save Configuration"}
               </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
-
-      {/* Settings Form Dialog */}
-      <Dialog open={showSettingsForm} onOpenChange={setShowSettingsForm}>
-        <DialogContent className="max-w-2xl" aria-describedby="settings-form-description">
-          <DialogHeader>
-            <DialogTitle>
-              Configure {selectedProvider?.displayName} Settings
-            </DialogTitle>
-          </DialogHeader>
-          <div id="settings-form-description" className="sr-only">
-            Form to configure payment provider credentials and settings
-          </div>
-          
-          <Tabs value={selectedMode} onValueChange={(value) => setSelectedMode(value as 'test' | 'live')}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="test">Test Mode</TabsTrigger>
-              <TabsTrigger value="live">Live Mode</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="test" className="mt-4">
-              <div className="bg-yellow-50 border border-yellow-200 p-3 rounded-lg mb-4">
-                <p className="text-sm text-yellow-800">
-                  <strong>Test Mode:</strong> Use test credentials provided by the payment provider. No real transactions will be processed.
-                </p>
-              </div>
-              {selectedProvider?.name === 'phonepe' && (
-                <PhonePeSettingsForm 
-                  provider={selectedProvider} 
-                  mode="test" 
-                  onSubmit={handleSettingsSubmit}
-                  isPending={updateSettingsMutation.isPending}
-                />
-              )}
-            </TabsContent>
-            
-            <TabsContent value="live" className="mt-4">
-              <div className="bg-red-50 border border-red-200 p-3 rounded-lg mb-4">
-                <p className="text-sm text-red-800">
-                  <strong>Live Mode:</strong> Use production credentials. Real transactions will be processed and charged.
-                </p>
-              </div>
-              {selectedProvider?.name === 'phonepe' && (
-                <PhonePeSettingsForm 
-                  provider={selectedProvider} 
-                  mode="live" 
-                  onSubmit={handleSettingsSubmit}
-                  isPending={updateSettingsMutation.isPending}
-                />
-              )}
-            </TabsContent>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
     </div>
-  );
-}
-
-// PhonePe-specific settings form
-function PhonePeSettingsForm({ 
-  provider, 
-  mode, 
-  onSubmit, 
-  isPending 
-}: { 
-  provider: PaymentProvider; 
-  mode: 'test' | 'live'; 
-  onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
-  isPending: boolean;
-}) {
-  const providerWithSettings = provider as PaymentProviderWithSettings;
-  const settings = providerWithSettings.settings?.find((s: PaymentProviderSettings) => s.mode === mode);
-  const currentSettings = settings?.settings as any || {};
-
-  return (
-    <form onSubmit={onSubmit} className="space-y-4">
-      <div>
-        <Label htmlFor="clientId">Client ID</Label>
-        <Input
-          id="clientId"
-          name="clientId"
-          placeholder="Enter PhonePe Client ID"
-          defaultValue={currentSettings.clientId || ''}
-          required
-          data-testid={`input-${mode}-client-id`}
-        />
-      </div>
-      
-      <div>
-        <Label htmlFor="clientSecret">Client Secret</Label>
-        <Input
-          id="clientSecret"
-          name="clientSecret"
-          type="password"
-          placeholder="Enter PhonePe Client Secret"
-          defaultValue={currentSettings.clientSecret || ''}
-          required
-          data-testid={`input-${mode}-client-secret`}
-        />
-      </div>
-      
-      <div>
-        <Label htmlFor="clientVersion">Client Version</Label>
-        <Input
-          id="clientVersion"
-          name="clientVersion"
-          placeholder="Enter PhonePe Client Version"
-          defaultValue={currentSettings.clientVersion || ''}
-          required
-          data-testid={`input-${mode}-client-version`}
-        />
-      </div>
-      
-      <div>
-        <Label htmlFor="merchantId">Merchant ID</Label>
-        <Input
-          id="merchantId"
-          name="merchantId"
-          placeholder="Enter PhonePe Merchant ID"
-          defaultValue={currentSettings.merchantId || ''}
-          data-testid={`input-${mode}-merchant-id`}
-        />
-      </div>
-      
-      <div>
-        <Label htmlFor="webhookUrl">Webhook URL</Label>
-        <Input
-          id="webhookUrl"
-          name="webhookUrl"
-          placeholder="https://yoursite.com/api/webhooks/phonepe"
-          defaultValue={currentSettings.webhookUrl || ''}
-          data-testid={`input-${mode}-webhook-url`}
-        />
-        <p className="text-sm text-gray-500 mt-1">
-          URL where PhonePe will send payment status updates
-        </p>
-      </div>
-      
-      <div className="flex items-center space-x-2">
-        <Switch 
-          id="isActive" 
-          name="isActive"
-          defaultChecked={settings?.isActive || false}
-          data-testid={`switch-${mode}-active`}
-        />
-        <Label htmlFor="isActive">Activate {mode} mode settings</Label>
-      </div>
-      
-      <div className="flex gap-2 justify-end pt-4">
-        <Button type="submit" disabled={isPending} data-testid={`button-save-${mode}-settings`}>
-          {isPending ? 'Saving...' : 'Save Settings'}
-        </Button>
-      </div>
-    </form>
   );
 }
