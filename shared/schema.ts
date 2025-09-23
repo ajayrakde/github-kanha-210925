@@ -166,6 +166,74 @@ export const shippingRules = pgTable("shipping_rules", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Payment providers table - defines available payment gateways
+export const paymentProviders = pgTable("payment_providers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 100 }).notNull(), // 'phonepe', 'razorpay', 'stripe', etc
+  displayName: varchar("display_name", { length: 255 }).notNull(), // 'PhonePe', 'Razorpay', 'Stripe'
+  description: text("description"),
+  isEnabled: boolean("is_enabled").default(true),
+  isDefault: boolean("is_default").default(false), // Only one provider can be default
+  priority: integer("priority").default(0), // Order in which to try providers
+  supportedModes: text("supported_modes").array().notNull().default(['test', 'live']), // supported modes
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Payment provider settings - stores encrypted credentials and configuration
+export const paymentProviderSettings = pgTable("payment_provider_settings", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  providerId: varchar("provider_id").references(() => paymentProviders.id).notNull(),
+  mode: varchar("mode", { length: 20 }).notNull(), // 'test' or 'live'
+  settings: jsonb("settings").notNull(), // Encrypted credentials and config
+  isActive: boolean("is_active").default(false),
+  updatedBy: varchar("updated_by").references(() => admins.id), // admin who updated
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Payment transactions table - tracks all payment attempts
+export const paymentTransactions = pgTable("payment_transactions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  orderId: varchar("order_id").references(() => orders.id).notNull(),
+  providerId: varchar("provider_id").references(() => paymentProviders.id).notNull(),
+  providerOrderId: varchar("provider_order_id"), // PhonePe orderId, Razorpay order_id, etc
+  merchantTransactionId: varchar("merchant_transaction_id"), // Our transaction reference
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  currency: varchar("currency", { length: 5 }).default('INR'),
+  status: varchar("status", { length: 50 }).notNull().default('initiated'), // initiated, pending, completed, failed, cancelled
+  paymentMode: varchar("payment_mode", { length: 50 }), // UPI_QR, UPI_INTENT, CARD, NET_BANKING, etc
+  gatewayResponse: jsonb("gateway_response"), // Full response from payment gateway
+  errorCode: varchar("error_code", { length: 100 }),
+  errorMessage: text("error_message"),
+  metadata: jsonb("metadata"), // Additional info like UDF fields, etc
+  webhookData: jsonb("webhook_data"), // Data received from webhooks
+  redirectUrl: text("redirect_url"), // URL to redirect user for payment
+  expiresAt: timestamp("expires_at"), // Payment link expiry
+  completedAt: timestamp("completed_at"), // When payment was completed
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Payment refunds table - tracks refund requests and status
+export const paymentRefunds = pgTable("payment_refunds", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  transactionId: varchar("transaction_id").references(() => paymentTransactions.id).notNull(),
+  orderId: varchar("order_id").references(() => orders.id).notNull(),
+  providerRefundId: varchar("provider_refund_id"), // PhonePe refundId, etc
+  merchantRefundId: varchar("merchant_refund_id").notNull(), // Our refund reference
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  reason: text("reason"),
+  status: varchar("status", { length: 50 }).notNull().default('initiated'), // initiated, pending, completed, failed
+  gatewayResponse: jsonb("gateway_response"), // Full response from payment gateway
+  errorCode: varchar("error_code", { length: 100 }),
+  errorMessage: text("error_message"),
+  completedAt: timestamp("completed_at"),
+  initiatedBy: varchar("initiated_by").references(() => admins.id), // Admin who initiated refund
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Offer redemptions table - tracks per-user usage
 export const offerRedemptions = pgTable("offer_redemptions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -259,6 +327,49 @@ export const userAddressesRelations = relations(userAddresses, ({ one }) => ({
   }),
 }));
 
+export const paymentProvidersRelations = relations(paymentProviders, ({ many }) => ({
+  settings: many(paymentProviderSettings),
+  transactions: many(paymentTransactions),
+}));
+
+export const paymentProviderSettingsRelations = relations(paymentProviderSettings, ({ one }) => ({
+  provider: one(paymentProviders, {
+    fields: [paymentProviderSettings.providerId],
+    references: [paymentProviders.id],
+  }),
+  updatedByAdmin: one(admins, {
+    fields: [paymentProviderSettings.updatedBy],
+    references: [admins.id],
+  }),
+}));
+
+export const paymentTransactionsRelations = relations(paymentTransactions, ({ one, many }) => ({
+  order: one(orders, {
+    fields: [paymentTransactions.orderId],
+    references: [orders.id],
+  }),
+  provider: one(paymentProviders, {
+    fields: [paymentTransactions.providerId],
+    references: [paymentProviders.id],
+  }),
+  refunds: many(paymentRefunds),
+}));
+
+export const paymentRefundsRelations = relations(paymentRefunds, ({ one }) => ({
+  transaction: one(paymentTransactions, {
+    fields: [paymentRefunds.transactionId],
+    references: [paymentTransactions.id],
+  }),
+  order: one(orders, {
+    fields: [paymentRefunds.orderId],
+    references: [orders.id],
+  }),
+  initiatedByAdmin: one(admins, {
+    fields: [paymentRefunds.initiatedBy],
+    references: [admins.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true, updatedAt: true });
@@ -274,6 +385,12 @@ export const insertCartItemSchema = createInsertSchema(cartItems).omit({ id: tru
 export const insertOtpSchema = createInsertSchema(otps).omit({ id: true, createdAt: true });
 export const insertUserAddressSchema = createInsertSchema(userAddresses).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAppSettingsSchema = createInsertSchema(appSettings).omit({ id: true, createdAt: true, updatedAt: true });
+
+// Payment provider schemas
+export const insertPaymentProviderSchema = createInsertSchema(paymentProviders).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPaymentProviderSettingsSchema = createInsertSchema(paymentProviderSettings).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPaymentTransactionSchema = createInsertSchema(paymentTransactions).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPaymentRefundSchema = createInsertSchema(paymentRefunds).omit({ id: true, createdAt: true, updatedAt: true });
 // SQL-like query operators
 const queryOperatorSchema = z.enum([
   "IN",
@@ -409,6 +526,16 @@ export type AppSettings = typeof appSettings.$inferSelect;
 export type InsertAppSettings = z.infer<typeof insertAppSettingsSchema>;
 export type ShippingRule = typeof shippingRules.$inferSelect;
 export type InsertShippingRule = z.infer<typeof insertShippingRuleSchema>;
+
+// Payment provider types
+export type PaymentProvider = typeof paymentProviders.$inferSelect;
+export type InsertPaymentProvider = z.infer<typeof insertPaymentProviderSchema>;
+export type PaymentProviderSettings = typeof paymentProviderSettings.$inferSelect;
+export type InsertPaymentProviderSettings = z.infer<typeof insertPaymentProviderSettingsSchema>;
+export type PaymentTransaction = typeof paymentTransactions.$inferSelect;
+export type InsertPaymentTransaction = z.infer<typeof insertPaymentTransactionSchema>;
+export type PaymentRefund = typeof paymentRefunds.$inferSelect;
+export type InsertPaymentRefund = z.infer<typeof insertPaymentRefundSchema>;
 
 // Query-based types
 export type QueryOperator = z.infer<typeof queryOperatorSchema>;
