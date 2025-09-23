@@ -80,12 +80,22 @@ export default function PaymentProvidersManagement() {
     
     if (!selectedProvider) return;
 
-    const settings = {
-      merchantId: formData.get('merchantId') as string,
-      saltKey: formData.get('saltKey') as string,
-      saltIndex: formData.get('saltIndex') as string,
-      webhookUrl: formData.get('webhookUrl') as string,
-    };
+    let settings: any = {};
+    
+    if (selectedProvider.name === 'phonepe') {
+      settings = {
+        merchantId: formData.get('merchantId') as string,
+        saltKey: formData.get('saltKey') as string,
+        saltIndex: formData.get('saltIndex') as string,
+        webhookUrl: formData.get('webhookUrl') as string,
+      };
+    } else if (selectedProvider.name === 'stripe') {
+      settings = {
+        publicKey: formData.get('publicKey') as string,
+        secretKey: formData.get('secretKey') as string,
+        webhookUrl: formData.get('webhookUrl') as string,
+      };
+    }
 
     const data = {
       providerId: selectedProvider.id,
@@ -243,7 +253,7 @@ export default function PaymentProvidersManagement() {
               </Tabs>
             </div>
 
-            {/* PhonePe Specific Settings */}
+            {/* Provider Specific Settings */}
             {selectedProvider?.name === 'phonepe' && (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -287,6 +297,52 @@ export default function PaymentProvidersManagement() {
                     type="url"
                     placeholder={`${window.location.origin}/api/payments/webhook/phonepe`}
                   />
+                </div>
+              </div>
+            )}
+
+            {/* Stripe Specific Settings */}
+            {selectedProvider?.name === 'stripe' && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="publicKey">Publishable Key (Client ID)</Label>
+                    <Input
+                      id="publicKey"
+                      name="publicKey"
+                      placeholder={selectedMode === 'test' ? "pk_test_..." : "pk_live_..."}
+                      required
+                    />
+                    <p className="text-xs text-gray-500">
+                      Get from Stripe Dashboard → API Keys → Publishable key
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="secretKey">Secret Key</Label>
+                    <Input
+                      id="secretKey"
+                      name="secretKey"
+                      type="password"
+                      placeholder={selectedMode === 'test' ? "sk_test_..." : "sk_live_..."}
+                      required
+                    />
+                    <p className="text-xs text-gray-500">
+                      Get from Stripe Dashboard → API Keys → Secret key
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="webhookUrl">Webhook URL (Optional)</Label>
+                  <Input
+                    id="webhookUrl"
+                    name="webhookUrl"
+                    type="url"
+                    placeholder={`${window.location.origin}/api/payments/webhook/stripe`}
+                  />
+                  <p className="text-xs text-gray-500">
+                    Configure in Stripe Dashboard → Webhooks
+                  </p>
                 </div>
               </div>
             )}
