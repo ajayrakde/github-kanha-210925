@@ -1,6 +1,6 @@
 import { otps, admins, influencers, users, type Otp, type InsertOtp } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gt, lt } from "drizzle-orm";
+import { eq, and, gt, lt, desc } from "drizzle-orm";
 import { createHash } from "crypto";
 import { settingsRepository } from "./storage";
 
@@ -22,18 +22,43 @@ export class OtpService {
   }
 
   // Verify OTP using configured SMS service provider
-  private async verifyOtpWithProvider(phone: string, otp: string): Promise<{ success: boolean; error?: string }> {
+  private async verifyOtpWithProvider(phone: string, otp: string, userType: string): Promise<{ success: boolean; error?: string }> {
     // Check SMS service provider setting
     const smsProviderSetting = await settingsRepository.getAppSetting('sms_service_provider');
     const smsProvider = smsProviderSetting?.value || '2Factor';
     
     if (smsProvider === 'Test') {
-      // Mock verification - check if OTP is a valid number
-      if (/^\d{4,8}$/.test(otp)) {
-        console.log(`🧪 TEST MODE - Mock OTP verification successful for +91${phone}: ${otp}`);
+      // Test mode - verify against stored hashed OTP in database
+      if (!/^\d{4,8}$/.test(otp)) {
+        return { success: false, error: 'Invalid OTP format (must be 4-8 digits)' };
+      }
+      
+      // Find the latest OTP record for this phone and user type
+      const [otpRecord] = await db.select()
+        .from(otps)
+        .where(
+          and(
+            eq(otps.phone, phone),
+            eq(otps.userType, userType),
+            eq(otps.isUsed, false)
+          )
+        )
+        .orderBy(desc(otps.createdAt))
+        .limit(1);
+
+      if (!otpRecord) {
+        console.log(`🧪 TEST MODE - No OTP session found for +91${phone}`);
+        return { success: false, error: 'No OTP session found' };
+      }
+
+      // Compare hashed OTP
+      const hashedInputOtp = this.hashOtp(otp);
+      if (otpRecord.otp === hashedInputOtp) {
+        console.log(`🧪 TEST MODE - OTP verification successful for +91${phone}: ${otp}`);
         return { success: true };
       } else {
-        return { success: false, error: 'Invalid OTP format (must be 4-8 digits)' };
+        console.log(`🧪 TEST MODE - OTP verification failed for +91${phone}: ${otp}`);
+        return { success: false, error: 'Invalid OTP' };
       }
     }
     
@@ -180,25 +205,28 @@ export class OtpService {
       
       const cleanPhone = phoneValidation.cleanPhone;
       
-      // Rate limiting: Check if OTP was sent in last 60 seconds
+      // Rate limiting: Check resend cooldown
+      const cooldownSetting = await settingsRepository.getAppSetting('otp_resend_cooldown_seconds');
+      const cooldownSeconds = cooldownSetting?.value ? parseInt(cooldownSetting.value) : 60;
+      const cooldownMs = cooldownSeconds * 1000;
+      
       const recentOtp = await db.select()
         .from(otps)
         .where(
           and(
             eq(otps.phone, cleanPhone),
-            eq(otps.userType, userType),
-            gt(otps.expiresAt, new Date())
+            eq(otps.userType, userType)
           )
         )
-        .orderBy(otps.createdAt)
+        .orderBy(desc(otps.createdAt))
         .limit(1);
 
       if (recentOtp.length > 0) {
         const timeDiff = Date.now() - new Date(recentOtp[0].createdAt!).getTime();
-        if (timeDiff < 60000) { // 60 seconds
+        if (timeDiff < cooldownMs) {
           return {
             success: false,
-            message: `Please wait ${Math.ceil((60000 - timeDiff) / 1000)} seconds before requesting another OTP`
+            message: `Please wait ${Math.ceil((cooldownMs - timeDiff) / 1000)} seconds before requesting another OTP`
           };
         }
       }
@@ -233,14 +261,30 @@ export class OtpService {
         };
       }
 
-      // Save session info to database for tracking (no OTP hash needed since 2Factor handles it)
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+      // Get OTP expiry time from settings
+      const expiryMinutesSetting = await settingsRepository.getAppSetting('otp_expiry_minutes');
+      const expiryMinutes = expiryMinutesSetting?.value ? parseInt(expiryMinutesSetting.value) : 5;
+      const expiresAt = new Date(Date.now() + expiryMinutes * 60 * 1000);
+      
+      // Invalidate any existing unused OTP sessions for this phone+userType to avoid ambiguity
+      await db.update(otps)
+        .set({ isUsed: true })
+        .where(
+          and(
+            eq(otps.phone, cleanPhone),
+            eq(otps.userType, userType),
+            eq(otps.isUsed, false)
+          )
+        );
+
+      // Store session info in database with proper OTP handling per provider
       const [otpRecord] = await db.insert(otps).values({
         phone: cleanPhone,
-        otp: smsResult.sessionId || 'twofactor-session', // Store session ID from 2Factor
+        otp: smsProvider === 'Test' ? this.hashOtp(otpToSend) : (smsResult.sessionId || 'twofactor-session'),
         userType,
         expiresAt,
-        isUsed: false
+        isUsed: false,
+        attempts: 0
       }).returning();
 
       return {
@@ -278,7 +322,7 @@ export class OtpService {
       const cleanPhone = phoneValidation.cleanPhone;
 
       // First verify with configured SMS service provider
-      const verificationResult = await this.verifyOtpWithProvider(cleanPhone, otp);
+      const verificationResult = await this.verifyOtpWithProvider(cleanPhone, otp, userType);
       
       if (!verificationResult.success) {
         console.log(`[OTP] Verification failed for +91${cleanPhone}: ${verificationResult.error}`);
@@ -288,29 +332,63 @@ export class OtpService {
         };
       }
 
+      // Get max attempts setting
+      const maxAttemptsSetting = await settingsRepository.getAppSetting('otp_max_attempts');
+      const maxAttempts = maxAttemptsSetting?.value ? parseInt(maxAttemptsSetting.value) : 3;
+
       // Find valid OTP record in our database (for session tracking)
+      const smsProviderSetting = await settingsRepository.getAppSetting('sms_service_provider');
+      const smsProvider = smsProviderSetting?.value || '2Factor';
+      
+      // For Test mode, we rely on database expiry. For 2Factor, we trust their expiry validation
+      const whereConditions = [
+        eq(otps.phone, cleanPhone),
+        eq(otps.userType, userType),
+        eq(otps.isUsed, false),
+        lt(otps.attempts, maxAttempts)
+      ];
+      
+      // Only add expiry check for Test mode (2Factor handles expiry via API)
+      if (smsProvider === 'Test') {
+        whereConditions.push(gt(otps.expiresAt, new Date()));
+      }
+
       const [otpRecord] = await db.select()
         .from(otps)
-        .where(
-          and(
-            eq(otps.phone, cleanPhone),
-            eq(otps.userType, userType),
-            eq(otps.isUsed, false),
-            gt(otps.expiresAt, new Date())
-          )
-        )
-        .orderBy(otps.createdAt)
+        .where(and(...whereConditions))
+        .orderBy(desc(otps.createdAt))
         .limit(1);
 
       if (!otpRecord) {
         console.log(`[OTP] No valid session found for +91${cleanPhone}`);
         return {
           success: false,
-          message: 'OTP session expired or invalid'
+          message: 'OTP session expired, used, or too many attempts'
         };
       }
 
-      // Mark OTP as used
+      // If verification failed, increment attempts and check lockout
+      if (!verificationResult.success) {
+        const newAttempts = (otpRecord.attempts || 0) + 1;
+        await db.update(otps)
+          .set({ attempts: newAttempts })
+          .where(eq(otps.id, otpRecord.id));
+          
+        if (newAttempts >= maxAttempts) {
+          console.log(`[OTP] Max attempts reached for +91${cleanPhone}`);
+          return {
+            success: false,
+            message: `Too many failed attempts. Please request a new OTP.`
+          };
+        }
+        
+        return {
+          success: false,
+          message: verificationResult.error || 'Invalid or expired OTP'
+        };
+      }
+
+      // Mark OTP as used on successful verification
       await db.update(otps)
         .set({ isUsed: true })
         .where(eq(otps.id, otpRecord.id));
