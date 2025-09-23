@@ -69,6 +69,7 @@ export const otps = pgTable("otps", {
   userType: varchar("user_type", { length: 20 }).notNull(), // 'buyer', 'influencer', 'admin'
   expiresAt: timestamp("expires_at").notNull(),
   isUsed: boolean("is_used").default(false),
+  attempts: integer("attempts").default(0), // Track failed verification attempts
   createdAt: timestamp("created_at").defaultNow(),
 });
 
