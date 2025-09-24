@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { PhonePeService } from '../services/phonepe-service';
-import { paymentsRepository } from '../storage';
+// import { paymentsRepository } from '../storage'; // Temporarily commented during payment system refactor
 import { insertPaymentProviderSchema, insertPaymentTransactionSchema } from '@shared/schema';
 import type { SessionRequest, RequireAdminMiddleware } from './types';
 import type { PaymentProvider, PaymentProviderSettings } from '@shared/schema';

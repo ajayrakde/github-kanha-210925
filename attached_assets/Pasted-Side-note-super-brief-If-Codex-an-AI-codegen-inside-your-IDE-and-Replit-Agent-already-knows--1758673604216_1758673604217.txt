@@ -1,0 +1,172 @@
+Side note (super brief): If “Codex” = an AI codegen inside your IDE, and Replit Agent already knows your whole project, Replit will usually integrate smoother (context, env, secrets). Codex-like tools can be great, but without full repo/secret context you’ll repeat yourself more.
+
+
+---
+
+✅ Final secret names (single-tenant, deterministic)
+
+Use one set per environment:
+
+TEST
+
+PAYAPP_TEST_RAZORPAY_KEY_SECRET
+
+PAYAPP_TEST_RAZORPAY_WEBHOOK_SECRET
+
+PAYAPP_TEST_PAYU_SALT
+
+PAYAPP_TEST_CCAVENUE_WORKING_KEY
+
+PAYAPP_TEST_CASHFREE_SECRET_KEY
+
+PAYAPP_TEST_CASHFREE_WEBHOOK_SECRET
+
+PAYAPP_TEST_PAYTM_MERCHANT_KEY
+
+PAYAPP_TEST_BILLDESK_CHECKSUM_KEY
+
+PAYAPP_TEST_PHONEPE_SALT
+
+PAYAPP_TEST_PHONEPE_WEBHOOK_SECRET
+
+PAYAPP_TEST_STRIPE_SECRET_KEY
+
+PAYAPP_TEST_STRIPE_WEBHOOK_SECRET
+
+
+LIVE
+
+PAYAPP_LIVE_RAZORPAY_KEY_SECRET
+
+PAYAPP_LIVE_RAZORPAY_WEBHOOK_SECRET
+
+PAYAPP_LIVE_PAYU_SALT
+
+PAYAPP_LIVE_CCAVENUE_WORKING_KEY
+
+PAYAPP_LIVE_CASHFREE_SECRET_KEY
+
+PAYAPP_LIVE_CASHFREE_WEBHOOK_SECRET
+
+PAYAPP_LIVE_PAYTM_MERCHANT_KEY
+
+PAYAPP_LIVE_BILLDESK_CHECKSUM_KEY
+
+PAYAPP_LIVE_PHONEPE_SALT
+
+PAYAPP_LIVE_PHONEPE_WEBHOOK_SECRET
+
+PAYAPP_LIVE_STRIPE_SECRET_KEY
+
+PAYAPP_LIVE_STRIPE_WEBHOOK_SECRET
+
+
+(Replace PAYAPP with your app prefix if you like.)
+
+
+---
+
+🧠 Single, token-efficient master prompt (broken into tasks)
+
+Paste this once. It instructs Replit to generate everything without us dumping code here.
+
+You are implementing a provider-agnostic payments layer for a single-tenant web app. 
+Providers: razorpay, payu, ccavenue, cashfree, paytm, billdesk, phonepe, stripe. 
+Environments: test, live. 
+Secrets are ONLY from Replit env vars with fixed names (see below). 
+No secrets in DB. Generate all code, migrations, handlers, and minimal admin UI.
+
+=== TASK 0: Assumptions ===
+- Language: Node.js + TypeScript.
+- ORM: Drizzle.
+- DB: use project default (SQLite or Postgres).
+- Framework: project default (Express/Nitro/etc.).
+- Replit Secrets to use exactly:
+  TEST: PAYAPP_TEST_RAZORPAY_KEY_SECRET, PAYAPP_TEST_RAZORPAY_WEBHOOK_SECRET, PAYAPP_TEST_PAYU_SALT, PAYAPP_TEST_CCAVENUE_WORKING_KEY, PAYAPP_TEST_CASHFREE_SECRET_KEY, PAYAPP_TEST_CASHFREE_WEBHOOK_SECRET, PAYAPP_TEST_PAYTM_MERCHANT_KEY, PAYAPP_TEST_BILLDESK_CHECKSUM_KEY, PAYAPP_TEST_PHONEPE_SALT, PAYAPP_TEST_PHONEPE_WEBHOOK_SECRET, PAYAPP_TEST_STRIPE_SECRET_KEY, PAYAPP_TEST_STRIPE_WEBHOOK_SECRET.
+  LIVE: same names with PAYAPP_LIVE_*.
+
+=== TASK 1: Drizzle schema (no secrets stored) ===
+Create tables:
+1) orders(id, tenant_id, currency, amount_minor, status: pending|paid|partially_refunded|refunded|cancelled, timestamps).
+2) payments(id, tenant_id, order_id FK, provider enum (8), environment test|live, provider_payment_id UNIQUE with provider, provider_order_id?, amount_authorized_minor?, amount_captured_minor default 0, amount_refunded_minor default 0, currency, status: created|requires_action|authorized|captured|failed|cancelled, failure_code?, failure_message?, method_kind?, method_brand?, last4?, timestamps).
+3) refunds(id, tenant_id, payment_id FK, provider, provider_refund_id UNIQUE with provider, amount_minor, status: pending|succeeded|failed, reason?, timestamps).
+4) payment_events(id, tenant_id, payment_id?, provider, type (e.g., payment.captured, refund.succeeded, webhook.received), data JSON, occurred_at).
+5) webhook_inbox(id, tenant_id, provider, dedupe_key UNIQUE with provider, signature_verified bool, payload JSON, received_at, processed_at?).
+6) idempotency_keys(key PK, tenant_id, scope, request_hash, response JSON, created_at).
+7) payment_provider_config (NON-SECRETS ONLY): id, tenant_id, provider enum, environment test|live, is_enabled bool, display_name, key_id, merchant_id, access_code, app_id, publishable_key, salt_index, account_id, success_url, failure_url, webhook_url, capabilities JSON, metadata JSON, timestamps, UNIQUE(tenant_id,provider,environment).
+
+=== TASK 2: Capability matrix & admin UI ===
+Create a constant capabilityMatrix for each provider with booleans: cards, upi, netbanking, wallets, refunds, payouts, tokenization, international, webhooks. 
+Admin UI:
+- Tabs: Test, Live.
+- Per provider card: enable switch, edit non-secret identifiers (key_id/merchant_id/app_id/access_code/publishable_key/salt_index/account_id), set URLs, capability checkboxes based on capabilityMatrix, “Health check” button.
+- No secret fields; show read-only computed env var names to copy.
+
+=== TASK 3: Secrets resolver (Replit) ===
+Build a SecretsResolver that, given (environment, provider), reads required env vars:
+- Razorpay: KEY_SECRET, WEBHOOK_SECRET
+- PayU: SALT
+- CCAvenue: WORKING_KEY
+- Cashfree: SECRET_KEY, WEBHOOK_SECRET
+- Paytm: MERCHANT_KEY
+- BillDesk: CHECKSUM_KEY
+- PhonePe: SALT, WEBHOOK_SECRET
+- Stripe: SECRET_KEY, WEBHOOK_SECRET
+Map to env names: PAYAPP_{ENV}_{PROVIDER}_{WHAT} where ENV=TEST|LIVE and PROVIDER/WHAT as above. 
+If missing → throw clear error listing expected keys. 
+(Keep prefix PAYAPP literal unless a project constant overrides.)
+
+=== TASK 4: Unified interfaces ===
+Define TS interfaces:
+- CreatePaymentParams { tenantId, amountMinor, currency, description?, metadata?, customer?, allowedMethods?, returnUrls? }
+- PaymentResult { id, status: requires_action|succeeded|failed|pending, nextAction? { type: redirect|sdk|none, url? }, raw? }
+- RefundResult { id, status: succeeded|failed|pending, raw? }
+- WebhookVerifyResult { ok: boolean, event?: { type, id, data } }
+- PaymentsAdapter { provider, capabilities(), createPayment(), capturePayment(), refundPayment(), verifyWebhook() }
+
+=== TASK 5: Core services ===
+- ConfigResolver: load enabled rows from payment_provider_config for (tenantId, env). Attach non-secrets and resolve secrets via SecretsResolver.
+- AdapterFactory: provider → adapter instance using config + secrets.
+- PaymentsService: methods createPayment, capturePayment, refundPayment; optional preferredProvider to route. Returns normalized results.
+- WebhookRouter: POST /webhooks/payments. Read raw body + headers. Load enabled configs for tenant/env. Try verifyWebhook on each adapter; first success → normalize and persist; else 400.
+
+=== TASK 6: Provider auth rules (implement inside adapters) ===
+- Razorpay: HTTP Basic with key_id:key_secret; webhook HMAC.
+- PayU: checksum with merchant key (identifier) + SALT (secret).
+- CCAvenue: AES using WORKING_KEY; uses merchant_id + access_code.
+- Cashfree: headers x-client-id=app_id, x-client-secret=SECRET_KEY; webhook secret.
+- Paytm: checksum with MERCHANT_KEY; uses mid (merchant_id).
+- BillDesk: checksum with CHECKSUM_KEY; uses merchant_id.
+- PhonePe: X-VERIFY = sha256(base64Body + endpoint + SALT) + '###' + saltIndex; webhook secret.
+- Stripe: Authorization: Bearer SECRET_KEY; verify Stripe-Signature with WEBHOOK_SECRET.
+
+=== TASK 7: State machine & mapping ===
+Payment transitions: created → requires_action → authorized → captured → failed|cancelled.
+- Update amounts: authorized, captured (sum), refunded (sum).
+- On each transition, insert payment_events.
+- Recompute orders.status after updates:
+  paid if sum(captured) ≥ order.amount and refunded==0;
+  partially_refunded if 0 < refunded < captured;
+  refunded if refunded == captured;
+  pending/cancelled otherwise.
+Support multiple payments per order.
+
+=== TASK 8: Idempotency & webhooks ===
+- For create/refund, require idempotency keys; store request hash + canonical response in idempotency_keys; on repeat, return saved response.
+- Webhooks: store raw verified payloads in webhook_inbox; dedupe by (provider, dedupe_key); mark processed_at; replay-safe.
+
+=== TASK 9: Errors, logging, safety ===
+- Normalize provider errors to { code, message, retryable }.
+- Retry only idempotent operations.
+- Mask identifiers in logs; never log secrets or entire signed payloads.
+- Guard against mixing test/live.
+- PCI: never store PAN/CVV; rely on provider tokenization/hosted UIs.
+
+=== TASK 10: Health checks & DX ===
+- Add per-provider health check used by Admin UI; minimal safe call (e.g., fetch account or create test intent/order).
+- Provide small docs/comments for how to set Replit secrets using the names above.
+
+Complete all tasks. Generate cohesive, production-friendly code and tests aligned to the project’s framework.
+
+If you want, I can also compress that master prompt even further, but this version stays compact while being explicit enough for Replit to wire up everything correctly.
+

@@ -104,18 +104,20 @@ export const offers = pgTable("offers", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// Orders table
+// Orders table - Updated for provider-agnostic payments
 export const orders = pgTable("orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().default('default'), // Single tenant app
   userId: varchar("user_id").references(() => users.id).notNull(),
-  status: varchar("status", { length: 50 }).default('pending'), // pending, confirmed, delivered, cancelled
+  currency: varchar("currency", { length: 3 }).notNull().default('INR'),
+  amountMinor: integer("amount_minor").notNull(), // Amount in smallest currency unit (paise for INR)
+  status: varchar("status", { length: 50 }).notNull().default('pending'), // pending|paid|partially_refunded|refunded|cancelled
+  // Legacy fields for backward compatibility
   subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
   discountAmount: decimal("discount_amount", { precision: 10, scale: 2 }).default(sql`'0'`),
   shippingCharge: decimal("shipping_charge", { precision: 10, scale: 2 }).default(sql`'50'`),
   total: decimal("total", { precision: 10, scale: 2 }).notNull(),
   offerId: varchar("offer_id").references(() => offers.id),
-  paymentMethod: varchar("payment_method", { length: 50 }),
-  paymentStatus: varchar("payment_status", { length: 50 }).default('pending'),
   deliveryAddressId: varchar("delivery_address_id").references(() => userAddresses.id).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -167,73 +169,113 @@ export const shippingRules = pgTable("shipping_rules", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// Payment providers table - defines available payment gateways
-export const paymentProviders = pgTable("payment_providers", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  name: varchar("name", { length: 100 }).notNull(), // 'phonepe', 'razorpay', 'stripe', etc
-  displayName: varchar("display_name", { length: 255 }).notNull(), // 'PhonePe', 'Razorpay', 'Stripe'
-  description: text("description"),
-  isEnabled: boolean("is_enabled").default(true),
-  isDefault: boolean("is_default").default(false), // Only one provider can be default
-  priority: integer("priority").default(0), // Order in which to try providers
-  supportedModes: text("supported_modes").array().notNull().default(['test', 'live']), // supported modes
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
+// Provider-agnostic payment system tables following TASK 1 specification
 
-// Payment provider settings - stores encrypted credentials and configuration
-export const paymentProviderSettings = pgTable("payment_provider_settings", {
+// Payments table - tracks individual payment attempts
+export const payments = pgTable("payments", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  providerId: varchar("provider_id").references(() => paymentProviders.id).notNull(),
-  mode: varchar("mode", { length: 20 }).notNull(), // 'test' or 'live'
-  settings: jsonb("settings").notNull(), // Encrypted credentials and config
-  isActive: boolean("is_active").default(false),
-  updatedBy: varchar("updated_by").references(() => admins.id), // admin who updated
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-// Payment transactions table - tracks all payment attempts
-export const paymentTransactions = pgTable("payment_transactions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().default('default'),
   orderId: varchar("order_id").references(() => orders.id).notNull(),
-  providerId: varchar("provider_id").references(() => paymentProviders.id).notNull(),
-  providerOrderId: varchar("provider_order_id"), // PhonePe orderId, Razorpay order_id, etc
-  merchantTransactionId: varchar("merchant_transaction_id"), // Our transaction reference
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  currency: varchar("currency", { length: 5 }).default('INR'),
-  status: varchar("status", { length: 50 }).notNull().default('initiated'), // initiated, pending, completed, failed, cancelled
-  paymentMode: varchar("payment_mode", { length: 50 }), // UPI_QR, UPI_INTENT, CARD, NET_BANKING, etc
-  gatewayResponse: jsonb("gateway_response"), // Full response from payment gateway
-  errorCode: varchar("error_code", { length: 100 }),
-  errorMessage: text("error_message"),
-  metadata: jsonb("metadata"), // Additional info like UDF fields, etc
-  webhookData: jsonb("webhook_data"), // Data received from webhooks
-  redirectUrl: text("redirect_url"), // URL to redirect user for payment
-  expiresAt: timestamp("expires_at"), // Payment link expiry
-  completedAt: timestamp("completed_at"), // When payment was completed
+  provider: varchar("provider", { length: 50 }).notNull(), // razorpay|payu|ccavenue|cashfree|paytm|billdesk|phonepe|stripe
+  environment: varchar("environment", { length: 10 }).notNull(), // test|live
+  providerPaymentId: varchar("provider_payment_id"),
+  providerOrderId: varchar("provider_order_id"),
+  amountAuthorizedMinor: integer("amount_authorized_minor"),
+  amountCapturedMinor: integer("amount_captured_minor").default(0),
+  amountRefundedMinor: integer("amount_refunded_minor").default(0),
+  currency: varchar("currency", { length: 3 }).notNull().default('INR'),
+  status: varchar("status", { length: 50 }).notNull().default('created'), // created|requires_action|authorized|captured|failed|cancelled
+  failureCode: varchar("failure_code", { length: 100 }),
+  failureMessage: text("failure_message"),
+  methodKind: varchar("method_kind", { length: 50 }), // card|upi|netbanking|wallet
+  methodBrand: varchar("method_brand", { length: 50 }), // visa|mastercard|amex|etc
+  last4: varchar("last4", { length: 4 }), // Last 4 digits of card
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => ({
+  // Unique constraint for provider payment ID within each provider
+  uniqueProviderPayment: sql`UNIQUE (provider, provider_payment_id)`
+}));
 
-// Payment refunds table - tracks refund requests and status
-export const paymentRefunds = pgTable("payment_refunds", {
+// Refunds table - tracks refund attempts
+export const refunds = pgTable("refunds", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  transactionId: varchar("transaction_id").references(() => paymentTransactions.id).notNull(),
-  orderId: varchar("order_id").references(() => orders.id).notNull(),
-  providerRefundId: varchar("provider_refund_id"), // PhonePe refundId, etc
-  merchantRefundId: varchar("merchant_refund_id").notNull(), // Our refund reference
-  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  tenantId: varchar("tenant_id").notNull().default('default'),
+  paymentId: varchar("payment_id").references(() => payments.id).notNull(),
+  provider: varchar("provider", { length: 50 }).notNull(),
+  providerRefundId: varchar("provider_refund_id"),
+  amountMinor: integer("amount_minor").notNull(),
+  status: varchar("status", { length: 50 }).notNull().default('pending'), // pending|succeeded|failed
   reason: text("reason"),
-  status: varchar("status", { length: 50 }).notNull().default('initiated'), // initiated, pending, completed, failed
-  gatewayResponse: jsonb("gateway_response"), // Full response from payment gateway
-  errorCode: varchar("error_code", { length: 100 }),
-  errorMessage: text("error_message"),
-  completedAt: timestamp("completed_at"),
-  initiatedBy: varchar("initiated_by").references(() => admins.id), // Admin who initiated refund
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  // Unique constraint for provider refund ID within each provider
+  uniqueProviderRefund: sql`UNIQUE (provider, provider_refund_id)`
+}));
+
+// Payment events table - audit trail for all payment-related events
+export const paymentEvents = pgTable("payment_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().default('default'),
+  paymentId: varchar("payment_id").references(() => payments.id),
+  provider: varchar("provider", { length: 50 }).notNull(),
+  type: varchar("type", { length: 100 }).notNull(), // payment.captured, refund.succeeded, webhook.received, etc
+  data: jsonb("data").notNull(),
+  occurredAt: timestamp("occurred_at").notNull().defaultNow(),
 });
+
+// Webhook inbox table - stores and deduplicates incoming webhooks
+export const webhookInbox = pgTable("webhook_inbox", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().default('default'),
+  provider: varchar("provider", { length: 50 }).notNull(),
+  dedupeKey: varchar("dedupe_key").notNull(),
+  signatureVerified: boolean("signature_verified").notNull(),
+  payload: jsonb("payload").notNull(),
+  receivedAt: timestamp("received_at").notNull().defaultNow(),
+  processedAt: timestamp("processed_at"),
+}, (table) => ({
+  // Unique constraint for dedupe key within each provider
+  uniqueDedupeKey: sql`UNIQUE (provider, dedupe_key)`
+}));
+
+// Idempotency keys table - ensures idempotent operations
+export const idempotencyKeys = pgTable("idempotency_keys", {
+  key: varchar("key").primaryKey(),
+  tenantId: varchar("tenant_id").notNull().default('default'),
+  scope: varchar("scope", { length: 100 }).notNull(), // payment|refund|etc
+  requestHash: text("request_hash").notNull(),
+  response: jsonb("response").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// Payment provider config table - stores non-secret configuration only
+export const paymentProviderConfig = pgTable("payment_provider_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().default('default'),
+  provider: varchar("provider", { length: 50 }).notNull(), // razorpay|payu|ccavenue|cashfree|paytm|billdesk|phonepe|stripe
+  environment: varchar("environment", { length: 10 }).notNull(), // test|live
+  isEnabled: boolean("is_enabled").notNull().default(false),
+  displayName: varchar("display_name", { length: 255 }),
+  keyId: varchar("key_id", { length: 255 }), // Razorpay key_id, public keys
+  merchantId: varchar("merchant_id", { length: 255 }), // Merchant identifier
+  accessCode: varchar("access_code", { length: 255 }), // CCAvenue access code
+  appId: varchar("app_id", { length: 255 }), // Cashfree app_id
+  publishableKey: varchar("publishable_key", { length: 255 }), // Stripe publishable key
+  saltIndex: integer("salt_index"), // PhonePe salt index
+  accountId: varchar("account_id", { length: 255 }), // Provider account identifier
+  successUrl: text("success_url"), // Payment success redirect
+  failureUrl: text("failure_url"), // Payment failure redirect
+  webhookUrl: text("webhook_url"), // Webhook endpoint
+  capabilities: jsonb("capabilities").notNull().default('{}'), // Supported features
+  metadata: jsonb("metadata").notNull().default('{}'), // Additional config
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  // Unique constraint for provider + environment per tenant
+  uniqueProviderEnv: sql`UNIQUE (tenant_id, provider, environment)`
+}));
 
 // Offer redemptions table - tracks per-user usage
 export const offerRedemptions = pgTable("offer_redemptions", {
@@ -286,6 +328,7 @@ export const ordersRelations = relations(orders, ({ one, many }) => ({
     fields: [orders.deliveryAddressId],
     references: [userAddresses.id],
   }),
+  payments: many(payments), // New relation to payments
 }));
 
 export const orderItemsRelations = relations(orderItems, ({ one }) => ({
@@ -328,46 +371,27 @@ export const userAddressesRelations = relations(userAddresses, ({ one }) => ({
   }),
 }));
 
-export const paymentProvidersRelations = relations(paymentProviders, ({ many }) => ({
-  settings: many(paymentProviderSettings),
-  transactions: many(paymentTransactions),
-}));
-
-export const paymentProviderSettingsRelations = relations(paymentProviderSettings, ({ one }) => ({
-  provider: one(paymentProviders, {
-    fields: [paymentProviderSettings.providerId],
-    references: [paymentProviders.id],
-  }),
-  updatedByAdmin: one(admins, {
-    fields: [paymentProviderSettings.updatedBy],
-    references: [admins.id],
-  }),
-}));
-
-export const paymentTransactionsRelations = relations(paymentTransactions, ({ one, many }) => ({
+// New payment system relations
+export const paymentsRelations = relations(payments, ({ one, many }) => ({
   order: one(orders, {
-    fields: [paymentTransactions.orderId],
+    fields: [payments.orderId],
     references: [orders.id],
   }),
-  provider: one(paymentProviders, {
-    fields: [paymentTransactions.providerId],
-    references: [paymentProviders.id],
-  }),
-  refunds: many(paymentRefunds),
+  refunds: many(refunds),
+  events: many(paymentEvents),
 }));
 
-export const paymentRefundsRelations = relations(paymentRefunds, ({ one }) => ({
-  transaction: one(paymentTransactions, {
-    fields: [paymentRefunds.transactionId],
-    references: [paymentTransactions.id],
+export const refundsRelations = relations(refunds, ({ one }) => ({
+  payment: one(payments, {
+    fields: [refunds.paymentId],
+    references: [payments.id],
   }),
-  order: one(orders, {
-    fields: [paymentRefunds.orderId],
-    references: [orders.id],
-  }),
-  initiatedByAdmin: one(admins, {
-    fields: [paymentRefunds.initiatedBy],
-    references: [admins.id],
+}));
+
+export const paymentEventsRelations = relations(paymentEvents, ({ one }) => ({
+  payment: one(payments, {
+    fields: [paymentEvents.paymentId],
+    references: [payments.id],
   }),
 }));
 
@@ -387,11 +411,13 @@ export const insertOtpSchema = createInsertSchema(otps).omit({ id: true, created
 export const insertUserAddressSchema = createInsertSchema(userAddresses).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAppSettingsSchema = createInsertSchema(appSettings).omit({ id: true, createdAt: true, updatedAt: true });
 
-// Payment provider schemas
-export const insertPaymentProviderSchema = createInsertSchema(paymentProviders).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertPaymentProviderSettingsSchema = createInsertSchema(paymentProviderSettings).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertPaymentTransactionSchema = createInsertSchema(paymentTransactions).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertPaymentRefundSchema = createInsertSchema(paymentRefunds).omit({ id: true, createdAt: true, updatedAt: true });
+// New payment system schemas
+export const insertPaymentSchema = createInsertSchema(payments).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertRefundSchema = createInsertSchema(refunds).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertPaymentEventSchema = createInsertSchema(paymentEvents).omit({ id: true });
+export const insertWebhookInboxSchema = createInsertSchema(webhookInbox).omit({ id: true });
+export const insertIdempotencyKeySchema = createInsertSchema(idempotencyKeys);
+export const insertPaymentProviderConfigSchema = createInsertSchema(paymentProviderConfig).omit({ id: true, createdAt: true, updatedAt: true });
 // SQL-like query operators
 const queryOperatorSchema = z.enum([
   "IN",
@@ -528,15 +554,19 @@ export type InsertAppSettings = z.infer<typeof insertAppSettingsSchema>;
 export type ShippingRule = typeof shippingRules.$inferSelect;
 export type InsertShippingRule = z.infer<typeof insertShippingRuleSchema>;
 
-// Payment provider types
-export type PaymentProvider = typeof paymentProviders.$inferSelect;
-export type InsertPaymentProvider = z.infer<typeof insertPaymentProviderSchema>;
-export type PaymentProviderSettings = typeof paymentProviderSettings.$inferSelect;
-export type InsertPaymentProviderSettings = z.infer<typeof insertPaymentProviderSettingsSchema>;
-export type PaymentTransaction = typeof paymentTransactions.$inferSelect;
-export type InsertPaymentTransaction = z.infer<typeof insertPaymentTransactionSchema>;
-export type PaymentRefund = typeof paymentRefunds.$inferSelect;
-export type InsertPaymentRefund = z.infer<typeof insertPaymentRefundSchema>;
+// New payment system types
+export type Payment = typeof payments.$inferSelect;
+export type InsertPayment = z.infer<typeof insertPaymentSchema>;
+export type Refund = typeof refunds.$inferSelect;
+export type InsertRefund = z.infer<typeof insertRefundSchema>;
+export type PaymentEvent = typeof paymentEvents.$inferSelect;
+export type InsertPaymentEvent = z.infer<typeof insertPaymentEventSchema>;
+export type WebhookInbox = typeof webhookInbox.$inferSelect;
+export type InsertWebhookInbox = z.infer<typeof insertWebhookInboxSchema>;
+export type IdempotencyKey = typeof idempotencyKeys.$inferSelect;
+export type InsertIdempotencyKey = z.infer<typeof insertIdempotencyKeySchema>;
+export type PaymentProviderConfig = typeof paymentProviderConfig.$inferSelect;
+export type InsertPaymentProviderConfig = z.infer<typeof insertPaymentProviderConfigSchema>;
 
 // Query-based types
 export type QueryOperator = z.infer<typeof queryOperatorSchema>;

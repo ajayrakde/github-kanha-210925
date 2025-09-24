@@ -4,7 +4,7 @@ import {
   usersRepository,
   ordersRepository,
   settingsRepository,
-  paymentsRepository,
+  // paymentsRepository, // Temporarily commented during payment system refactor
 } from "../storage";
 import type { RequireAdminMiddleware, SessionRequest } from "./types";
 
