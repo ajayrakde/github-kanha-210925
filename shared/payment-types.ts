@@ -344,7 +344,7 @@ export interface GatewayConfig {
  * Provider factory interface
  */
 export interface PaymentAdapterFactory {
-  createAdapter(provider: PaymentProvider, environment: Environment): PaymentsAdapter;
+  createAdapter(provider: PaymentProvider, environment: Environment): Promise<PaymentsAdapter>;
   getSupportedProviders(): PaymentProvider[];
   isProviderSupported(provider: PaymentProvider): boolean;
 }
