@@ -27,7 +27,10 @@ export class AdapterFactory implements PaymentAdapterFactory {
   private adapterRegistry = new Map<PaymentProvider, AdapterConstructor>();
   
   private constructor() {
-    this.initializeAdapterRegistry();
+    // Initialize adapters asynchronously
+    this.initializeAdapterRegistry().catch(error => {
+      console.error('Failed to initialize adapter registry:', error);
+    });
   }
   
   public static getInstance(): AdapterFactory {
@@ -38,18 +41,30 @@ export class AdapterFactory implements PaymentAdapterFactory {
   }
   
   /**
-   * Initialize adapter registry (will be completed in TASK 6)
+   * Initialize adapter registry with all payment provider implementations
    */
-  private initializeAdapterRegistry(): void {
-    // TODO: TASK 6 - Register actual adapter implementations
-    // this.adapterRegistry.set('razorpay', RazorpayAdapter);
+  private async initializeAdapterRegistry(): Promise<void> {
+    // Import and register implemented adapters using ES modules
+    const { RazorpayAdapter } = await import('../adapters/razorpay-adapter');
+    const { StripeAdapter } = await import('../adapters/stripe-adapter');
+    const { PhonePeAdapter } = await import('../adapters/phonepe-adapter');
+    
+    this.adapterRegistry.set('razorpay', RazorpayAdapter);
+    this.adapterRegistry.set('stripe', StripeAdapter);
+    this.adapterRegistry.set('phonepe', PhonePeAdapter);
+    
+    // TODO: Complete remaining adapters
+    // const { PayUAdapter } = await import('../adapters/payu-adapter');
+    // const { CCAvenuveAdapter } = await import('../adapters/ccavenue-adapter');
+    // const { CashfreeAdapter } = await import('../adapters/cashfree-adapter');
+    // const { PaytmAdapter } = await import('../adapters/paytm-adapter');
+    // const { BillDeskAdapter } = await import('../adapters/billdesk-adapter');
+    
     // this.adapterRegistry.set('payu', PayUAdapter);
     // this.adapterRegistry.set('ccavenue', CCAvenuveAdapter);
     // this.adapterRegistry.set('cashfree', CashfreeAdapter);
     // this.adapterRegistry.set('paytm', PaytmAdapter);
     // this.adapterRegistry.set('billdesk', BillDeskAdapter);
-    // this.adapterRegistry.set('phonepe', PhonePeAdapter);
-    // this.adapterRegistry.set('stripe', StripeAdapter);
   }
   
   /**

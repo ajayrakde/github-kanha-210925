@@ -1,465 +1,542 @@
+/**
+ * TASK 10: Provider-agnostic Payment API Routes
+ * 
+ * Complete payment system routes using our new PaymentsService,
+ * provider adapters, and unified interfaces for all 8 providers.
+ */
+
 import { Router } from 'express';
 import { z } from 'zod';
-import { PhonePeService } from '../services/phonepe-service';
-// import { paymentsRepository } from '../storage'; // Temporarily commented during payment system refactor
-import { insertPaymentProviderSchema, insertPaymentTransactionSchema } from '@shared/schema';
 import type { SessionRequest, RequireAdminMiddleware } from './types';
-import type { PaymentProvider, PaymentProviderSettings } from '@shared/schema';
-import { mergeProviderCredentials, validateProviderCredentials } from '../utils/payment-env';
+import { createPaymentsService } from '../services/payments-service';
+import { createWebhookRouter } from '../services/webhook-router';
+import { configResolver } from '../services/config-resolver';
+import { adapterFactory } from '../services/adapter-factory';
+import { idempotencyService } from '../services/idempotency-service';
+import type { 
+  CreatePaymentParams,
+  CreateRefundParams
+} from '../../shared/payment-types';
+import type { PaymentProvider, Environment } from '../../shared/payment-providers';
 
 export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   const router = Router();
+  
+  // Initialize services
+  const environment = (process.env.NODE_ENV === 'production' ? 'live' : 'test') as Environment;
+  const paymentsService = createPaymentsService({ environment });
+  const webhookRouter = createWebhookRouter(environment);
 
   // Input validation schemas
   const createPaymentSchema = z.object({
     orderId: z.string().min(1, 'Order ID is required'),
     amount: z.number().min(1, 'Amount must be greater than 0'),
-    redirectUrl: z.string().url('Invalid redirect URL'),
-    callbackUrl: z.string().url('Invalid callback URL'),
-    mobileNumber: z.string().optional(),
+    currency: z.enum(['INR', 'USD', 'EUR', 'GBP']).default('INR'),
+    provider: z.enum(['razorpay', 'stripe', 'phonepe', 'payu', 'ccavenue', 'cashfree', 'paytm', 'billdesk']).optional(),
+    customer: z.object({
+      name: z.string().optional(),
+      email: z.string().email().optional(),
+      phone: z.string().optional(),
+    }).default({}),
+    billing: z.object({
+      name: z.string().optional(),
+      address: z.string().optional(),
+      city: z.string().optional(),
+      state: z.string().optional(),
+      zipCode: z.string().optional(),
+      country: z.string().default('IN'),
+    }).optional(),
+    successUrl: z.string().url().optional(),
+    failureUrl: z.string().url().optional(),
+    description: z.string().optional(),
+    metadata: z.record(z.any()).default({}),
   });
 
-  const paymentStatusSchema = z.object({
-    merchantTransactionId: z.string().min(1, 'Transaction ID is required'),
+  const verifyPaymentSchema = z.object({
+    paymentId: z.string().min(1),
+    providerData: z.record(z.any()).optional(),
   });
 
-  const webhookCallbackSchema = z.object({
-    response: z.string().min(1, 'Response is required'),
+  const createRefundSchema = z.object({
+    paymentId: z.string().min(1),
+    amount: z.number().positive().optional(),
+    reason: z.string().optional(),
+    notes: z.string().optional(),
   });
 
-  // Create payment with PhonePe
+  const providerConfigSchema = z.object({
+    provider: z.enum(['razorpay', 'stripe', 'phonepe', 'payu', 'ccavenue', 'cashfree', 'paytm', 'billdesk']),
+    environment: z.enum(['test', 'live']),
+    isEnabled: z.boolean().default(false),
+    keyId: z.string().optional(),
+    merchantId: z.string().optional(),
+    accessCode: z.string().optional(),
+    appId: z.string().optional(),
+    publishableKey: z.string().optional(),
+    saltIndex: z.number().int().min(1).max(10).optional(),
+    accountId: z.string().optional(),
+    successUrl: z.string().url().optional(),
+    failureUrl: z.string().url().optional(),
+    webhookUrl: z.string().url().optional(),
+    capabilities: z.record(z.boolean()).default({}),
+    metadata: z.record(z.any()).default({}),
+  });
+
+  // ===== PAYMENT OPERATIONS =====
+
+  /**
+   * Create a new payment
+   * POST /api/payments/create
+   */
   router.post('/create', async (req, res) => {
     try {
       const validatedData = createPaymentSchema.parse(req.body);
       
-      // Get active payment provider (PhonePe)
-      const providers = await paymentsRepository.getPaymentProviders();
-      const phonePeProvider = providers.find((p: PaymentProvider) => p.name === 'phonepe' && p.isEnabled);
-    
-    if (!phonePeProvider) {
-      return res.status(400).json({
-        error: 'PhonePe payment provider is not available'
-      });
-    }
-
-      // Get active settings for the provider
-      const settings = await paymentsRepository.getPaymentProviderSettings(phonePeProvider.id);
-      const activeSettings = settings.find((s: PaymentProviderSettings) => s.isActive);
-    
-    if (!activeSettings) {
-      return res.status(400).json({
-        error: 'No active payment provider settings found'
-      });
-    }
-
-      // Initialize PhonePe service with merged credentials (env vars + database)
-      const settingsData = activeSettings.settings as any;
-      const mergedCredentials = mergeProviderCredentials('phonepe', settingsData);
-      
-      // Validate required credentials
-      const validation = validateProviderCredentials('phonepe', mergedCredentials, ['merchantId', 'saltKey', 'saltIndex']);
-      if (!validation.isValid) {
-        return res.status(400).json({
-          error: `Missing required PhonePe credentials: ${validation.missingFields.join(', ')}`,
-          missingFields: validation.missingFields
-        });
-      }
-      
-      const credentials = {
-        merchantId: mergedCredentials.merchantId,
-        saltKey: mergedCredentials.saltKey || mergedCredentials.secretKey, // Support both naming conventions
-        saltIndex: mergedCredentials.saltIndex,
-        apiHost: activeSettings.mode === 'test' 
-          ? 'https://api-preprod.phonepe.com/apis/hermes' 
-          : 'https://api.phonepe.com/apis/hermes'
-      };
-
-    const phonePeService = new PhonePeService(credentials);
-    
-    // Generate unique transaction ID
-    const merchantTransactionId = PhonePeService.generateTransactionId('ORDER');
-    
-    // Convert amount to paise
-    const amountInPaise = PhonePeService.rupeesToPaise(validatedData.amount);
-    
-    if (!PhonePeService.isValidAmount(amountInPaise)) {
-      return res.status(400).json({
-        error: 'Invalid payment amount. Minimum amount is ₹1'
-      });
-    }
-
-    // Create payment request
-    const paymentRequest = {
-      merchantTransactionId,
-      amount: amountInPaise,
-      merchantUserId: `USER_${Date.now()}`, // In real app, use actual user ID
-      redirectUrl: validatedData.redirectUrl,
-      redirectMode: 'GET' as const,
-      callbackUrl: validatedData.callbackUrl,
-      mobileNumber: validatedData.mobileNumber,
-      paymentInstrument: {
-        type: 'PAY_PAGE' as const
-      }
-    };
-
-    // Create payment with PhonePe
-    const paymentResponse = await phonePeService.createPayment(paymentRequest);
-    
-      // Store transaction in database
-      const transactionData = {
+      // Convert to our payment params format
+      const paymentParams: CreatePaymentParams = {
         orderId: validatedData.orderId,
-        providerId: phonePeProvider.id,
-        providerOrderId: paymentResponse.data?.transactionId || '',
-        merchantTransactionId,
-        amount: validatedData.amount.toString(),
-        currency: 'INR',
-        status: 'pending',
-        paymentMethod: 'phonepe',
+        orderAmount: Math.round(validatedData.amount * 100), // Convert to minor units (paise/cents)
+        currency: validatedData.currency,
+        customer: validatedData.customer,
+        billing: validatedData.billing,
+        successUrl: validatedData.successUrl || `${process.env.BASE_URL || 'http://localhost:3000'}/payment-success`,
+        failureUrl: validatedData.failureUrl || `${process.env.BASE_URL || 'http://localhost:3000'}/payment-failed`,
+        description: validatedData.description,
+        metadata: {
+          ...validatedData.metadata,
+          createdVia: 'api',
+          userAgent: req.headers['user-agent'],
+        },
+        idempotencyKey: req.headers['idempotency-key'] as string,
       };
-
-      await paymentsRepository.createPaymentTransaction(transactionData);
-    
-    res.json({
-      success: true,
-      data: {
-        merchantTransactionId,
-        redirectUrl: paymentResponse.data ? paymentResponse.data : null,
-        paymentResponse
-      }
-    });
-
-  } catch (error) {
-    console.error('Payment creation error:', error);
-    
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        error: 'Invalid request data',
-        details: error.errors
-      });
-    }
-    
-    res.status(500).json({
-      error: 'Payment creation failed',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-  // Check payment status
-  router.get('/status/:merchantTransactionId', async (req, res) => {
-    try {
-      const { merchantTransactionId } = paymentStatusSchema.parse(req.params);
       
-      // Get transaction from database
-      const transaction = await paymentsRepository.getPaymentTransactionByMerchantId(merchantTransactionId);
-    
-    if (!transaction) {
-      return res.status(404).json({
-        error: 'Transaction not found'
+      // Create payment with optional provider preference
+      const result = await paymentsService.createPayment(
+        paymentParams,
+        validatedData.provider as PaymentProvider
+      );
+      
+      res.json({
+        success: true,
+        data: {
+          paymentId: result.paymentId,
+          providerPaymentId: result.providerPaymentId,
+          status: result.status,
+          amount: result.amount,
+          currency: result.currency,
+          provider: result.provider,
+          redirectUrl: result.redirectUrl,
+          qrCodeData: result.qrCodeData,
+          providerData: result.providerData,
+          createdAt: result.createdAt,
+        }
+      });
+      
+    } catch (error) {
+      console.error('Payment creation error:', error);
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          error: 'Invalid request data',
+          details: error.errors
+        });
+      }
+      
+      res.status(500).json({
+        error: 'Payment creation failed',
+        message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
+  });
 
-      // Get payment provider
-      const provider = await paymentsRepository.getPaymentProviderById(transaction.providerId);
+  /**
+   * Verify a payment
+   * POST /api/payments/verify
+   */
+  router.post('/verify', async (req, res) => {
+    try {
+      const validatedData = verifyPaymentSchema.parse(req.body);
+      
+      const result = await paymentsService.verifyPayment({
+        paymentId: validatedData.paymentId,
+        providerData: validatedData.providerData,
+      });
+      
+      res.json({
+        success: true,
+        data: {
+          paymentId: result.paymentId,
+          status: result.status,
+          amount: result.amount,
+          currency: result.currency,
+          provider: result.provider,
+          method: result.method,
+          error: result.error,
+          updatedAt: result.updatedAt,
+        }
+      });
+      
+    } catch (error) {
+      console.error('Payment verification error:', error);
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          error: 'Invalid request data',
+          details: error.errors
+        });
+      }
+      
+      res.status(500).json({
+        error: 'Payment verification failed',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  /**
+   * Get payment status
+   * GET /api/payments/status/:paymentId
+   */
+  router.get('/status/:paymentId', async (req, res) => {
+    try {
+      const { paymentId } = req.params;
+      
+      if (!paymentId) {
+        return res.status(400).json({
+          error: 'Payment ID is required'
+        });
+      }
+      
+      // We'll verify the payment which also fetches the latest status
+      const result = await paymentsService.verifyPayment({
+        paymentId,
+      });
+      
+      res.json({
+        success: true,
+        data: {
+          paymentId: result.paymentId,
+          status: result.status,
+          amount: result.amount,
+          currency: result.currency,
+          provider: result.provider,
+          method: result.method,
+          error: result.error,
+          createdAt: result.createdAt,
+          updatedAt: result.updatedAt,
+        }
+      });
+      
+    } catch (error) {
+      console.error('Payment status check error:', error);
+      
+      res.status(500).json({
+        error: 'Payment status check failed',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // ===== REFUND OPERATIONS =====
+
+  /**
+   * Create a refund
+   * POST /api/payments/refunds
+   */
+  router.post('/refunds', async (req, res) => {
+    try {
+      const validatedData = createRefundSchema.parse(req.body);
+      
+      const refundParams: CreateRefundParams = {
+        paymentId: validatedData.paymentId,
+        amount: validatedData.amount ? Math.round(validatedData.amount * 100) : undefined, // Convert to minor units
+        reason: validatedData.reason,
+        notes: validatedData.notes,
+        idempotencyKey: req.headers['idempotency-key'] as string,
+      };
+      
+      const result = await paymentsService.createRefund(refundParams);
+      
+      res.json({
+        success: true,
+        data: {
+          refundId: result.refundId,
+          paymentId: result.paymentId,
+          amount: result.amount,
+          status: result.status,
+          reason: result.reason,
+          provider: result.provider,
+          createdAt: result.createdAt,
+        }
+      });
+      
+    } catch (error) {
+      console.error('Refund creation error:', error);
+      
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          error: 'Invalid request data',
+          details: error.errors
+        });
+      }
+      
+      res.status(500).json({
+        error: 'Refund creation failed',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  /**
+   * Get refund status
+   * GET /api/payments/refunds/:refundId
+   */
+  router.get('/refunds/:refundId', async (req, res) => {
+    try {
+      const { refundId } = req.params;
+      
+      if (!refundId) {
+        return res.status(400).json({
+          error: 'Refund ID is required'
+        });
+      }
+      
+      const result = await paymentsService.getRefundStatus(refundId);
+      
+      res.json({
+        success: true,
+        data: {
+          refundId: result.refundId,
+          paymentId: result.paymentId,
+          amount: result.amount,
+          status: result.status,
+          reason: result.reason,
+          provider: result.provider,
+          createdAt: result.createdAt,
+          updatedAt: result.updatedAt,
+        }
+      });
+      
+    } catch (error) {
+      console.error('Refund status check error:', error);
+      
+      res.status(500).json({
+        error: 'Refund status check failed',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // ===== WEBHOOK ENDPOINTS =====
+
+  /**
+   * Webhook handler for all providers
+   * POST /api/payments/webhook/:provider
+   */
+  router.post('/webhook/:provider', async (req, res) => {
+    try {
+      const provider = req.params.provider as PaymentProvider;
+      
       if (!provider) {
-        return res.status(500).json({
-          error: 'Payment provider not found'
-        });
-      }
-
-      // Get active settings
-      const settings = await paymentsRepository.getPaymentProviderSettings(provider.id);
-      const activeSettings = settings.find((s: PaymentProviderSettings) => s.isActive);
-    
-    if (!activeSettings) {
-      return res.status(500).json({
-        error: 'No active payment provider settings found'
-      });
-    }
-
-      // Initialize PhonePe service with merged credentials (env vars + database)
-      const settingsData = activeSettings.settings as any;
-      const mergedCredentials = mergeProviderCredentials('phonepe', settingsData);
-      
-      // Validate required credentials
-      const validation = validateProviderCredentials('phonepe', mergedCredentials, ['merchantId', 'saltKey', 'saltIndex']);
-      if (!validation.isValid) {
         return res.status(400).json({
-          error: `Missing required PhonePe credentials: ${validation.missingFields.join(', ')}`,
-          missingFields: validation.missingFields
+          error: 'Provider is required'
         });
       }
       
-      const credentials = {
-        merchantId: mergedCredentials.merchantId,
-        saltKey: mergedCredentials.saltKey || mergedCredentials.secretKey, // Support both naming conventions
-        saltIndex: mergedCredentials.saltIndex,
-        apiHost: activeSettings.mode === 'test' 
-          ? 'https://api-preprod.phonepe.com/apis/hermes' 
-          : 'https://api.phonepe.com/apis/hermes'
-      };
-
-    const phonePeService = new PhonePeService(credentials);
-    
-    // Check status with PhonePe
-    const statusResponse = await phonePeService.checkPaymentStatus(merchantTransactionId);
-    
-    // Update transaction status and sync with order
-    if (statusResponse.data) {
-      const newStatus = statusResponse.data.state === 'COMPLETED' ? 'completed' :
-                       statusResponse.data.state === 'FAILED' ? 'failed' : 'pending';
+      // Process webhook through our unified webhook router
+      const result = await webhookRouter.processWebhook(provider, req, res);
       
-        await paymentsRepository.updatePaymentTransactionAndSyncOrder(transaction.id, newStatus, {
-          providerOrderId: statusResponse.data.transactionId,
-          providerResponseData: statusResponse.data
-        });
-    }
-    
-    res.json({
-      success: true,
-      data: {
-        transaction,
-        statusResponse
-      }
-    });
-
-  } catch (error) {
-    console.error('Payment status check error:', error);
-    
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        error: 'Invalid request data',
-        details: error.errors
+      // Response is already sent by webhookRouter
+      return;
+      
+    } catch (error) {
+      console.error(`Webhook processing error for ${req.params.provider}:`, error);
+      
+      res.status(500).json({
+        error: 'Webhook processing failed',
+        message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
-    
-    res.status(500).json({
-      error: 'Payment status check failed',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
+  });
 
-  // Handle PhonePe webhook callback
-  router.post('/webhook/phonepe', async (req, res) => {
+  // ===== PROVIDER MANAGEMENT (Admin only) =====
+
+  /**
+   * Get all provider configurations
+   * GET /api/payments/admin/providers
+   */
+  router.get('/admin/provider-configs', requireAdmin, async (req: SessionRequest, res) => {
     try {
-      const xVerifyHeader = req.headers['x-verify'] as string;
-      const { response } = webhookCallbackSchema.parse(req.body);
+      const configs = await configResolver.getProviderStatus();
       
-      if (!xVerifyHeader) {
+      res.json({
+        success: true,
+        data: configs
+      });
+      
+    } catch (error) {
+      console.error('Error fetching provider configurations:', error);
+      res.status(500).json({
+        error: 'Failed to fetch provider configurations',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  /**
+   * Create or update provider configuration
+   * POST /api/payments/admin/provider-configs
+   */
+  router.post('/admin/provider-configs', requireAdmin, async (req: SessionRequest, res) => {
+    try {
+      const validatedData = providerConfigSchema.parse(req.body);
+      
+      await configResolver.updateConfig(validatedData);
+      
+      res.json({
+        success: true,
+        message: 'Provider configuration saved successfully'
+      });
+      
+    } catch (error) {
+      console.error('Error saving provider configuration:', error);
+      
+      if (error instanceof z.ZodError) {
         return res.status(400).json({
-          error: 'Missing X-VERIFY header'
+          error: 'Invalid configuration data',
+          details: error.errors
         });
       }
-
-      // Get PhonePe provider settings for webhook verification
-      const providers = await paymentsRepository.getPaymentProviders();
-      const phonePeProvider = providers.find((p: PaymentProvider) => p.name === 'phonepe' && p.isEnabled);
-    
-    if (!phonePeProvider) {
-      return res.status(400).json({
-        error: 'PhonePe provider not found'
-      });
-    }
-
-      const settings = await paymentsRepository.getPaymentProviderSettings(phonePeProvider.id);
-      const activeSettings = settings.find((s: PaymentProviderSettings) => s.isActive);
-    
-    if (!activeSettings) {
-      return res.status(500).json({
-        error: 'No active payment provider settings found'
-      });
-    }
-
-      // Initialize PhonePe service for callback verification
-      const settingsData = activeSettings.settings as any;
-      const credentials = {
-        merchantId: settingsData.merchantId,
-        saltKey: settingsData.saltKey,
-        saltIndex: settingsData.saltIndex,
-        apiHost: activeSettings.mode === 'test' 
-          ? 'https://api-preprod.phonepe.com/apis/hermes' 
-          : 'https://api.phonepe.com/apis/hermes'
-      };
-
-    const phonePeService = new PhonePeService(credentials);
-    
-    // Verify the callback
-    if (!phonePeService.verifyCallback(xVerifyHeader, response)) {
-      return res.status(401).json({
-        error: 'Invalid callback signature'
-      });
-    }
-
-    // Decode the response
-    const decodedResponse = phonePeService.decodeResponse(response);
-    
-    if (decodedResponse.success) {
-      const paymentData = decodedResponse.data;
       
-        // Update transaction status and sync with order
-        const transaction = await paymentsRepository.getPaymentTransactionByMerchantId(
-          paymentData.merchantTransactionId
-        );
-        
-        if (transaction) {
-          const newStatus = paymentData.state === 'COMPLETED' ? 'completed' :
-                           paymentData.state === 'FAILED' ? 'failed' : 'pending';
-          
-          await paymentsRepository.updatePaymentTransactionAndSyncOrder(transaction.id, newStatus, {
-            providerOrderId: paymentData.transactionId,
-            providerResponseData: paymentData
-          });
+      res.status(500).json({
+        error: 'Failed to save provider configuration',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  /**
+   * Health check for specific provider
+   * POST /api/payments/admin/providers/:provider/health-check
+   */
+  router.post('/admin/providers/:provider/health-check', requireAdmin, async (req: SessionRequest, res) => {
+    try {
+      const provider = req.params.provider as PaymentProvider;
+      const environment = (req.query.environment as Environment) || 'test';
+      
+      if (!provider) {
+        return res.status(400).json({
+          error: 'Provider is required'
+        });
+      }
+      
+      // Create adapter for health check
+      const adapter = await adapterFactory.createAdapter(provider, environment);
+      const result = await adapter.healthCheck();
+      
+      res.json({
+        success: true,
+        data: result
+      });
+      
+    } catch (error) {
+      console.error(`Health check error for ${req.params.provider}:`, error);
+      
+      res.status(500).json({
+        error: 'Health check failed',
+        message: error instanceof Error ? error.message : 'Unknown error',
+        provider: req.params.provider,
+        healthy: false
+      });
+    }
+  });
+
+  /**
+   * Get overall system health
+   * GET /api/payments/admin/health
+   */
+  router.get('/admin/health', requireAdmin, async (req: SessionRequest, res) => {
+    try {
+      const environment = (req.query.environment as Environment) || 'test';
+      const healthResults = await paymentsService.performHealthCheck();
+      
+      res.json({
+        success: true,
+        data: {
+          environment,
+          overall: healthResults.every(r => r.healthy),
+          providers: healthResults,
+          timestamp: new Date(),
         }
-    }
-    
-    // PhonePe expects a success response
-    res.json({ success: true });
-
-  } catch (error) {
-    console.error('Webhook processing error:', error);
-    
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        error: 'Invalid webhook data',
-        details: error.errors
       });
-    }
-    
-    res.status(500).json({
-      error: 'Webhook processing failed',
-      message: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
-
-// Payment Providers Management (Admin only)
-
-  // Get all payment providers
-  router.get('/providers', requireAdmin, async (req: SessionRequest, res) => {
-    try {
-      const providers = await paymentsRepository.getPaymentProviders();
-      res.json(providers);
+      
     } catch (error) {
-      console.error('Error fetching payment providers:', error);
+      console.error('System health check error:', error);
+      
       res.status(500).json({
-        error: 'Failed to fetch payment providers',
+        error: 'System health check failed',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
 
-  // Get payment provider settings
-  router.get('/providers/:providerId/settings', requireAdmin, async (req: SessionRequest, res) => {
+  // ===== UTILITY ENDPOINTS =====
+
+  /**
+   * Get supported providers and their capabilities
+   * GET /api/payments/providers
+   */
+  router.get('/providers', async (req, res) => {
     try {
-      const { providerId } = req.params;
-      const settings = await paymentsRepository.getPaymentProviderSettings(providerId);
-      res.json(settings);
+      const environment = (req.query.environment as Environment) || 'test';
+      const enabledConfigs = await configResolver.getEnabledProviders(environment);
+      
+      const providers = enabledConfigs.map(config => ({
+        provider: config.provider,
+        environment: config.environment,
+        displayName: config.capabilities.displayName || config.provider,
+        capabilities: config.capabilities,
+        supportedMethods: [], // Would be populated by adapter
+        supportedCurrencies: [], // Would be populated by adapter
+      }));
+      
+      res.json({
+        success: true,
+        data: providers
+      });
+      
     } catch (error) {
-      console.error('Error fetching provider settings:', error);
+      console.error('Error fetching available providers:', error);
+      
       res.status(500).json({
-        error: 'Failed to fetch provider settings',
+        error: 'Failed to fetch available providers',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
 
-  // Create or update payment provider settings
-  router.post('/providers/:providerId/settings', requireAdmin, async (req: SessionRequest, res) => {
+  /**
+   * Generate idempotency key
+   * GET /api/payments/idempotency-key
+   */
+  router.get('/idempotency-key', (req, res) => {
     try {
-      const { providerId } = req.params;
-      const settingsData = req.body;
+      const scope = (req.query.scope as string) || 'payment';
+      const key = idempotencyService.generateKey(scope);
       
-      // Validate settings data based on provider type
-      // This could be extended to support different validation schemas per provider
-      
-      const result = await paymentsRepository.createOrUpdatePaymentProviderSettings(providerId, settingsData);
-      res.json(result);
-    } catch (error) {
-      console.error('Error saving provider settings:', error);
-      res.status(500).json({
-        error: 'Failed to save provider settings',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  });
-
-  // Update payment provider (enable/disable, set as default, etc.)
-  router.patch('/providers/:providerId', requireAdmin, async (req: SessionRequest, res) => {
-    try {
-      const { providerId } = req.params;
-      const updateData = req.body;
-      
-      const updatedProvider = await paymentsRepository.updatePaymentProvider(providerId, updateData);
-      res.json(updatedProvider);
-    } catch (error) {
-      console.error('Error updating payment provider:', error);
-      res.status(500).json({
-        error: 'Failed to update payment provider',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  });
-
-  // Get payment transactions (Admin only)
-  router.get('/transactions', requireAdmin, async (req: SessionRequest, res) => {
-    try {
-      const page = parseInt(req.query.page as string) || 1;
-      const limit = parseInt(req.query.limit as string) || 20;
-      const status = req.query.status as string;
-      
-      const transactions = await paymentsRepository.getPaymentTransactions({
-        page,
-        limit,
-        status
-      });
-      
-      res.json(transactions);
-    } catch (error) {
-      console.error('Error fetching payment transactions:', error);
-      res.status(500).json({
-        error: 'Failed to fetch payment transactions',
-        message: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  });
-
-  // Get order with payment information (requires session or open access for thank-you page)
-  router.get('/order-info/:orderId', async (req: SessionRequest, res) => {
-    try {
-      const { orderId } = req.params;
-      
-      if (!orderId) {
-        return res.status(400).json({
-          error: 'Order ID is required'
-        });
-      }
-
-      // Get order with payment information
-      const orderInfo = await paymentsRepository.getOrderWithPaymentInfo(orderId);
-      
-      if (!orderInfo) {
-        return res.status(404).json({
-          error: 'Order not found'
-        });
-      }
-
-      // If user is authenticated, verify order ownership
-      if (req.session.userId) {
-        if (orderInfo.order.userId !== req.session.userId) {
-          return res.status(403).json({
-            error: 'Access denied - order does not belong to authenticated user'
-          });
+      res.json({
+        success: true,
+        data: {
+          idempotencyKey: key,
+          scope,
         }
-      }
-      // For unauthenticated access (thank-you page), we allow it but limit sensitive info
-      // This supports the e-commerce flow where users can see order status after checkout
-
-      res.json(orderInfo);
+      });
+      
     } catch (error) {
-      console.error('Error fetching order payment info:', error);
+      console.error('Error generating idempotency key:', error);
+      
       res.status(500).json({
-        error: 'Failed to fetch order information',
+        error: 'Failed to generate idempotency key',
         message: error instanceof Error ? error.message : 'Unknown error'
       });
     }

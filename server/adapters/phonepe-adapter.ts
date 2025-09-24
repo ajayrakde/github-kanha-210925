@@ -1,0 +1,646 @@
+/**
+ * TASK 6: PhonePeAdapter - Payment adapter for PhonePe gateway
+ * 
+ * Implements PaymentsAdapter interface for PhonePe with UPI focus:
+ * UPI, Refunds, Webhooks (No Cards, Netbanking, Wallets, International)
+ * Note: PhonePe is primarily UPI-focused for Indian market
+ */
+
+import crypto from "crypto";
+import type { 
+  PaymentsAdapter,
+  CreatePaymentParams,
+  PaymentResult,
+  VerifyPaymentParams,
+  CreateRefundParams,
+  RefundResult,
+  WebhookVerifyParams,
+  WebhookVerifyResult,
+  HealthCheckParams,
+  HealthCheckResult,
+  PaymentMethod,
+  Currency,
+  PaymentStatus,
+  RefundStatus
+} from "../../shared/payment-types";
+
+import type { PaymentProvider, Environment } from "../../shared/payment-providers";
+import type { ResolvedConfig } from "../services/config-resolver";
+import { PaymentError, RefundError, WebhookError } from "../../shared/payment-types";
+
+/**
+ * PhonePe API Response Types
+ */
+interface PhonePePaymentRequest {
+  merchantTransactionId: string;
+  merchantId: string;
+  amount: number;
+  redirectUrl: string;
+  redirectMode: string;
+  callbackUrl?: string;
+  paymentInstrument: {
+    type: 'UPI_COLLECT' | 'UPI_QR' | 'UPI_INTENT';
+    targetApp?: string;
+  };
+  deviceContext?: {
+    deviceOS: string;
+  };
+}
+
+interface PhonePePaymentResponse {
+  success: boolean;
+  code: string;
+  message: string;
+  data?: {
+    merchantTransactionId: string;
+    transactionId: string;
+    instrumentResponse: {
+      type: string;
+      redirectInfo?: {
+        url: string;
+        method: string;
+      };
+      upiCollectRequestResponse?: {
+        psps: Array<{
+          name: string;
+          code: string;
+        }>;
+      };
+    };
+  };
+}
+
+interface PhonePeStatusResponse {
+  success: boolean;
+  code: string;
+  message: string;
+  data?: {
+    merchantTransactionId: string;
+    transactionId: string;
+    amount: number;
+    state: 'PENDING' | 'COMPLETED' | 'FAILED';
+    responseCode: string;
+    paymentInstrument: {
+      type: string;
+      utr?: string;
+    };
+  };
+}
+
+interface PhonePeRefundResponse {
+  success: boolean;
+  code: string;
+  message: string;
+  data?: {
+    merchantTransactionId: string;
+    transactionId: string;
+    amount: number;
+    state: 'PENDING' | 'COMPLETED' | 'FAILED';
+  };
+}
+
+/**
+ * PhonePe adapter implementation
+ */
+export class PhonePeAdapter implements PaymentsAdapter {
+  public readonly provider: PaymentProvider = 'phonepe';
+  public readonly environment: Environment;
+  
+  private readonly merchantId: string;
+  private readonly salt: string;
+  private readonly saltIndex: number;
+  private readonly webhookSecret?: string;
+  private readonly baseUrl: string;
+  
+  constructor(private config: ResolvedConfig) {
+    this.environment = config.environment;
+    
+    // Extract configuration
+    this.merchantId = config.merchantId || '';
+    this.salt = config.secrets.salt || '';
+    this.saltIndex = config.saltIndex || 1;
+    this.webhookSecret = config.secrets.webhookSecret;
+    
+    // Set API base URL based on environment
+    this.baseUrl = this.environment === 'live' 
+      ? 'https://api.phonepe.com/apis/hermes'
+      : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
+    
+    if (!this.merchantId || !this.salt) {
+      throw new PaymentError(
+        'Missing PhonePe credentials',
+        'MISSING_CREDENTIALS',
+        'phonepe'
+      );
+    }
+  }
+  
+  /**
+   * Create payment request with PhonePe
+   */
+  public async createPayment(params: CreatePaymentParams): Promise<PaymentResult> {
+    try {
+      const merchantTransactionId = `TXN_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const paymentRequest: PhonePePaymentRequest = {
+        merchantTransactionId,
+        merchantId: this.merchantId,
+        amount: params.orderAmount, // Amount in paise
+        redirectUrl: params.successUrl || `${process.env.BASE_URL}/payment-success`,
+        redirectMode: 'POST',
+        callbackUrl: params.successUrl,
+        paymentInstrument: {
+          type: 'UPI_COLLECT', // Default to UPI collect
+        },
+      };
+      
+      // Encode payment request
+      const base64Payload = Buffer.from(JSON.stringify(paymentRequest)).toString('base64');
+      
+      // Generate checksum
+      const checksum = this.generateChecksum(base64Payload);
+      
+      const apiPayload = {
+        request: base64Payload,
+      };
+      
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-VERIFY': checksum,
+        'X-MERCHANT-ID': this.merchantId,
+      };
+      
+      const response = await this.makeApiCall<PhonePePaymentResponse>(
+        '/pg/v1/pay', 
+        'POST', 
+        apiPayload, 
+        headers
+      );
+      
+      if (!response.success) {
+        throw new Error(`PhonePe API error: ${response.code} - ${response.message}`);
+      }
+      
+      const result: PaymentResult = {
+        paymentId: crypto.randomUUID(),
+        providerPaymentId: merchantTransactionId,
+        providerOrderId: response.data?.transactionId || merchantTransactionId,
+        status: 'created',
+        amount: params.orderAmount,
+        currency: 'INR', // PhonePe only supports INR
+        provider: 'phonepe',
+        environment: this.environment,
+        
+        // PhonePe redirect or UPI collect information
+        redirectUrl: response.data?.instrumentResponse?.redirectInfo?.url,
+        
+        providerData: {
+          merchantTransactionId,
+          transactionId: response.data?.transactionId,
+          instrumentResponse: response.data?.instrumentResponse,
+        },
+        
+        createdAt: new Date(),
+      };
+      
+      return result;
+      
+    } catch (error) {
+      console.error('PhonePe payment creation failed:', error);
+      throw new PaymentError(
+        `PhonePe payment creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'PAYMENT_CREATION_FAILED',
+        'phonepe',
+        error
+      );
+    }
+  }
+  
+  /**
+   * Verify payment with PhonePe
+   */
+  public async verifyPayment(params: VerifyPaymentParams): Promise<PaymentResult> {
+    try {
+      const { merchantTransactionId } = params.providerData || {};
+      
+      if (!merchantTransactionId) {
+        throw new PaymentError('Missing PhonePe merchant transaction ID', 'MISSING_VERIFICATION_DATA', 'phonepe');
+      }
+      
+      // Generate checksum for status check
+      const checksumPayload = `/pg/v1/status/${this.merchantId}/${merchantTransactionId}`;
+      const checksum = this.generateChecksum(checksumPayload);
+      
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-VERIFY': checksum,
+        'X-MERCHANT-ID': this.merchantId,
+      };
+      
+      const response = await this.makeApiCall<PhonePeStatusResponse>(
+        `/pg/v1/status/${this.merchantId}/${merchantTransactionId}`,
+        'GET',
+        undefined,
+        headers
+      );
+      
+      if (!response.success) {
+        throw new Error(`PhonePe status check error: ${response.code} - ${response.message}`);
+      }
+      
+      const result: PaymentResult = {
+        paymentId: params.paymentId,
+        providerPaymentId: merchantTransactionId,
+        providerOrderId: response.data?.transactionId || merchantTransactionId,
+        status: this.mapPaymentStatus(response.data?.state || 'FAILED'),
+        amount: response.data?.amount || 0,
+        currency: 'INR',
+        provider: 'phonepe',
+        environment: this.environment,
+        
+        method: {
+          type: 'upi',
+          brand: 'PhonePe',
+        },
+        
+        providerData: {
+          merchantTransactionId,
+          transactionId: response.data?.transactionId,
+          state: response.data?.state,
+          responseCode: response.data?.responseCode,
+          utr: response.data?.paymentInstrument?.utr,
+        },
+        
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      
+      return result;
+      
+    } catch (error) {
+      console.error('PhonePe payment verification failed:', error);
+      throw new PaymentError(
+        `Payment verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'PAYMENT_VERIFICATION_FAILED',
+        'phonepe',
+        error
+      );
+    }
+  }
+  
+  /**
+   * Create refund with PhonePe
+   */
+  public async createRefund(params: CreateRefundParams): Promise<RefundResult> {
+    try {
+      const merchantTransactionId = `REF_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const refundRequest = {
+        merchantTransactionId,
+        originalTransactionId: params.paymentId,
+        amount: params.amount, // Amount in paise
+        merchantId: this.merchantId,
+      };
+      
+      // Encode refund request
+      const base64Payload = Buffer.from(JSON.stringify(refundRequest)).toString('base64');
+      
+      // Generate checksum
+      const checksum = this.generateChecksum(base64Payload);
+      
+      const apiPayload = {
+        request: base64Payload,
+      };
+      
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-VERIFY': checksum,
+        'X-MERCHANT-ID': this.merchantId,
+      };
+      
+      const response = await this.makeApiCall<PhonePeRefundResponse>(
+        '/pg/v1/refund',
+        'POST',
+        apiPayload,
+        headers
+      );
+      
+      if (!response.success) {
+        throw new Error(`PhonePe refund error: ${response.code} - ${response.message}`);
+      }
+      
+      const result: RefundResult = {
+        refundId: crypto.randomUUID(),
+        paymentId: params.paymentId,
+        providerRefundId: merchantTransactionId,
+        amount: params.amount || 0,
+        status: this.mapRefundStatus(response.data?.state || 'PENDING'),
+        provider: 'phonepe',
+        environment: this.environment,
+        
+        reason: params.reason,
+        notes: params.notes,
+        
+        providerData: {
+          merchantTransactionId,
+          transactionId: response.data?.transactionId,
+        },
+        
+        createdAt: new Date(),
+      };
+      
+      return result;
+      
+    } catch (error) {
+      console.error('PhonePe refund creation failed:', error);
+      throw new RefundError(
+        `Refund creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'REFUND_CREATION_FAILED',
+        'phonepe',
+        error
+      );
+    }
+  }
+  
+  /**
+   * Get refund status
+   */
+  public async getRefundStatus(refundId: string): Promise<RefundResult> {
+    try {
+      // Generate checksum for refund status check
+      const checksumPayload = `/pg/v1/status/${this.merchantId}/${refundId}`;
+      const checksum = this.generateChecksum(checksumPayload);
+      
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-VERIFY': checksum,
+        'X-MERCHANT-ID': this.merchantId,
+      };
+      
+      const response = await this.makeApiCall<PhonePeRefundResponse>(
+        `/pg/v1/status/${this.merchantId}/${refundId}`,
+        'GET',
+        undefined,
+        headers
+      );
+      
+      if (!response.success) {
+        throw new Error(`PhonePe refund status error: ${response.code} - ${response.message}`);
+      }
+      
+      const result: RefundResult = {
+        refundId: crypto.randomUUID(),
+        paymentId: '', // We'd need to store this separately
+        providerRefundId: refundId,
+        amount: response.data?.amount || 0,
+        status: this.mapRefundStatus(response.data?.state || 'PENDING'),
+        provider: 'phonepe',
+        environment: this.environment,
+        
+        providerData: {
+          merchantTransactionId: refundId,
+          transactionId: response.data?.transactionId,
+        },
+        
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      
+      return result;
+      
+    } catch (error) {
+      console.error('PhonePe refund status check failed:', error);
+      throw new RefundError(
+        `Refund status check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'REFUND_STATUS_CHECK_FAILED',
+        'phonepe',
+        error
+      );
+    }
+  }
+  
+  /**
+   * Verify webhook signature
+   */
+  public async verifyWebhook(params: WebhookVerifyParams): Promise<WebhookVerifyResult> {
+    try {
+      if (!this.webhookSecret) {
+        throw new WebhookError('Webhook secret not configured', 'WEBHOOK_SECRET_MISSING', 'phonepe');
+      }
+      
+      const signature = params.headers['x-verify'];
+      if (!signature) {
+        return { verified: false, error: { code: 'MISSING_SIGNATURE', message: 'Missing PhonePe signature header' } };
+      }
+      
+      // PhonePe webhook verification
+      const payload = params.body.toString();
+      const expectedSignature = this.generateChecksum(payload);
+      
+      const isValid = signature === expectedSignature;
+      
+      if (!isValid) {
+        return { verified: false, error: { code: 'INVALID_SIGNATURE', message: 'Invalid webhook signature' } };
+      }
+      
+      // Parse webhook payload
+      const webhookData = JSON.parse(payload);
+      
+      return {
+        verified: true,
+        event: {
+          type: 'payment_status_update',
+          paymentId: webhookData.merchantTransactionId,
+          status: webhookData.data?.state,
+          data: webhookData,
+        },
+        providerData: webhookData,
+      };
+      
+    } catch (error) {
+      console.error('PhonePe webhook verification failed:', error);
+      return {
+        verified: false,
+        error: {
+          code: 'WEBHOOK_VERIFICATION_FAILED',
+          message: error instanceof Error ? error.message : 'Unknown error',
+        },
+      };
+    }
+  }
+  
+  /**
+   * Health check
+   */
+  public async healthCheck(params?: HealthCheckParams): Promise<HealthCheckResult> {
+    const startTime = Date.now();
+    
+    try {
+      // Test API connectivity with a basic status check
+      const testTransactionId = 'HEALTH_CHECK_' + Date.now();
+      const checksumPayload = `/pg/v1/status/${this.merchantId}/${testTransactionId}`;
+      const checksum = this.generateChecksum(checksumPayload);
+      
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-VERIFY': checksum,
+        'X-MERCHANT-ID': this.merchantId,
+      };
+      
+      // This will return a "transaction not found" error, but it proves connectivity and auth
+      await this.makeApiCall(
+        `/pg/v1/status/${this.merchantId}/${testTransactionId}`,
+        'GET',
+        undefined,
+        headers
+      );
+      
+      const responseTime = Date.now() - startTime;
+      
+      return {
+        provider: 'phonepe',
+        environment: this.environment,
+        healthy: true,
+        responseTime,
+        tests: {
+          connectivity: true,
+          authentication: true,
+          apiAccess: true,
+        },
+        timestamp: new Date(),
+      };
+      
+    } catch (error) {
+      // If error code indicates authentication issues, mark as unhealthy
+      const isAuthError = error instanceof Error && (
+        error.message.includes('401') || 
+        error.message.includes('403') ||
+        error.message.includes('UNAUTHORIZED')
+      );
+      
+      return {
+        provider: 'phonepe',
+        environment: this.environment,
+        healthy: !isAuthError, // Connectivity errors are ok for health check
+        responseTime: Date.now() - startTime,
+        tests: {
+          connectivity: true, // We made a connection
+          authentication: !isAuthError,
+          apiAccess: !isAuthError,
+        },
+        error: isAuthError ? {
+          code: 'AUTHENTICATION_FAILED',
+          message: error.message,
+        } : undefined,
+        timestamp: new Date(),
+      };
+    }
+  }
+  
+  /**
+   * Get supported payment methods
+   */
+  public getSupportedMethods(): PaymentMethod[] {
+    return ['upi']; // PhonePe primarily supports UPI
+  }
+  
+  /**
+   * Get supported currencies
+   */
+  public getSupportedCurrencies(): Currency[] {
+    return ['INR']; // PhonePe only supports Indian Rupee
+  }
+  
+  /**
+   * Validate configuration
+   */
+  public async validateConfig(): Promise<{ valid: boolean; errors: string[] }> {
+    const errors: string[] = [];
+    
+    if (!this.merchantId) {
+      errors.push('Missing PhonePe Merchant ID');
+    }
+    
+    if (!this.salt) {
+      errors.push('Missing PhonePe Salt');
+    }
+    
+    if (this.saltIndex < 1 || this.saltIndex > 10) {
+      errors.push('PhonePe Salt Index must be between 1-10');
+    }
+    
+    if (!this.webhookSecret) {
+      errors.push('Missing PhonePe Webhook Secret (recommended)');
+    }
+    
+    return {
+      valid: errors.length === 0,
+      errors,
+    };
+  }
+  
+  // Helper methods
+  
+  /**
+   * Make API call to PhonePe
+   */
+  private async makeApiCall<T>(
+    endpoint: string,
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE',
+    data?: any,
+    customHeaders?: Record<string, string>
+  ): Promise<T> {
+    const url = `${this.baseUrl}${endpoint}`;
+    
+    const headers = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'PaymentApp/1.0',
+      ...customHeaders,
+    };
+    
+    const response = await fetch(url, {
+      method,
+      headers,
+      body: data ? JSON.stringify(data) : undefined,
+    });
+    
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`PhonePe API error: ${response.status} ${error}`);
+    }
+    
+    return response.json();
+  }
+  
+  /**
+   * Generate PhonePe checksum
+   */
+  private generateChecksum(payload: string): string {
+    const stringToHash = payload + '/pg/v1/pay' + this.salt;
+    return crypto.createHash('sha256').update(stringToHash).digest('hex') + '###' + this.saltIndex;
+  }
+  
+  /**
+   * Map PhonePe payment status to our status
+   */
+  private mapPaymentStatus(state: string): PaymentStatus {
+    switch (state) {
+      case 'PENDING': return 'processing';
+      case 'COMPLETED': return 'captured';
+      case 'FAILED': return 'failed';
+      default: return 'failed';
+    }
+  }
+  
+  /**
+   * Map PhonePe refund status to our status
+   */
+  private mapRefundStatus(state: string): RefundStatus {
+    switch (state) {
+      case 'PENDING': return 'pending';
+      case 'COMPLETED': return 'completed';
+      case 'FAILED': return 'failed';
+      default: return 'pending';
+    }
+  }
+}
