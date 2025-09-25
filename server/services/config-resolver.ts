@@ -82,28 +82,38 @@ export class ConfigResolver {
     // Get database configuration
     const dbConfig = await this.getDbConfig(provider, environment, tenantId);
     
-    // Resolve secrets
-    let secrets: ProviderSecrets;
-    try {
-      secrets = secretsResolver.resolveSecrets(provider, environment);
-    } catch (error) {
-      if (error instanceof ConfigurationError) {
-        throw error;
-      }
+    const isEnabled = dbConfig?.isEnabled ?? false;
 
-      throw new ConfigurationError(
-        `Failed to resolve secrets for ${provider} (${environment})`,
-        provider
-      );
+    // Resolve secrets only when the provider is enabled
+    let secrets: ProviderSecrets;
+    if (isEnabled) {
+      try {
+        secrets = secretsResolver.resolveSecrets(provider, environment);
+      } catch (error) {
+        if (error instanceof ConfigurationError) {
+          throw error;
+        }
+
+        throw new ConfigurationError(
+          `Failed to resolve secrets for ${provider} (${environment})`,
+          provider
+        );
+      }
+    } else {
+      secrets = {
+        provider,
+        environment,
+        environmentPrefix: `PAYAPP_${environment.toUpperCase()}_${provider.toUpperCase()}_`,
+      };
     }
 
     const validation = secretsResolver.validateSecrets(provider, environment);
-    
+
     // Combine configuration
     const resolvedConfig: ResolvedConfig = {
       provider,
       environment,
-      enabled: dbConfig?.isEnabled ?? false,
+      enabled: isEnabled,
       tenantId,
 
       // Database fields
