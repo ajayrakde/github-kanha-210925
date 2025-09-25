@@ -7,6 +7,7 @@
 
 import type { PaymentProvider, Environment } from "../../shared/payment-providers";
 import type { GatewayConfig } from "../../shared/payment-types";
+import { ConfigurationError } from "../../shared/payment-types";
 import { secretsResolver, ProviderSecrets } from "../utils/secrets-resolver";
 import { db } from "../db";
 import { paymentProviderConfig } from "../../shared/schema";
@@ -82,7 +83,20 @@ export class ConfigResolver {
     const dbConfig = await this.getDbConfig(provider, environment, tenantId);
     
     // Resolve secrets
-    const secrets = secretsResolver.resolveSecrets(provider, environment);
+    let secrets: ProviderSecrets;
+    try {
+      secrets = secretsResolver.resolveSecrets(provider, environment);
+    } catch (error) {
+      if (error instanceof ConfigurationError) {
+        throw error;
+      }
+
+      throw new ConfigurationError(
+        `Failed to resolve secrets for ${provider} (${environment})`,
+        provider
+      );
+    }
+
     const validation = secretsResolver.validateSecrets(provider, environment);
     
     // Combine configuration

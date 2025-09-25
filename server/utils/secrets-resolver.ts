@@ -8,10 +8,11 @@
  */
 
 // Import types from our shared schema
-import type { 
-  PaymentProvider, 
+import type {
+  PaymentProvider,
   Environment
 } from "../../shared/payment-providers";
+import { ConfigurationError } from "../../shared/payment-types";
 
 /**
  * Interface for provider secrets resolved from environment variables
@@ -67,64 +68,95 @@ export class SecretsResolver {
    */
   public resolveSecrets(provider: PaymentProvider, environment: Environment): ProviderSecrets {
     const cacheKey = `${provider}_${environment}`;
-    
+
     // Return cached secrets if available
     if (this.secretsCache.has(cacheKey)) {
       return this.secretsCache.get(cacheKey)!;
     }
-    
+
     const environmentPrefix = this.getEnvPrefix(provider, environment);
-    
+    const requiredEnvVars = this.getRequiredEnvVars(provider, environment);
+
+    const resolvedEnvValues: Record<string, string> = {};
+    const missingSecrets: string[] = [];
+
+    for (const envVar of requiredEnvVars) {
+      const value = process.env[envVar];
+      if (typeof value === "string" && value.trim() !== "") {
+        resolvedEnvValues[envVar] = value.trim();
+      } else {
+        missingSecrets.push(envVar);
+      }
+    }
+
+    if (missingSecrets.length > 0) {
+      throw new ConfigurationError(
+        `Missing required environment variables for ${provider} (${environment}): ${missingSecrets.join(', ')}`,
+        provider,
+        missingSecrets
+      );
+    }
+
+    const getOptionalEnvValue = (envVar: string): string | undefined => {
+      const value = process.env[envVar];
+      return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
+    };
+
     // Base secrets object
     const secrets: ProviderSecrets = {
       environmentPrefix,
       provider,
       environment,
     };
-    
+
     // Resolve provider-specific secrets based on PAYAPP_* pattern
     switch (provider) {
       case 'razorpay':
-        secrets.keySecret = process.env[`${environmentPrefix}KEY_SECRET`];
-        secrets.webhookSecret = process.env[`${environmentPrefix}WEBHOOK_SECRET`];
+        secrets.keySecret = resolvedEnvValues[`${environmentPrefix}KEY_SECRET`];
+        secrets.webhookSecret = resolvedEnvValues[`${environmentPrefix}WEBHOOK_SECRET`];
         break;
-        
+
       case 'payu':
-        secrets.salt = process.env[`${environmentPrefix}SALT`];
+        secrets.salt = resolvedEnvValues[`${environmentPrefix}SALT`];
         break;
-        
+
       case 'ccavenue':
-        secrets.workingKey = process.env[`${environmentPrefix}WORKING_KEY`];
+        secrets.workingKey = resolvedEnvValues[`${environmentPrefix}WORKING_KEY`];
         break;
-        
+
       case 'cashfree':
-        secrets.keySecret = process.env[`${environmentPrefix}SECRET_KEY`];
-        secrets.webhookSecret = process.env[`${environmentPrefix}WEBHOOK_SECRET`];
+        secrets.keySecret = resolvedEnvValues[`${environmentPrefix}SECRET_KEY`];
+        secrets.webhookSecret = resolvedEnvValues[`${environmentPrefix}WEBHOOK_SECRET`];
         break;
-        
+
       case 'paytm':
-        secrets.merchantKey = process.env[`${environmentPrefix}MERCHANT_KEY`];
+        secrets.merchantKey = resolvedEnvValues[`${environmentPrefix}MERCHANT_KEY`];
         break;
-        
+
       case 'billdesk':
-        secrets.checksumKey = process.env[`${environmentPrefix}CHECKSUM_KEY`];
+        secrets.checksumKey = resolvedEnvValues[`${environmentPrefix}CHECKSUM_KEY`];
         break;
-        
+
       case 'phonepe':
-        secrets.salt = process.env[`${environmentPrefix}SALT`];
-        secrets.webhookSecret = process.env[`${environmentPrefix}WEBHOOK_SECRET`];
+        secrets.salt = resolvedEnvValues[`${environmentPrefix}SALT`];
+        secrets.webhookSecret = resolvedEnvValues[`${environmentPrefix}WEBHOOK_SECRET`];
         // Parse salt index from environment (defaults to 1)
         {
-          const saltIndexStr = process.env[`${environmentPrefix}SALT_INDEX`];
-          secrets.saltIndex = saltIndexStr ? parseInt(saltIndexStr, 10) : undefined;
+          const saltIndexStr = getOptionalEnvValue(`${environmentPrefix}SALT_INDEX`);
+          if (saltIndexStr) {
+            const parsedSaltIndex = parseInt(saltIndexStr, 10);
+            if (!Number.isNaN(parsedSaltIndex)) {
+              secrets.saltIndex = parsedSaltIndex;
+            }
+          }
         }
         break;
-        
+
       case 'stripe':
-        secrets.keySecret = process.env[`${environmentPrefix}SECRET_KEY`];
-        secrets.webhookSecret = process.env[`${environmentPrefix}WEBHOOK_SECRET`];
+        secrets.keySecret = resolvedEnvValues[`${environmentPrefix}SECRET_KEY`];
+        secrets.webhookSecret = resolvedEnvValues[`${environmentPrefix}WEBHOOK_SECRET`];
         break;
-        
+
       default:
         throw new Error(`Unsupported payment provider: ${provider}`);
     }
@@ -148,15 +180,12 @@ export class SecretsResolver {
     missingSecrets: string[];
     availableSecrets: string[];
   } {
-    const secrets = this.resolveSecrets(provider, environment);
-    const environmentPrefix = secrets.environmentPrefix;
-    
     // Get required environment variable names for this provider
     const requiredEnvVars = this.getRequiredEnvVars(provider, environment);
-    
+
     const missingSecrets: string[] = [];
     const availableSecrets: string[] = [];
-    
+
     // Check each required environment variable
     for (const envVar of requiredEnvVars) {
       const value = process.env[envVar];
