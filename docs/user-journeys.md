@@ -62,9 +62,12 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - `/api/analytics` in `server/routes/analytics.ts`.  
    - Returned datasets and dashboards unchanged.
 
-5. **Settings**  
-   - `/api/admin/settings` in `server/routes/admin.ts`, backed by `settingsRepository`.  
+5. **Settings**
+   - `/api/admin/settings` in `server/routes/admin.ts`, backed by `settingsRepository`.
    - Setting keys/values and auditing semantics preserved.
+6. **Payment Providers**
+   - Enabling a gateway now requires matching Replit secrets to be present.
+   - Missing secrets cause an explicit configuration error instead of silently proceeding, ensuring admins fix misconfigurations before go-live.
 
 ---
 
@@ -93,3 +96,4 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
 ⚠️ **Next Step:** If future changes modify request/response contracts or flow logic, this document should be updated to capture:
 - Dependencies between repositories and routes.
 - Any changed behavior for buyers, admins, or influencers.
+- Payment enablement prerequisites for each environment.

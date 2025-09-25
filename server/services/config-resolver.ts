@@ -85,27 +85,27 @@ export class ConfigResolver {
       provider,
       environment,
       enabled: dbConfig?.isEnabled ?? false,
-      
+
       // Database fields
-      merchantId: dbConfig?.merchantId,
-      keyId: dbConfig?.keyId,
-      accessCode: dbConfig?.accessCode,
-      appId: dbConfig?.appId,
-      publishableKey: dbConfig?.publishableKey,
-      saltIndex: dbConfig?.saltIndex,
-      accountId: dbConfig?.accountId,
-      
+      merchantId: dbConfig?.merchantId ?? undefined,
+      keyId: dbConfig?.keyId ?? undefined,
+      accessCode: dbConfig?.accessCode ?? undefined,
+      appId: dbConfig?.appId ?? undefined,
+      publishableKey: dbConfig?.publishableKey ?? undefined,
+      saltIndex: dbConfig?.saltIndex ?? undefined,
+      accountId: dbConfig?.accountId ?? undefined,
+
       // URLs
-      successUrl: dbConfig?.successUrl,
-      failureUrl: dbConfig?.failureUrl,
-      webhookUrl: dbConfig?.webhookUrl,
-      
+      successUrl: dbConfig?.successUrl ?? undefined,
+      failureUrl: dbConfig?.failureUrl ?? undefined,
+      webhookUrl: dbConfig?.webhookUrl ?? undefined,
+
       // Secrets
       secrets,
-      
+
       // Capabilities and metadata
-      capabilities: dbConfig?.capabilities ?? {},
-      metadata: dbConfig?.metadata ?? {},
+      capabilities: (dbConfig?.capabilities as Record<string, boolean> | null) ?? {},
+      metadata: (dbConfig?.metadata as Record<string, any> | null) ?? {},
       
       // Validation
       isValid: validation.isValid && (dbConfig?.isEnabled ?? false),

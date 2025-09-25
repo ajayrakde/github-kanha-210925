@@ -1,5 +1,16 @@
 import { sql, relations } from "drizzle-orm";
-import { pgTable, text, varchar, integer, decimal, boolean, timestamp, jsonb, primaryKey } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  varchar,
+  integer,
+  decimal,
+  boolean,
+  timestamp,
+  jsonb,
+  primaryKey,
+  uniqueIndex,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -193,8 +204,9 @@ export const payments = pgTable("payments", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
-  // Unique constraint for provider payment ID within each provider
-  uniqueProviderPayment: sql`UNIQUE (provider, provider_payment_id)`
+  uniqueProviderPayment: uniqueIndex("payments_provider_payment_unique")
+    .on(table.provider, table.providerPaymentId)
+    .where(sql`${table.providerPaymentId} IS NOT NULL`),
 }));
 
 // Refunds table - tracks refund attempts
@@ -210,8 +222,9 @@ export const refunds = pgTable("refunds", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
-  // Unique constraint for provider refund ID within each provider
-  uniqueProviderRefund: sql`UNIQUE (provider, provider_refund_id)`
+  uniqueProviderRefund: uniqueIndex("refunds_provider_refund_unique")
+    .on(table.provider, table.providerRefundId)
+    .where(sql`${table.providerRefundId} IS NOT NULL`),
 }));
 
 // Payment events table - audit trail for all payment-related events
@@ -236,8 +249,8 @@ export const webhookInbox = pgTable("webhook_inbox", {
   receivedAt: timestamp("received_at").notNull().defaultNow(),
   processedAt: timestamp("processed_at"),
 }, (table) => ({
-  // Unique constraint for dedupe key within each provider
-  uniqueDedupeKey: sql`UNIQUE (provider, dedupe_key)`
+  uniqueDedupeKey: uniqueIndex("webhook_inbox_provider_dedupe_unique")
+    .on(table.provider, table.dedupeKey),
 }));
 
 // Idempotency keys table - ensures idempotent operations
@@ -273,8 +286,8 @@ export const paymentProviderConfig = pgTable("payment_provider_config", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
-  // Unique constraint for provider + environment per tenant
-  uniqueProviderEnv: sql`UNIQUE (tenant_id, provider, environment)`
+  uniqueProviderEnv: uniqueIndex("payment_provider_config_tenant_provider_env_unique")
+    .on(table.tenantId, table.provider, table.environment),
 }));
 
 // Offer redemptions table - tracks per-user usage

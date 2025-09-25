@@ -115,7 +115,7 @@ export class SecretsResolver {
         secrets.webhookSecret = process.env[`${environmentPrefix}WEBHOOK_SECRET`];
         // Parse salt index from environment (defaults to 1)
         const saltIndexStr = process.env[`${environmentPrefix}SALT_INDEX`];
-        secrets.saltIndex = saltIndexStr ? parseInt(saltIndexStr, 10) : 1;
+        secrets.saltIndex = saltIndexStr ? parseInt(saltIndexStr, 10) : undefined;
         break;
         
       case 'stripe':
@@ -125,6 +125,23 @@ export class SecretsResolver {
         
       default:
         throw new Error(`Unsupported payment provider: ${provider}`);
+    }
+
+    const missingSecrets = this.getRequiredEnvVars(provider, environment)
+      .filter(envVar => {
+        const value = process.env[envVar];
+        return !value || value.trim() === '';
+      });
+
+    if (missingSecrets.length > 0) {
+      throw new Error(
+        `Missing required secrets for ${provider} (${environment}). Set ${missingSecrets.join(', ')}`,
+      );
+    }
+
+    if (provider === 'phonepe' && !secrets.saltIndex) {
+      // Default only after validation succeeds (salt index optional but defaults to 1 when not provided)
+      secrets.saltIndex = 1;
     }
     
     // Cache the resolved secrets
