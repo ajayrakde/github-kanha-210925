@@ -7,11 +7,12 @@
  */
 
 import crypto from "crypto";
-import type { 
+import type {
   PaymentsAdapter,
   CreatePaymentParams,
   PaymentResult,
   VerifyPaymentParams,
+  CapturePaymentParams,
   CreateRefundParams,
   RefundResult,
   WebhookVerifyParams,
@@ -203,14 +204,76 @@ export class StripeAdapter implements PaymentsAdapter {
       );
     }
   }
-  
+
+  /**
+   * Capture a Stripe payment intent
+   */
+  public async capturePayment(params: CapturePaymentParams): Promise<PaymentResult> {
+    try {
+      const paymentIntentId = params.providerPaymentId || params.paymentId;
+      if (!paymentIntentId) {
+        throw new PaymentError('Missing Stripe Payment Intent ID', 'MISSING_PROVIDER_PAYMENT_ID', 'stripe');
+      }
+
+      const capturePayload: Record<string, any> = {};
+      if (params.amount) {
+        capturePayload.amount_to_capture = params.amount;
+      }
+
+      const paymentIntent = await this.makeApiCall<StripePaymentIntent>(
+        `/payment_intents/${paymentIntentId}/capture`,
+        'POST',
+        Object.keys(capturePayload).length ? capturePayload : undefined
+      );
+
+      const result: PaymentResult = {
+        paymentId: params.paymentId,
+        providerPaymentId: paymentIntent.id,
+        providerOrderId: paymentIntent.id,
+        status: this.mapPaymentIntentStatus(paymentIntent.status),
+        amount: paymentIntent.amount,
+        currency: paymentIntent.currency.toUpperCase() as Currency,
+        provider: 'stripe',
+        environment: this.environment,
+
+        method: paymentIntent.payment_method ? {
+          type: this.mapPaymentMethodType(paymentIntent.payment_method.type),
+          brand: paymentIntent.payment_method.card?.brand,
+          last4: paymentIntent.payment_method.card?.last4,
+        } : undefined,
+
+        providerData: {
+          stripePaymentIntentId: paymentIntent.id,
+        },
+
+        createdAt: new Date(paymentIntent.created * 1000),
+        updatedAt: new Date(),
+      };
+
+      return result;
+    } catch (error) {
+      console.error('Stripe capture failed:', error);
+      throw new PaymentError(
+        `Payment capture failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'PAYMENT_CAPTURE_FAILED',
+        'stripe',
+        error
+      );
+    }
+  }
+
   /**
    * Create refund with Stripe
    */
   public async createRefund(params: CreateRefundParams): Promise<RefundResult> {
     try {
+      const paymentIntentId = params.providerPaymentId || params.paymentId;
+      if (!paymentIntentId) {
+        throw new RefundError('Missing Stripe payment intent identifier', 'MISSING_PROVIDER_PAYMENT_ID', 'stripe');
+      }
+
       const refundData: any = {
-        payment_intent: params.paymentId,
+        payment_intent: paymentIntentId,
         metadata: {
           reason: params.reason,
           notes: params.notes,
@@ -227,10 +290,10 @@ export class StripeAdapter implements PaymentsAdapter {
       }
       
       const refund = await this.makeApiCall<StripeRefund>('/refunds', 'POST', refundData);
-      
+
       const result: RefundResult = {
         refundId: crypto.randomUUID(),
-        paymentId: refund.payment_intent,
+        paymentId: params.paymentId,
         providerRefundId: refund.id,
         amount: refund.amount,
         status: this.mapRefundStatus(refund.status),
@@ -242,6 +305,7 @@ export class StripeAdapter implements PaymentsAdapter {
         
         providerData: {
           stripeRefundId: refund.id,
+          stripePaymentIntentId: refund.payment_intent,
         },
         
         createdAt: new Date(refund.created * 1000),

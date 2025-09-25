@@ -50,16 +50,19 @@ export class WebhookRouter {
     req: Request,
     res: Response
   ): Promise<WebhookProcessResult> {
+    const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+
     try {
+
       // Extract headers and body
       const headers = this.extractHeaders(req);
       const body = this.extractBody(req);
-      
+
       // Create dedupe key from content
       const dedupeKey = this.createDedupeKey(provider, body);
-      
+
       // Check if webhook already processed
-      const existingWebhook = await this.getExistingWebhook(provider, dedupeKey);
+      const existingWebhook = await this.getExistingWebhook(provider, dedupeKey, tenantId);
       if (existingWebhook) {
         console.log(`Webhook already processed: ${provider}:${dedupeKey}`);
         res.status(200).json({ status: 'already_processed' });
@@ -67,7 +70,7 @@ export class WebhookRouter {
       }
       
       // Get adapter for verification
-      const adapter = await adapterFactory.createAdapter(provider, this.environment);
+      const adapter = await adapterFactory.createAdapter(provider, this.environment, tenantId);
       
       // Verify webhook signature
       const verifyParams: WebhookVerifyParams = {
@@ -81,7 +84,7 @@ export class WebhookRouter {
       const verifyResult = await adapter.verifyWebhook(verifyParams);
       
       // Store webhook in inbox
-      await this.storeWebhook(provider, dedupeKey, verifyResult.verified, {
+      await this.storeWebhook(provider, dedupeKey, verifyResult.verified, tenantId, {
         headers,
         body: typeof body === 'string' ? body : JSON.stringify(body),
       });
@@ -93,10 +96,10 @@ export class WebhookRouter {
       }
       
       // Process verified webhook
-      const processResult = await this.processVerifiedWebhook(verifyResult, adapter.provider);
-      
+      const processResult = await this.processVerifiedWebhook(verifyResult, adapter.provider, tenantId);
+
       // Mark webhook as processed
-      await this.markWebhookProcessed(provider, dedupeKey);
+      await this.markWebhookProcessed(provider, dedupeKey, tenantId);
       
       // Send appropriate response
       res.status(200).json({ status: 'processed', ...processResult });
@@ -115,7 +118,7 @@ export class WebhookRouter {
       try {
         const body = this.extractBody(req);
         const dedupeKey = this.createDedupeKey(provider, body);
-        await this.storeWebhook(provider, dedupeKey, false, {
+        await this.storeWebhook(provider, dedupeKey, false, tenantId, {
           headers: this.extractHeaders(req),
           body: typeof body === 'string' ? body : JSON.stringify(body),
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -138,7 +141,8 @@ export class WebhookRouter {
    */
   private async processVerifiedWebhook(
     verifyResult: WebhookVerifyResult,
-    provider: PaymentProvider
+    provider: PaymentProvider,
+    tenantId: string
   ): Promise<{
     eventId: string;
     paymentUpdated: boolean;
@@ -158,6 +162,7 @@ export class WebhookRouter {
       id: eventId,
       paymentId: event.paymentId,
       refundId: event.refundId,
+      tenantId,
       provider,
       environment: this.environment,
       type: event.type,
@@ -172,7 +177,8 @@ export class WebhookRouter {
       paymentUpdated = await this.updatePaymentStatus(
         event.paymentId,
         event.status,
-        event.data
+        event.data,
+        tenantId
       );
     }
     
@@ -181,7 +187,8 @@ export class WebhookRouter {
       refundUpdated = await this.updateRefundStatus(
         event.refundId,
         event.status,
-        event.data
+        event.data,
+        tenantId
       );
     }
     
@@ -194,7 +201,8 @@ export class WebhookRouter {
   private async updatePaymentStatus(
     paymentId: string,
     status: any,
-    data: Record<string, any>
+    data: Record<string, any>,
+    tenantId: string
   ): Promise<boolean> {
     try {
       const result = await db
@@ -203,7 +211,12 @@ export class WebhookRouter {
           status: status,
           updatedAt: new Date(),
         })
-        .where(eq(payments.id, paymentId));
+        .where(
+          and(
+            eq(payments.id, paymentId),
+            eq(payments.tenantId, tenantId)
+          )
+        );
       
       return (result.rowCount || 0) > 0;
     } catch (error) {
@@ -218,7 +231,8 @@ export class WebhookRouter {
   private async updateRefundStatus(
     refundId: string,
     status: any,
-    data: Record<string, any>
+    data: Record<string, any>,
+    tenantId: string
   ): Promise<boolean> {
     try {
       const result = await db
@@ -227,7 +241,12 @@ export class WebhookRouter {
           status: status,
           updatedAt: new Date(),
         })
-        .where(eq(refunds.id, refundId));
+        .where(
+          and(
+            eq(refunds.id, refundId),
+            eq(refunds.tenantId, tenantId)
+          )
+        );
       
       return (result.rowCount || 0) > 0;
     } catch (error) {
@@ -297,18 +316,19 @@ export class WebhookRouter {
   /**
    * Get existing webhook from inbox
    */
-  private async getExistingWebhook(provider: PaymentProvider, dedupeKey: string) {
+  private async getExistingWebhook(provider: PaymentProvider, dedupeKey: string, tenantId: string) {
     const result = await db
       .select()
       .from(webhookInbox)
       .where(
         and(
           eq(webhookInbox.provider, provider),
-          eq(webhookInbox.dedupeKey, dedupeKey)
+          eq(webhookInbox.dedupeKey, dedupeKey),
+          eq(webhookInbox.tenantId, tenantId)
         )
       )
       .limit(1);
-    
+
     return result[0] || null;
   }
   
@@ -319,6 +339,7 @@ export class WebhookRouter {
     provider: PaymentProvider,
     dedupeKey: string,
     verified: boolean,
+    tenantId: string,
     payload: Record<string, any>
   ): Promise<void> {
     await db.insert(webhookInbox).values({
@@ -328,13 +349,14 @@ export class WebhookRouter {
       signatureVerified: verified,
       payload,
       receivedAt: new Date(),
+      tenantId,
     });
   }
   
   /**
    * Mark webhook as processed
    */
-  private async markWebhookProcessed(provider: PaymentProvider, dedupeKey: string): Promise<void> {
+  private async markWebhookProcessed(provider: PaymentProvider, dedupeKey: string, tenantId: string): Promise<void> {
     await db
       .update(webhookInbox)
       .set({
@@ -343,7 +365,8 @@ export class WebhookRouter {
       .where(
         and(
           eq(webhookInbox.provider, provider),
-          eq(webhookInbox.dedupeKey, dedupeKey)
+          eq(webhookInbox.dedupeKey, dedupeKey),
+          eq(webhookInbox.tenantId, tenantId)
         )
       );
   }
@@ -355,6 +378,7 @@ export class WebhookRouter {
     await db.insert(paymentEvents).values({
       id: event.id,
       paymentId: event.paymentId,
+      tenantId: event.tenantId,
       provider: event.provider,
       type: event.type,
       data: event.data,

@@ -19,6 +19,7 @@ export interface ResolvedConfig {
   provider: PaymentProvider;
   environment: Environment;
   enabled: boolean;
+  tenantId: string;
   
   // Database configuration (non-secret)
   merchantId?: string;
@@ -65,8 +66,12 @@ export class ConfigResolver {
   /**
    * Resolve complete configuration for a provider
    */
-  public async resolveConfig(provider: PaymentProvider, environment: Environment): Promise<ResolvedConfig> {
-    const cacheKey = `${provider}_${environment}`;
+  public async resolveConfig(
+    provider: PaymentProvider,
+    environment: Environment,
+    tenantId: string = "default"
+  ): Promise<ResolvedConfig> {
+    const cacheKey = this.getCacheKey(provider, environment, tenantId);
     
     // Return cached config if available
     if (this.configCache.has(cacheKey)) {
@@ -74,7 +79,7 @@ export class ConfigResolver {
     }
     
     // Get database configuration
-    const dbConfig = await this.getDbConfig(provider, environment);
+    const dbConfig = await this.getDbConfig(provider, environment, tenantId);
     
     // Resolve secrets
     const secrets = secretsResolver.resolveSecrets(provider, environment);
@@ -85,6 +90,7 @@ export class ConfigResolver {
       provider,
       environment,
       enabled: dbConfig?.isEnabled ?? false,
+      tenantId,
 
       // Database fields
       merchantId: dbConfig?.merchantId ?? undefined,
@@ -121,7 +127,7 @@ export class ConfigResolver {
   /**
    * Get database configuration for provider
    */
-  private async getDbConfig(provider: PaymentProvider, environment: Environment) {
+  private async getDbConfig(provider: PaymentProvider, environment: Environment, tenantId: string) {
     try {
       const config = await db
         .select()
@@ -129,7 +135,8 @@ export class ConfigResolver {
         .where(
           and(
             eq(paymentProviderConfig.provider, provider),
-            eq(paymentProviderConfig.environment, environment)
+            eq(paymentProviderConfig.environment, environment),
+            eq(paymentProviderConfig.tenantId, tenantId)
           )
         )
         .limit(1);
@@ -144,14 +151,14 @@ export class ConfigResolver {
   /**
    * Get all enabled providers for an environment
    */
-  public async getEnabledProviders(environment: Environment): Promise<ResolvedConfig[]> {
+  public async getEnabledProviders(environment: Environment, tenantId: string = "default"): Promise<ResolvedConfig[]> {
     const allProviders: PaymentProvider[] = [
       'razorpay', 'payu', 'ccavenue', 'cashfree', 
       'paytm', 'billdesk', 'phonepe', 'stripe'
     ];
     
     const configs = await Promise.all(
-      allProviders.map(provider => this.resolveConfig(provider, environment))
+      allProviders.map(provider => this.resolveConfig(provider, environment, tenantId))
     );
     
     return configs.filter(config => config.enabled && config.isValid);
@@ -160,15 +167,19 @@ export class ConfigResolver {
   /**
    * Check if a specific provider is available
    */
-  public async isProviderAvailable(provider: PaymentProvider, environment: Environment): Promise<boolean> {
-    const config = await this.resolveConfig(provider, environment);
+  public async isProviderAvailable(
+    provider: PaymentProvider,
+    environment: Environment,
+    tenantId: string = "default"
+  ): Promise<boolean> {
+    const config = await this.resolveConfig(provider, environment, tenantId);
     return config.enabled && config.isValid;
   }
   
   /**
    * Get provider configuration for admin dashboard
    */
-  public async getProviderStatus(): Promise<Array<{
+  public async getProviderStatus(tenantId: string = "default"): Promise<Array<{
     provider: PaymentProvider;
     test: { enabled: boolean; configured: boolean; missingSecrets: string[] };
     live: { enabled: boolean; configured: boolean; missingSecrets: string[] };
@@ -180,8 +191,8 @@ export class ConfigResolver {
     
     const status = await Promise.all(
       allProviders.map(async (provider) => {
-        const testConfig = await this.resolveConfig(provider, 'test');
-        const liveConfig = await this.resolveConfig(provider, 'live');
+        const testConfig = await this.resolveConfig(provider, 'test', tenantId);
+        const liveConfig = await this.resolveConfig(provider, 'live', tenantId);
         
         return {
           provider,
@@ -209,9 +220,11 @@ export class ConfigResolver {
     if (!config.provider || !config.environment) {
       throw new Error('Provider and environment are required');
     }
+
+    const tenantId = config.tenantId ?? 'default';
     
     try {
-      const existingConfig = await this.getDbConfig(config.provider, config.environment);
+      const existingConfig = await this.getDbConfig(config.provider, config.environment, tenantId);
       
       if (existingConfig) {
         // Update existing configuration
@@ -236,7 +249,8 @@ export class ConfigResolver {
           .where(
             and(
               eq(paymentProviderConfig.provider, config.provider),
-              eq(paymentProviderConfig.environment, config.environment)
+              eq(paymentProviderConfig.environment, config.environment),
+              eq(paymentProviderConfig.tenantId, tenantId)
             )
           );
       } else {
@@ -246,6 +260,7 @@ export class ConfigResolver {
           .values({
             provider: config.provider,
             environment: config.environment,
+            tenantId,
             isEnabled: config.enabled ?? false,
             merchantId: config.merchantId,
             keyId: config.keyId,
@@ -263,7 +278,7 @@ export class ConfigResolver {
       }
       
       // Clear cache for this provider
-      const cacheKey = `${config.provider}_${config.environment}`;
+      const cacheKey = this.getCacheKey(config.provider, config.environment, tenantId);
       this.configCache.delete(cacheKey);
       
     } catch (error) {
@@ -282,8 +297,12 @@ export class ConfigResolver {
   /**
    * Get fallback provider order for an environment
    */
-  public async getFallbackProviders(environment: Environment, exclude?: PaymentProvider[]): Promise<PaymentProvider[]> {
-    const enabledConfigs = await this.getEnabledProviders(environment);
+  public async getFallbackProviders(
+    environment: Environment,
+    tenantId: string = 'default',
+    exclude?: PaymentProvider[]
+  ): Promise<PaymentProvider[]> {
+    const enabledConfigs = await this.getEnabledProviders(environment, tenantId);
     
     // Filter out excluded providers
     const filteredConfigs = enabledConfigs.filter(config => 
@@ -303,6 +322,10 @@ export class ConfigResolver {
         return indexA - indexB;
       })
       .map(config => config.provider);
+  }
+
+  private getCacheKey(provider: PaymentProvider, environment: Environment, tenantId: string): string {
+    return `${tenantId}_${provider}_${environment}`;
   }
 }
 

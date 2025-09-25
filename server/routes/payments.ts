@@ -92,6 +92,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     try {
       const validatedData = createPaymentSchema.parse(req.body);
       
+      const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+
       // Convert to our payment params format
       const paymentParams: CreatePaymentParams = {
         orderId: validatedData.orderId,
@@ -108,11 +110,13 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           userAgent: req.headers['user-agent'],
         },
         idempotencyKey: req.headers['idempotency-key'] as string,
+        tenantId,
       };
-      
+
       // Create payment with optional provider preference
       const result = await paymentsService.createPayment(
         paymentParams,
+        tenantId,
         validatedData.provider as PaymentProvider
       );
       
@@ -153,14 +157,16 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
    * Verify a payment
    * POST /api/payments/verify
    */
-  router.post('/verify', async (req, res) => {
-    try {
-      const validatedData = verifyPaymentSchema.parse(req.body);
-      
-      const result = await paymentsService.verifyPayment({
-        paymentId: validatedData.paymentId,
-        providerData: validatedData.providerData,
-      });
+    router.post('/verify', async (req, res) => {
+      try {
+        const validatedData = verifyPaymentSchema.parse(req.body);
+
+        const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+
+        const result = await paymentsService.verifyPayment({
+          paymentId: validatedData.paymentId,
+          providerData: validatedData.providerData,
+        }, tenantId);
       
       res.json({
         success: true,
@@ -207,10 +213,12 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         });
       }
       
+      const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+
       // We'll verify the payment which also fetches the latest status
       const result = await paymentsService.verifyPayment({
         paymentId,
-      });
+      }, tenantId);
       
       res.json({
         success: true,
@@ -247,6 +255,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     try {
       const validatedData = createRefundSchema.parse(req.body);
       
+      const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+
       const refundParams: CreateRefundParams = {
         paymentId: validatedData.paymentId,
         amount: validatedData.amount ? Math.round(validatedData.amount * 100) : undefined, // Convert to minor units
@@ -254,8 +264,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         notes: validatedData.notes,
         idempotencyKey: req.headers['idempotency-key'] as string,
       };
-      
-      const result = await paymentsService.createRefund(refundParams);
+
+      const result = await paymentsService.createRefund(refundParams, tenantId);
       
       res.json({
         success: true,
@@ -301,7 +311,9 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         });
       }
       
-      const result = await paymentsService.getRefundStatus(refundId);
+      const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+
+      const result = await paymentsService.getRefundStatus(refundId, tenantId);
       
       res.json({
         success: true,
@@ -367,7 +379,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
    */
   router.get('/admin/provider-configs', requireAdmin, async (req: SessionRequest, res) => {
     try {
-      const configs = await configResolver.getProviderStatus();
+      const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+      const configs = await configResolver.getProviderStatus(tenantId);
       
       res.json({
         success: true,
@@ -390,8 +403,9 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   router.post('/admin/provider-configs', requireAdmin, async (req: SessionRequest, res) => {
     try {
       const validatedData = providerConfigSchema.parse(req.body);
-      
-      await configResolver.updateConfig(validatedData);
+      const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+
+      await configResolver.updateConfig({ ...validatedData, tenantId });
       
       res.json({
         success: true,
@@ -430,8 +444,10 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         });
       }
       
+      const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+
       // Create adapter for health check
-      const adapter = await adapterFactory.createAdapter(provider, environment);
+      const adapter = await adapterFactory.createAdapter(provider, environment, tenantId);
       const result = await adapter.healthCheck();
       
       res.json({
@@ -458,7 +474,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   router.get('/admin/health', requireAdmin, async (req: SessionRequest, res) => {
     try {
       const environment = (req.query.environment as Environment) || 'test';
-      const healthResults = await paymentsService.performHealthCheck();
+      const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+      const healthResults = await paymentsService.performHealthCheck(tenantId);
       
       res.json({
         success: true,
@@ -489,7 +506,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   router.get('/providers', async (req, res) => {
     try {
       const environment = (req.query.environment as Environment) || 'test';
-      const enabledConfigs = await configResolver.getEnabledProviders(environment);
+      const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+      const enabledConfigs = await configResolver.getEnabledProviders(environment, tenantId);
       
       const providers = enabledConfigs.map(config => ({
         provider: config.provider,

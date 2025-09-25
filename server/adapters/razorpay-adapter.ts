@@ -6,11 +6,12 @@
  */
 
 import crypto from "crypto";
-import type { 
+import type {
   PaymentsAdapter,
   CreatePaymentParams,
   PaymentResult,
   VerifyPaymentParams,
+  CapturePaymentParams,
   CreateRefundParams,
   RefundResult,
   WebhookVerifyParams,
@@ -233,21 +234,86 @@ export class RazorpayAdapter implements PaymentsAdapter {
       );
     }
   }
-  
+
+  /**
+   * Capture a Razorpay payment
+   */
+  public async capturePayment(params: CapturePaymentParams): Promise<PaymentResult> {
+    try {
+      const providerPaymentId = params.providerPaymentId || params.paymentId;
+      if (!providerPaymentId) {
+        throw new PaymentError('Missing Razorpay payment identifier', 'MISSING_PROVIDER_PAYMENT_ID', 'razorpay');
+      }
+
+      let amountToCapture = params.amount;
+      if (!amountToCapture) {
+        const existingPayment = await this.makeApiCall<RazorpayPayment>(`/payments/${providerPaymentId}`, 'GET');
+        amountToCapture = existingPayment.amount;
+      }
+
+      const payment = await this.makeApiCall<RazorpayPayment>(
+        `/payments/${providerPaymentId}/capture`,
+        'POST',
+        { amount: amountToCapture }
+      );
+
+      const result: PaymentResult = {
+        paymentId: params.paymentId,
+        providerPaymentId: payment.id,
+        providerOrderId: payment.order_id,
+        status: this.mapPaymentStatus(payment.status),
+        amount: payment.amount,
+        currency: payment.currency as Currency,
+        provider: 'razorpay',
+        environment: this.environment,
+
+        method: {
+          type: this.mapPaymentMethod(payment.method),
+          brand: payment.card?.network || payment.wallet || payment.bank,
+          last4: payment.card?.last4,
+        },
+
+        providerData: {
+          razorpayPaymentId: payment.id,
+          razorpayOrderId: payment.order_id,
+          captured: payment.captured,
+        },
+
+        createdAt: new Date(payment.created_at * 1000),
+        updatedAt: new Date(),
+      };
+
+      return result;
+    } catch (error) {
+      console.error('Razorpay capture failed:', error);
+      throw new PaymentError(
+        `Payment capture failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        'PAYMENT_CAPTURE_FAILED',
+        'razorpay',
+        error
+      );
+    }
+  }
+
   /**
    * Create refund with Razorpay
    */
   public async createRefund(params: CreateRefundParams): Promise<RefundResult> {
     try {
+      const providerPaymentId = params.providerPaymentId || params.paymentId;
+      if (!providerPaymentId) {
+        throw new RefundError('Missing Razorpay payment identifier', 'MISSING_PROVIDER_PAYMENT_ID', 'razorpay');
+      }
+
       // Get payment details first to validate
-      const payment = await this.makeApiCall<RazorpayPayment>(`/payments/${params.paymentId}`, 'GET');
-      
+      const payment = await this.makeApiCall<RazorpayPayment>(`/payments/${providerPaymentId}`, 'GET');
+
       if (payment.status !== 'captured' && payment.status !== 'authorized') {
         throw new RefundError('Payment not eligible for refund', 'PAYMENT_NOT_REFUNDABLE', 'razorpay');
       }
-      
+
       const refundData: any = {
-        payment_id: params.paymentId,
+        payment_id: providerPaymentId,
         notes: {
           reason: params.reason,
           notes: params.notes,

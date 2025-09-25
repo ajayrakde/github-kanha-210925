@@ -102,10 +102,7 @@ export default function PaymentProvidersManagement() {
   // Create/update provider configuration
   const configMutation = useMutation({
     mutationFn: async (data: ProviderConfigData) => {
-      return apiRequest('/api/admin/payment-provider-configs', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
+      return apiRequest('POST', '/api/admin/payment-provider-configs', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/payment-provider-configs'] });
@@ -120,9 +117,7 @@ export default function PaymentProvidersManagement() {
   // Health check mutation
   const healthCheckMutation = useMutation({
     mutationFn: async ({ provider, environment }: { provider: PaymentProvider, environment: Environment }) => {
-      return apiRequest(`/api/admin/payment-providers/${provider}/health-check?environment=${environment}`, {
-        method: 'POST',
-      });
+      return apiRequest('POST', `/api/admin/payment-providers/${provider}/health-check?environment=${environment}`);
     },
     onSuccess: (_, { provider, environment }) => {
       const key = `${provider}-${environment}`;

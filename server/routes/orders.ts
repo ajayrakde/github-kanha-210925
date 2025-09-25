@@ -177,6 +177,7 @@ export function createOrdersRouter() {
         discountAmount: discountAmount.toString(),
         shippingCharge: shippingCharge.toString(),
         total: total.toString(),
+        amountMinor: Math.round(total * 100),
         offerId: appliedOffer?.id,
         paymentMethod,
         paymentStatus: "completed" as const,
