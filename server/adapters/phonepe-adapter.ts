@@ -159,7 +159,7 @@ export class PhonePeAdapter implements PaymentsAdapter {
       const base64Payload = Buffer.from(JSON.stringify(paymentRequest)).toString('base64');
       
       // Generate checksum
-      const checksum = this.generateChecksum(base64Payload);
+      const checksum = this.generateChecksum('/pg/v1/pay', base64Payload);
       
       const apiPayload = {
         request: base64Payload,
@@ -319,7 +319,7 @@ export class PhonePeAdapter implements PaymentsAdapter {
       const base64Payload = Buffer.from(JSON.stringify(refundRequest)).toString('base64');
       
       // Generate checksum
-      const checksum = this.generateChecksum(base64Payload);
+      const checksum = this.generateChecksum('/pg/v1/refund', base64Payload);
       
       const apiPayload = {
         request: base64Payload,
@@ -404,7 +404,7 @@ export class PhonePeAdapter implements PaymentsAdapter {
       
       const result: RefundResult = {
         refundId: crypto.randomUUID(),
-        paymentId: '', // We'd need to store this separately
+        paymentId: response.data?.transactionId || response.data?.merchantTransactionId || refundId,
         providerRefundId: refundId,
         amount: response.data?.amount || 0,
         status: this.mapRefundStatus(response.data?.state || 'PENDING'),
@@ -449,9 +449,7 @@ export class PhonePeAdapter implements PaymentsAdapter {
       
       // PhonePe webhook verification
       const payload = params.body.toString();
-      const expectedSignature = this.generateChecksum(payload);
-      
-      const isValid = signature === expectedSignature;
+      const isValid = this.verifyWebhookSignature(payload, signature);
       
       if (!isValid) {
         return { verified: false, error: { code: 'INVALID_SIGNATURE', message: 'Invalid webhook signature' } };
@@ -629,9 +627,32 @@ export class PhonePeAdapter implements PaymentsAdapter {
   /**
    * Generate PhonePe checksum
    */
-  private generateChecksum(payload: string): string {
-    const stringToHash = payload + '/pg/v1/pay' + this.salt;
-    return crypto.createHash('sha256').update(stringToHash).digest('hex') + '###' + this.saltIndex;
+  private generateChecksum(endpoint: string, payload: string = ''): string {
+    const stringToHash = `${payload}${endpoint}${this.salt}`;
+    const hash = crypto.createHash('sha256').update(stringToHash).digest('hex');
+    return `${hash}###${this.saltIndex}`;
+  }
+
+  private verifyWebhookSignature(payload: string, signature: string): boolean {
+    if (!this.webhookSecret) {
+      return false;
+    }
+
+    const [signatureHash] = signature.split('###');
+    if (!signatureHash) {
+      return false;
+    }
+
+    const expected = crypto
+      .createHmac('sha256', this.webhookSecret)
+      .update(payload, 'utf8')
+      .digest('hex');
+
+    try {
+      return crypto.timingSafeEqual(Buffer.from(signatureHash, 'hex'), Buffer.from(expected, 'hex'));
+    } catch {
+      return false;
+    }
   }
   
   /**

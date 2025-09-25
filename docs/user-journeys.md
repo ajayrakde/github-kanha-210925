@@ -68,6 +68,7 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
 6. **Payment Providers**
    - Enabling a gateway now requires matching Replit secrets to be present.
    - Missing secrets cause an explicit configuration error instead of silently proceeding, ensuring admins fix misconfigurations before go-live.
+   - Webhook ingestion now auto-detects the correct provider across all enabled configs per tenant and deduplicates payloads with tenant-aware hashes, preventing cross-tenant collisions.
 
 ---
 
