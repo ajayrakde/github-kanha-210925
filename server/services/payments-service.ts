@@ -22,29 +22,35 @@ import type {
 } from "../../shared/payment-types";
 
 import { adapterFactory } from "./adapter-factory";
-import { configResolver } from "./config-resolver";
 import { idempotencyService } from "./idempotency-service";
 import { PaymentError, RefundError, ConfigurationError } from "../../shared/payment-types";
 import { db } from "../db";
 import { payments, refunds, paymentEvents } from "../../shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
 
 /**
  * Main payments service orchestrating all payment operations
  */
 export class PaymentsService {
-  private static instance: PaymentsService;
+  private static instances = new Map<string, PaymentsService>();
   
   private constructor(
     private config: PaymentServiceConfig
   ) {}
   
   public static getInstance(config: PaymentServiceConfig): PaymentsService {
-    if (!PaymentsService.instance) {
-      PaymentsService.instance = new PaymentsService(config);
+    const key = JSON.stringify({
+      environment: config.environment,
+      defaultProvider: config.defaultProvider,
+      fallbackProviders: config.fallbackProviders,
+    });
+
+    if (!PaymentsService.instances.has(key)) {
+      PaymentsService.instances.set(key, new PaymentsService(config));
     }
-    return PaymentsService.instance;
+
+    return PaymentsService.instances.get(key)!;
   }
   
   /**
@@ -52,10 +58,13 @@ export class PaymentsService {
    */
   public async createPayment(
     params: CreatePaymentParams,
+    tenantId: string,
     preferredProvider?: PaymentProvider
   ): Promise<PaymentResult> {
     // Generate idempotency key if not provided
     const idempotencyKey = params.idempotencyKey || idempotencyService.generateKey('payment');
+
+    const resolvedTenantId = tenantId || params.tenantId || 'default';
     
     // Execute with idempotency protection
     return await idempotencyService.executeWithIdempotency(
@@ -68,9 +77,9 @@ export class PaymentsService {
           
           let adapter;
           if (provider) {
-            adapter = await adapterFactory.getAdapterWithFallback(provider, this.config.environment);
+            adapter = await adapterFactory.getAdapterWithFallback(provider, this.config.environment, resolvedTenantId);
           } else {
-            adapter = await adapterFactory.getPrimaryAdapter(this.config.environment);
+            adapter = await adapterFactory.getPrimaryAdapter(this.config.environment, resolvedTenantId);
           }
           
           if (!adapter) {
@@ -103,7 +112,8 @@ export class PaymentsService {
             // Store payment
             await trx.insert(payments).values({
               id: result.paymentId,
-              orderId: result.providerOrderId || result.paymentId,
+              tenantId: resolvedTenantId,
+              orderId: params.orderId,
               provider: adapter.provider,
               environment: this.config.environment,
               providerPaymentId: result.providerPaymentId,
@@ -121,6 +131,7 @@ export class PaymentsService {
             // Log payment event
             await trx.insert(paymentEvents).values({
               id: crypto.randomUUID(),
+              tenantId: resolvedTenantId,
               paymentId: result.paymentId,
               provider: adapter.provider,
               type: 'payment_created',
@@ -128,6 +139,7 @@ export class PaymentsService {
                 amount: result.amount,
                 currency: result.currency,
                 method: result.method,
+                orderId: params.orderId,
               },
               occurredAt: result.createdAt,
             });
@@ -151,29 +163,29 @@ export class PaymentsService {
   /**
    * Verify a payment
    */
-  public async verifyPayment(params: VerifyPaymentParams): Promise<PaymentResult> {
+  public async verifyPayment(params: VerifyPaymentParams, tenantId: string): Promise<PaymentResult> {
     try {
       // Get payment from database to determine provider
-      const payment = await this.getStoredPayment(params.paymentId);
+      const resolvedTenantId = tenantId || 'default';
+      const payment = await this.getStoredPayment(params.paymentId, resolvedTenantId);
       if (!payment) {
         throw new PaymentError('Payment not found', 'PAYMENT_NOT_FOUND');
       }
-      
+
       // Get adapter for the provider
       const adapter = await adapterFactory.createAdapter(
-        payment.provider as PaymentProvider, 
-        this.config.environment
+        payment.provider as PaymentProvider,
+        this.config.environment,
+        resolvedTenantId
       );
-      
+
       // Verify payment through adapter
       const result = await adapter.verifyPayment(params);
-      
+
       // Update payment in database
-      await this.updateStoredPayment(result);
-      
-      // Log verification event
-      await this.logPaymentEvent({
+      await this.updateStoredPayment(result, resolvedTenantId, {
         id: crypto.randomUUID(),
+        tenantId: resolvedTenantId,
         paymentId: result.paymentId,
         provider: adapter.provider,
         environment: this.config.environment,
@@ -187,7 +199,7 @@ export class PaymentsService {
         timestamp: new Date(),
         source: 'api',
       });
-      
+
       return result;
       
     } catch (error) {
@@ -204,9 +216,11 @@ export class PaymentsService {
   /**
    * Create a refund with idempotency protection
    */
-  public async createRefund(params: CreateRefundParams): Promise<RefundResult> {
+  public async createRefund(params: CreateRefundParams, tenantId: string): Promise<RefundResult> {
     // Generate idempotency key if not provided
     const idempotencyKey = params.idempotencyKey || idempotencyService.generateKey('refund');
+
+    const resolvedTenantId = tenantId || 'default';
     
     // Execute with idempotency protection
     return await idempotencyService.executeWithIdempotency(
@@ -215,21 +229,31 @@ export class PaymentsService {
       async () => {
         try {
           // Get payment from database to determine provider
-          const payment = await this.getStoredPayment(params.paymentId);
+          const payment = await this.getStoredPayment(params.paymentId, resolvedTenantId);
           if (!payment) {
             throw new RefundError('Payment not found', 'PAYMENT_NOT_FOUND');
+          }
+
+          if (!payment.providerPaymentId) {
+            throw new RefundError(
+              'Payment is missing provider payment identifier',
+              'MISSING_PROVIDER_PAYMENT_ID',
+              payment.provider as PaymentProvider
+            );
           }
           
           // Get adapter for the provider
           const adapter = await adapterFactory.createAdapter(
             payment.provider as PaymentProvider,
-            this.config.environment
+            this.config.environment,
+            resolvedTenantId
           );
           
           // Create refund through adapter with idempotency
           const enrichedParams: CreateRefundParams = {
             ...params,
             idempotencyKey,
+            providerPaymentId: payment.providerPaymentId,
           };
           
           const result = await this.executeWithRetry(
@@ -242,6 +266,7 @@ export class PaymentsService {
             // Store refund
             await trx.insert(refunds).values({
               id: result.refundId,
+              tenantId: resolvedTenantId,
               paymentId: result.paymentId,
               provider: adapter.provider,
               providerRefundId: result.providerRefundId,
@@ -255,6 +280,7 @@ export class PaymentsService {
             // Log refund event
             await trx.insert(paymentEvents).values({
               id: crypto.randomUUID(),
+              tenantId: resolvedTenantId,
               paymentId: params.paymentId,
               provider: adapter.provider,
               type: 'refund_created',
@@ -285,18 +311,20 @@ export class PaymentsService {
   /**
    * Get refund status
    */
-  public async getRefundStatus(refundId: string): Promise<RefundResult> {
+  public async getRefundStatus(refundId: string, tenantId: string): Promise<RefundResult> {
     try {
       // Get refund from database to determine provider
-      const refund = await this.getStoredRefund(refundId);
+      const resolvedTenantId = tenantId || 'default';
+      const refund = await this.getStoredRefund(refundId, resolvedTenantId);
       if (!refund) {
         throw new RefundError('Refund not found', 'REFUND_NOT_FOUND');
       }
-      
+
       // Get adapter for the provider
       const adapter = await adapterFactory.createAdapter(
         refund.provider as PaymentProvider,
-        this.config.environment
+        this.config.environment,
+        resolvedTenantId
       );
       
       // Get status through adapter
@@ -304,11 +332,12 @@ export class PaymentsService {
       
       // Update refund in database if status changed
       if (result.status !== refund.status) {
-        await this.updateStoredRefund(result);
-        
+        await this.updateStoredRefund(result, resolvedTenantId);
+
         // Log status change event
         await this.logPaymentEvent({
           id: crypto.randomUUID(),
+          tenantId: resolvedTenantId,
           refundId: result.refundId,
           provider: adapter.provider,
           environment: this.config.environment,
@@ -339,24 +368,88 @@ export class PaymentsService {
   /**
    * Perform health check on all providers
    */
-  public async performHealthCheck(): Promise<HealthCheckResult[]> {
-    const healthStatus = await adapterFactory.getHealthStatus(this.config.environment);
-    
+  public async performHealthCheck(tenantId: string): Promise<HealthCheckResult[]> {
+    const resolvedTenantId = tenantId || 'default';
+    const healthStatus = await adapterFactory.getHealthStatus(this.config.environment, resolvedTenantId);
+
     return healthStatus.map(status => ({
       provider: status.provider,
-      environment: this.config.environment,
+      environment: status.environment,
       healthy: status.healthy,
-      tests: {
-        connectivity: status.available,
-        authentication: status.healthy,
-        apiAccess: status.healthy,
-      },
-      error: status.error ? {
-        code: 'HEALTH_CHECK_FAILED',
-        message: status.error,
-      } : undefined,
-      timestamp: new Date(),
+      tests: status.tests,
+      responseTime: status.responseTime,
+      error: status.error,
+      timestamp: status.timestamp,
     }));
+  }
+
+  /**
+   * Capture an authorized payment
+   */
+  public async capturePayment(
+    paymentId: string,
+    tenantId: string,
+    amountMinor?: number
+  ): Promise<PaymentResult> {
+    const resolvedTenantId = tenantId || 'default';
+    let paymentRecord: (typeof payments.$inferSelect) | null = null;
+
+    try {
+      paymentRecord = await this.getStoredPayment(paymentId, resolvedTenantId);
+      if (!paymentRecord) {
+        throw new PaymentError('Payment not found', 'PAYMENT_NOT_FOUND');
+      }
+
+      if (!paymentRecord.providerPaymentId) {
+        throw new PaymentError(
+          'Payment is missing provider payment identifier',
+          'MISSING_PROVIDER_PAYMENT_ID',
+          paymentRecord.provider as PaymentProvider
+        );
+      }
+
+      const adapter = await adapterFactory.createAdapter(
+        paymentRecord.provider as PaymentProvider,
+        this.config.environment,
+        resolvedTenantId
+      );
+
+      const captureResult = await this.executeWithRetry(
+        () => adapter.capturePayment({
+          paymentId,
+          providerPaymentId: paymentRecord!.providerPaymentId!,
+          amount: amountMinor,
+        }),
+        this.config.retryAttempts || 3
+      );
+
+      await this.updateStoredPayment(captureResult, resolvedTenantId, {
+        id: crypto.randomUUID(),
+        tenantId: resolvedTenantId,
+        paymentId: captureResult.paymentId,
+        provider: adapter.provider,
+        environment: this.config.environment,
+        type: 'payment_captured',
+        status: captureResult.status,
+        data: {
+          previousStatus: paymentRecord.status,
+          amountCaptured: captureResult.amount,
+          requestedAmount: amountMinor ?? captureResult.amount,
+        },
+        timestamp: new Date(),
+        source: 'api',
+      });
+
+      return captureResult;
+    } catch (error) {
+      console.error('Payment capture failed:', error);
+      throw new PaymentError(
+        'Failed to capture payment',
+        'PAYMENT_CAPTURE_FAILED',
+        paymentRecord?.provider as PaymentProvider,
+        error
+      );
+    }
   }
   
   /**
@@ -434,31 +527,46 @@ export class PaymentsService {
   /**
    * Update stored payment with transaction safety
    */
-  private async updateStoredPayment(result: PaymentResult): Promise<void> {
+  private async updateStoredPayment(result: PaymentResult, tenantId: string, event: PaymentEvent): Promise<void> {
     await db.transaction(async (trx) => {
-      // Update payment
+      const updateData: Record<string, any> = {
+        status: result.status,
+        methodKind: result.method?.type,
+        methodBrand: result.method?.brand,
+        last4: result.method?.last4,
+        updatedAt: result.updatedAt || new Date(),
+      };
+
+      if (result.providerPaymentId) {
+        updateData.providerPaymentId = result.providerPaymentId;
+      }
+
+      if (result.providerOrderId) {
+        updateData.providerOrderId = result.providerOrderId;
+      }
+
+      if (result.status === 'captured') {
+        updateData.amountCapturedMinor = result.amount;
+      }
+
       await trx
         .update(payments)
-        .set({
-          status: result.status,
-          methodKind: result.method?.type,
-          methodBrand: result.method?.brand,
-          last4: result.method?.last4,
-          updatedAt: result.updatedAt || new Date(),
-        })
-        .where(eq(payments.id, result.paymentId));
-      
-      // Log verification event
+        .set(updateData)
+        .where(
+          and(
+            eq(payments.id, result.paymentId),
+            eq(payments.tenantId, tenantId)
+          )
+        );
+
       await trx.insert(paymentEvents).values({
-        id: crypto.randomUUID(),
-        paymentId: result.paymentId,
-        provider: result.provider,
-        type: 'payment_verified',
-        data: {
-          status: result.status,
-          method: result.method,
-        },
-        occurredAt: new Date(),
+        id: event.id,
+        tenantId,
+        paymentId: event.paymentId ?? result.paymentId,
+        provider: event.provider,
+        type: event.type,
+        data: event.data,
+        occurredAt: event.timestamp,
       });
     });
   }
@@ -466,13 +574,18 @@ export class PaymentsService {
   /**
    * Get stored payment
    */
-  private async getStoredPayment(paymentId: string) {
+  private async getStoredPayment(paymentId: string, tenantId: string) {
     const result = await db
       .select()
       .from(payments)
-      .where(eq(payments.id, paymentId))
+      .where(
+        and(
+          eq(payments.id, paymentId),
+          eq(payments.tenantId, tenantId)
+        )
+      )
       .limit(1);
-    
+
     return result[0] || null;
   }
   
@@ -496,26 +609,36 @@ export class PaymentsService {
   /**
    * Update stored refund
    */
-  private async updateStoredRefund(result: RefundResult): Promise<void> {
+  private async updateStoredRefund(result: RefundResult, tenantId: string): Promise<void> {
     await db
       .update(refunds)
       .set({
         status: result.status,
         updatedAt: result.updatedAt || new Date(),
       })
-      .where(eq(refunds.id, result.refundId));
+      .where(
+        and(
+          eq(refunds.id, result.refundId),
+          eq(refunds.tenantId, tenantId)
+        )
+      );
   }
-  
+
   /**
    * Get stored refund
    */
-  private async getStoredRefund(refundId: string) {
+  private async getStoredRefund(refundId: string, tenantId: string) {
     const result = await db
       .select()
       .from(refunds)
-      .where(eq(refunds.id, refundId))
+      .where(
+        and(
+          eq(refunds.id, refundId),
+          eq(refunds.tenantId, tenantId)
+        )
+      )
       .limit(1);
-    
+
     return result[0] || null;
   }
   
@@ -526,6 +649,7 @@ export class PaymentsService {
     await db.insert(paymentEvents).values({
       id: event.id,
       paymentId: event.paymentId,
+      tenantId: event.tenantId,
       provider: event.provider,
       type: event.type,
       data: event.data,

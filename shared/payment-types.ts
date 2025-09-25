@@ -21,6 +21,7 @@ export interface CreatePaymentParams {
   orderId: string;
   orderAmount: number; // Amount in minor units (paise for INR)
   currency: Currency;
+  tenantId?: string;
   
   // Customer information
   customer: {
@@ -128,10 +129,20 @@ export interface VerifyPaymentParams {
  */
 export interface CreateRefundParams {
   paymentId: string;
+  providerPaymentId?: string;
   amount?: number; // Amount in minor units (if partial refund)
   reason?: string;
   notes?: string;
   idempotencyKey?: string;
+}
+
+/**
+ * Parameters for capturing an authorized payment
+ */
+export interface CapturePaymentParams {
+  paymentId: string; // Internal payment identifier
+  providerPaymentId?: string; // Gateway-specific payment identifier
+  amount?: number; // Amount in minor units (for partial capture)
 }
 
 /**
@@ -250,11 +261,12 @@ export interface PaymentsAdapter {
   // Provider identification
   readonly provider: PaymentProvider;
   readonly environment: Environment;
-  
+
   // Core payment operations
   createPayment(params: CreatePaymentParams): Promise<PaymentResult>;
   verifyPayment(params: VerifyPaymentParams): Promise<PaymentResult>;
-  
+  capturePayment(params: CapturePaymentParams): Promise<PaymentResult>;
+
   // Refund operations
   createRefund(params: CreateRefundParams): Promise<RefundResult>;
   getRefundStatus(refundId: string): Promise<RefundResult>;
@@ -291,6 +303,7 @@ export interface PaymentEvent {
   id: string;
   paymentId?: string;
   refundId?: string;
+  tenantId: string;
   provider: PaymentProvider;
   environment: Environment;
   type: string;
@@ -318,7 +331,8 @@ export interface GatewayConfig {
   provider: PaymentProvider;
   environment: Environment;
   enabled: boolean;
-  
+  tenantId?: string;
+
   // Non-secret configuration
   merchantId?: string;
   keyId?: string; // Public key identifiers
@@ -344,7 +358,7 @@ export interface GatewayConfig {
  * Provider factory interface
  */
 export interface PaymentAdapterFactory {
-  createAdapter(provider: PaymentProvider, environment: Environment): Promise<PaymentsAdapter>;
+  createAdapter(provider: PaymentProvider, environment: Environment, tenantId: string): Promise<PaymentsAdapter>;
   getSupportedProviders(): PaymentProvider[];
   isProviderSupported(provider: PaymentProvider): boolean;
 }

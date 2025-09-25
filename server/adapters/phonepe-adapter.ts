@@ -7,11 +7,12 @@
  */
 
 import crypto from "crypto";
-import type { 
+import type {
   PaymentsAdapter,
   CreatePaymentParams,
   PaymentResult,
   VerifyPaymentParams,
+  CapturePaymentParams,
   CreateRefundParams,
   RefundResult,
   WebhookVerifyParams,
@@ -287,17 +288,29 @@ export class PhonePeAdapter implements PaymentsAdapter {
       );
     }
   }
-  
+
+  /**
+   * Capture payment (PhonePe auto captures UPI payments)
+   */
+  public async capturePayment(_params: CapturePaymentParams): Promise<PaymentResult> {
+    throw new PaymentError('Manual capture is not supported for PhonePe', 'CAPTURE_NOT_SUPPORTED', 'phonepe');
+  }
+
   /**
    * Create refund with PhonePe
    */
   public async createRefund(params: CreateRefundParams): Promise<RefundResult> {
     try {
+      const originalTransactionId = params.providerPaymentId || params.paymentId;
+      if (!originalTransactionId) {
+        throw new RefundError('Missing PhonePe transaction identifier', 'MISSING_PROVIDER_PAYMENT_ID', 'phonepe');
+      }
+
       const merchantTransactionId = `REF_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+
       const refundRequest = {
         merchantTransactionId,
-        originalTransactionId: params.paymentId,
+        originalTransactionId,
         amount: params.amount, // Amount in paise
         merchantId: this.merchantId,
       };
@@ -344,6 +357,7 @@ export class PhonePeAdapter implements PaymentsAdapter {
         providerData: {
           merchantTransactionId,
           transactionId: response.data?.transactionId,
+          originalTransactionId,
         },
         
         createdAt: new Date(),

@@ -6,7 +6,21 @@
  */
 
 import type { PaymentProvider, Environment } from "../../shared/payment-providers";
-import type { PaymentsAdapter, PaymentAdapterFactory } from "../../shared/payment-types";
+import type {
+  PaymentsAdapter,
+  PaymentAdapterFactory,
+  CreatePaymentParams,
+  PaymentResult,
+  VerifyPaymentParams,
+  CapturePaymentParams,
+  CreateRefundParams,
+  RefundResult,
+  WebhookVerifyParams,
+  WebhookVerifyResult,
+  HealthCheckResult,
+  PaymentMethod,
+  Currency
+} from "../../shared/payment-types";
 import { configResolver, ResolvedConfig } from "./config-resolver";
 import { ConfigurationError } from "../../shared/payment-types";
 
@@ -16,16 +30,90 @@ interface AdapterConstructor {
   new (config: ResolvedConfig): PaymentsAdapter;
 }
 
+class UnsupportedAdapter implements PaymentsAdapter {
+  public readonly provider: PaymentProvider;
+  public readonly environment: Environment;
+
+  constructor(private readonly config: ResolvedConfig, private readonly reason: string) {
+    this.provider = config.provider;
+    this.environment = config.environment;
+  }
+
+  private configurationError(): ConfigurationError {
+    return new ConfigurationError(
+      `${this.provider} adapter is not available: ${this.reason}`,
+      this.provider
+    );
+  }
+
+  public async createPayment(_params: CreatePaymentParams): Promise<never> {
+    throw this.configurationError();
+  }
+
+  public async verifyPayment(_params: VerifyPaymentParams): Promise<never> {
+    throw this.configurationError();
+  }
+
+  public async capturePayment(_params: CapturePaymentParams): Promise<never> {
+    throw this.configurationError();
+  }
+
+  public async createRefund(_params: CreateRefundParams): Promise<never> {
+    throw this.configurationError();
+  }
+
+  public async getRefundStatus(_refundId: string): Promise<never> {
+    throw this.configurationError();
+  }
+
+  public async verifyWebhook(_params: WebhookVerifyParams): Promise<never> {
+    throw this.configurationError();
+  }
+
+  public async healthCheck(): Promise<HealthCheckResult> {
+    return {
+      provider: this.provider,
+      environment: this.environment,
+      healthy: false,
+      tests: {
+        connectivity: false,
+        authentication: false,
+        apiAccess: false,
+      },
+      error: {
+        code: 'ADAPTER_NOT_AVAILABLE',
+        message: this.reason,
+      },
+      timestamp: new Date(),
+    };
+  }
+
+  public getSupportedMethods(): PaymentMethod[] {
+    return [];
+  }
+
+  public getSupportedCurrencies(): Currency[] {
+    return [];
+  }
+
+  public async validateConfig(): Promise<{ valid: boolean; errors: string[] }> {
+    return {
+      valid: false,
+      errors: [this.reason],
+    };
+  }
+}
+
 /**
  * Factory for creating payment adapters
  */
 export class AdapterFactory implements PaymentAdapterFactory {
   private static instance: AdapterFactory;
   private adapterCache = new Map<string, PaymentsAdapter>();
-  
+
   // Registry of adapter constructors (will be populated in TASK 6)
   private adapterRegistry = new Map<PaymentProvider, AdapterConstructor>();
-  
+
   private constructor() {
     // Initialize adapters asynchronously
     this.initializeAdapterRegistry().catch(error => {
@@ -44,43 +132,36 @@ export class AdapterFactory implements PaymentAdapterFactory {
    * Initialize adapter registry with all payment provider implementations
    */
   private async initializeAdapterRegistry(): Promise<void> {
-    // Import and register implemented adapters using ES modules
-    const { RazorpayAdapter } = await import('../adapters/razorpay-adapter');
-    const { StripeAdapter } = await import('../adapters/stripe-adapter');
-    const { PhonePeAdapter } = await import('../adapters/phonepe-adapter');
-    
-    this.adapterRegistry.set('razorpay', RazorpayAdapter);
-    this.adapterRegistry.set('stripe', StripeAdapter);
-    this.adapterRegistry.set('phonepe', PhonePeAdapter);
-    
-    // TODO: Complete remaining adapters
-    // const { PayUAdapter } = await import('../adapters/payu-adapter');
-    // const { CCAvenuveAdapter } = await import('../adapters/ccavenue-adapter');
-    // const { CashfreeAdapter } = await import('../adapters/cashfree-adapter');
-    // const { PaytmAdapter } = await import('../adapters/paytm-adapter');
-    // const { BillDeskAdapter } = await import('../adapters/billdesk-adapter');
-    
-    // this.adapterRegistry.set('payu', PayUAdapter);
-    // this.adapterRegistry.set('ccavenue', CCAvenuveAdapter);
-    // this.adapterRegistry.set('cashfree', CashfreeAdapter);
-    // this.adapterRegistry.set('paytm', PaytmAdapter);
-    // this.adapterRegistry.set('billdesk', BillDeskAdapter);
+    await Promise.all([
+      this.registerAdapterModule('razorpay', '../adapters/razorpay-adapter', 'RazorpayAdapter'),
+      this.registerAdapterModule('stripe', '../adapters/stripe-adapter', 'StripeAdapter'),
+      this.registerAdapterModule('phonepe', '../adapters/phonepe-adapter', 'PhonePeAdapter'),
+      this.registerAdapterModule('payu', '../adapters/payu-adapter', 'PayUAdapter'),
+      this.registerAdapterModule('ccavenue', '../adapters/ccavenue-adapter', 'CCAvenueAdapter'),
+      this.registerAdapterModule('cashfree', '../adapters/cashfree-adapter', 'CashfreeAdapter'),
+      this.registerAdapterModule('paytm', '../adapters/paytm-adapter', 'PaytmAdapter'),
+      this.registerAdapterModule('billdesk', '../adapters/billdesk-adapter', 'BillDeskAdapter')
+    ]);
   }
-  
+
   /**
    * Create a payment adapter for the specified provider
    */
-  public async createAdapter(provider: PaymentProvider, environment: Environment): Promise<PaymentsAdapter> {
-    const cacheKey = `${provider}_${environment}`;
-    
+  public async createAdapter(
+    provider: PaymentProvider,
+    environment: Environment,
+    tenantId: string
+  ): Promise<PaymentsAdapter> {
+    const cacheKey = this.buildCacheKey(provider, environment, tenantId);
+
     // Return cached adapter if available
     if (this.adapterCache.has(cacheKey)) {
       return this.adapterCache.get(cacheKey)!;
     }
-    
+
     // Resolve configuration
-    const config = await configResolver.resolveConfig(provider, environment);
-    
+    const config = await configResolver.resolveConfig(provider, environment, tenantId);
+
     // Validate configuration
     if (!config.enabled) {
       throw new ConfigurationError(
@@ -120,7 +201,7 @@ export class AdapterFactory implements PaymentAdapterFactory {
     
     // Cache the adapter
     this.adapterCache.set(cacheKey, adapter);
-    
+
     return adapter;
   }
   
@@ -141,12 +222,12 @@ export class AdapterFactory implements PaymentAdapterFactory {
   /**
    * Get all available adapters for an environment
    */
-  public async getAvailableAdapters(environment: Environment): Promise<PaymentsAdapter[]> {
-    const enabledConfigs = await configResolver.getEnabledProviders(environment);
-    
+  public async getAvailableAdapters(environment: Environment, tenantId: string): Promise<PaymentsAdapter[]> {
+    const enabledConfigs = await configResolver.getEnabledProviders(environment, tenantId);
+
     const adapters = await Promise.allSettled(
-      enabledConfigs.map(config => 
-        this.createAdapter(config.provider, config.environment)
+      enabledConfigs.map(config =>
+        this.createAdapter(config.provider, config.environment, tenantId)
       )
     );
     
@@ -160,12 +241,12 @@ export class AdapterFactory implements PaymentAdapterFactory {
   /**
    * Get primary adapter for an environment (first available enabled provider)
    */
-  public async getPrimaryAdapter(environment: Environment): Promise<PaymentsAdapter | null> {
-    const fallbackProviders = await configResolver.getFallbackProviders(environment);
-    
+  public async getPrimaryAdapter(environment: Environment, tenantId: string): Promise<PaymentsAdapter | null> {
+    const fallbackProviders = await configResolver.getFallbackProviders(environment, tenantId);
+
     for (const provider of fallbackProviders) {
       try {
-        return await this.createAdapter(provider, environment);
+        return await this.createAdapter(provider, environment, tenantId);
       } catch (error) {
         console.warn(`Failed to create adapter for ${provider}:`, error);
         continue;
@@ -179,22 +260,23 @@ export class AdapterFactory implements PaymentAdapterFactory {
    * Get adapter with fallback support
    */
   public async getAdapterWithFallback(
-    preferredProvider: PaymentProvider, 
-    environment: Environment
+    preferredProvider: PaymentProvider,
+    environment: Environment,
+    tenantId: string
   ): Promise<PaymentsAdapter> {
     // Try preferred provider first
     try {
-      return await this.createAdapter(preferredProvider, environment);
+      return await this.createAdapter(preferredProvider, environment, tenantId);
     } catch (error) {
       console.warn(`Preferred provider ${preferredProvider} failed:`, error);
     }
-    
+
     // Try fallback providers
-    const fallbackProviders = await configResolver.getFallbackProviders(environment, [preferredProvider]);
-    
+    const fallbackProviders = await configResolver.getFallbackProviders(environment, tenantId, [preferredProvider]);
+
     for (const provider of fallbackProviders) {
       try {
-        return await this.createAdapter(provider, environment);
+        return await this.createAdapter(provider, environment, tenantId);
       } catch (error) {
         console.warn(`Fallback provider ${provider} failed:`, error);
         continue;
@@ -212,10 +294,10 @@ export class AdapterFactory implements PaymentAdapterFactory {
    */
   public registerAdapter(provider: PaymentProvider, adapterConstructor: AdapterConstructor): void {
     this.adapterRegistry.set(provider, adapterConstructor);
-    
+
     // Clear any cached adapters for this provider
     const keysToDelete = Array.from(this.adapterCache.keys())
-      .filter(key => key.startsWith(`${provider}_`));
+      .filter(key => this.parseCacheKey(key)?.provider === provider);
     keysToDelete.forEach(key => this.adapterCache.delete(key));
   }
   
@@ -229,52 +311,131 @@ export class AdapterFactory implements PaymentAdapterFactory {
   /**
    * Get adapter health status for all providers
    */
-  public async getHealthStatus(environment: Environment): Promise<Array<{
-    provider: PaymentProvider;
-    available: boolean;
-    healthy: boolean;
-    error?: string;
-  }>> {
+  public async getHealthStatus(environment: Environment, tenantId: string): Promise<HealthCheckResult[]> {
     const allProviders: PaymentProvider[] = [
-      'razorpay', 'payu', 'ccavenue', 'cashfree', 
+      'razorpay', 'payu', 'ccavenue', 'cashfree',
       'paytm', 'billdesk', 'phonepe', 'stripe'
     ];
-    
+
     const healthChecks = await Promise.allSettled(
       allProviders.map(async (provider) => {
         try {
-          const adapter = await this.createAdapter(provider, environment);
+          const adapter = await this.createAdapter(provider, environment, tenantId);
           const health = await adapter.healthCheck();
-          
-          return {
+
+          const result: HealthCheckResult = {
             provider,
-            available: true,
+            environment,
             healthy: health.healthy,
-            error: health.error?.message,
+            tests: health.tests ?? {
+              connectivity: health.healthy,
+              authentication: health.healthy,
+              apiAccess: health.healthy,
+            },
+            responseTime: health.responseTime,
+            error: health.error,
+            timestamp: health.timestamp ?? new Date(),
           };
+
+          return result;
         } catch (error) {
-          return {
+          const failureResult: HealthCheckResult = {
             provider,
-            available: false,
+            environment,
             healthy: false,
-            error: error instanceof Error ? error.message : 'Unknown error',
+            tests: {
+              connectivity: false,
+              authentication: false,
+              apiAccess: false,
+            },
+            error: {
+              code: 'HEALTH_CHECK_FAILED',
+              message: error instanceof Error ? error.message : 'Unknown error',
+            },
+            timestamp: new Date(),
           };
+
+          return failureResult;
         }
       })
     );
-    
+
     return healthChecks.map((result, index) => {
       if (result.status === 'fulfilled') {
         return result.value;
+      }
+
+      return {
+        provider: allProviders[index],
+        environment,
+        healthy: false,
+        tests: {
+          connectivity: false,
+          authentication: false,
+          apiAccess: false,
+        },
+        error: {
+          code: 'HEALTH_CHECK_FAILED',
+          message: result.reason?.message || 'Failed to check health',
+        },
+        timestamp: new Date(),
+      } as HealthCheckResult;
+    });
+  }
+
+  private async registerAdapterModule(
+    provider: PaymentProvider,
+    modulePath: string,
+    exportName: string
+  ): Promise<void> {
+    try {
+      const module = await import(modulePath);
+      const Adapter = module[exportName] as AdapterConstructor | undefined;
+
+      if (Adapter) {
+        this.adapterRegistry.set(provider, Adapter);
       } else {
-        return {
-          provider: allProviders[index],
-          available: false,
-          healthy: false,
-          error: result.reason?.message || 'Failed to check health',
-        };
+        console.warn(`Adapter module ${modulePath} missing export ${exportName}`);
+        this.registerUnsupportedAdapter(provider, `Missing export ${exportName}`);
+      }
+    } catch (error: any) {
+      if (error?.code === 'MODULE_NOT_FOUND' || error?.message?.includes('Cannot find module')) {
+        console.warn(`Adapter module not found for ${provider}: ${modulePath}`);
+        this.registerUnsupportedAdapter(provider, 'Adapter not implemented');
+      } else {
+        console.error(`Failed to load adapter for ${provider}:`, error);
+        this.registerUnsupportedAdapter(provider, 'Failed to load adapter module');
+      }
+    }
+  }
+
+  private registerUnsupportedAdapter(provider: PaymentProvider, reason: string): void {
+    if (this.adapterRegistry.has(provider)) {
+      return;
+    }
+
+    this.adapterRegistry.set(provider, class extends UnsupportedAdapter {
+      constructor(config: ResolvedConfig) {
+        super(config, reason);
       }
     });
+  }
+
+  private buildCacheKey(provider: PaymentProvider, environment: Environment, tenantId: string): string {
+    return `${tenantId}:${provider}:${environment}`;
+  }
+
+  private parseCacheKey(key: string): { tenantId: string; provider: PaymentProvider; environment: Environment } | null {
+    const [tenantId, provider, environment] = key.split(':');
+    if (!tenantId || !provider || !environment) {
+      return null;
+    }
+
+    return {
+      tenantId,
+      provider: provider as PaymentProvider,
+      environment: environment as Environment,
+    };
   }
 }
 
