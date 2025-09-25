@@ -300,7 +300,7 @@ export class RazorpayAdapter implements PaymentsAdapter {
    */
   public async createRefund(params: CreateRefundParams): Promise<RefundResult> {
     try {
-      const providerPaymentId = params.providerPaymentId || params.paymentId;
+      const providerPaymentId = params.providerPaymentId;
       if (!providerPaymentId) {
         throw new RefundError('Missing Razorpay payment identifier', 'MISSING_PROVIDER_PAYMENT_ID', 'razorpay');
       }

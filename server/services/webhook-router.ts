@@ -19,6 +19,7 @@ import type {
 } from "../../shared/payment-types";
 
 import { adapterFactory } from "./adapter-factory";
+import { configResolver } from "./config-resolver";
 import { WebhookError } from "../../shared/payment-types";
 import { db } from "../db";
 import { webhookInbox, payments, refunds, paymentEvents } from "../../shared/schema";
@@ -46,89 +47,107 @@ export class WebhookRouter {
    * Process webhook from a payment provider
    */
   public async processWebhook(
-    provider: PaymentProvider,
+    providerParam: PaymentProvider,
     req: Request,
     res: Response
   ): Promise<WebhookProcessResult> {
     const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
 
+    // Extract headers and body once for all attempts
+    const headers = this.extractHeaders(req);
+    const body = this.extractBody(req);
+
     try {
+      const candidates = await this.resolveCandidateProviders(providerParam, tenantId);
 
-      // Extract headers and body
-      const headers = this.extractHeaders(req);
-      const body = this.extractBody(req);
-
-      // Create dedupe key from content
-      const dedupeKey = this.createDedupeKey(provider, body);
-
-      // Check if webhook already processed
-      const existingWebhook = await this.getExistingWebhook(provider, dedupeKey, tenantId);
-      if (existingWebhook) {
-        console.log(`Webhook already processed: ${provider}:${dedupeKey}`);
-        res.status(200).json({ status: 'already_processed' });
-        return { processed: true };
+      if (candidates.length === 0) {
+        res.status(404).json({ status: 'provider_not_available' });
+        return { processed: false, error: 'No enabled provider matched webhook' };
       }
-      
-      // Get adapter for verification
-      const adapter = await adapterFactory.createAdapter(provider, this.environment, tenantId);
-      
-      // Verify webhook signature
-      const verifyParams: WebhookVerifyParams = {
-        provider,
-        environment: this.environment,
-        headers,
-        body,
-        signature: headers['x-signature'] || headers['signature'],
-      };
-      
-      const verifyResult = await adapter.verifyWebhook(verifyParams);
-      
-      // Store webhook in inbox
-      await this.storeWebhook(provider, dedupeKey, verifyResult.verified, tenantId, {
-        headers,
-        body: typeof body === 'string' ? body : JSON.stringify(body),
-      });
-      
-      if (!verifyResult.verified) {
-        console.error(`Webhook signature verification failed: ${provider}`);
-        res.status(400).json({ status: 'verification_failed' });
-        return { processed: false, error: 'Signature verification failed' };
-      }
-      
-      // Process verified webhook
-      const processResult = await this.processVerifiedWebhook(verifyResult, adapter.provider, tenantId);
 
-      // Mark webhook as processed
-      await this.markWebhookProcessed(provider, dedupeKey, tenantId);
-      
-      // Send appropriate response
-      res.status(200).json({ status: 'processed', ...processResult });
-      
-      return {
-        processed: true,
-        eventId: processResult.eventId,
-        paymentUpdated: processResult.paymentUpdated,
-        refundUpdated: processResult.refundUpdated,
-      };
-      
+      const failureReasons: string[] = [];
+
+      for (const provider of candidates) {
+        const dedupeKey = this.createDedupeKey(provider, tenantId, body);
+
+        // Check for duplicate webhooks for this tenant and provider
+        const existingWebhook = await this.getExistingWebhook(provider, dedupeKey, tenantId);
+        if (existingWebhook) {
+          console.log(`Webhook already processed: ${tenantId}:${provider}:${dedupeKey}`);
+          res.status(200).json({ status: 'already_processed' });
+          return { processed: true };
+        }
+
+        try {
+          const adapter = await adapterFactory.createAdapter(provider, this.environment, tenantId);
+
+          const verifyParams: WebhookVerifyParams = {
+            provider,
+            environment: this.environment,
+            headers,
+            body,
+            signature: headers['x-signature'] || headers['signature'],
+          };
+
+          const verifyResult = await adapter.verifyWebhook(verifyParams);
+
+          await this.storeWebhook(provider, dedupeKey, verifyResult.verified, tenantId, {
+            headers,
+            body: typeof body === 'string' ? body : JSON.stringify(body),
+          });
+
+          if (!verifyResult.verified) {
+            failureReasons.push(`${provider}: signature verification failed`);
+            continue;
+          }
+
+          const processResult = await this.processVerifiedWebhook(verifyResult, adapter.provider, tenantId);
+
+          await this.markWebhookProcessed(provider, dedupeKey, tenantId);
+
+          res.status(200).json({ status: 'processed', ...processResult });
+
+          return {
+            processed: true,
+            eventId: processResult.eventId,
+            paymentUpdated: processResult.paymentUpdated,
+            refundUpdated: processResult.refundUpdated,
+          };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          failureReasons.push(`${provider}: ${message}`);
+
+          try {
+            await this.storeWebhook(provider, dedupeKey, false, tenantId, {
+              headers,
+              body: typeof body === 'string' ? body : JSON.stringify(body),
+              error: message,
+            });
+          } catch (storeError) {
+            console.error('Failed to store failed webhook:', storeError);
+          }
+        }
+      }
+
+      res.status(400).json({ status: 'unprocessed', message: 'Webhook did not match any enabled provider' });
+      return { processed: false, error: failureReasons.join('; ') || 'No provider accepted webhook' };
+
     } catch (error) {
-      console.error(`Webhook processing failed for ${provider}:`, error);
-      
-      // Store failed webhook for debugging
+      console.error(`Webhook processing failed for ${providerParam}:`, error);
+
       try {
-        const body = this.extractBody(req);
-        const dedupeKey = this.createDedupeKey(provider, body);
-        await this.storeWebhook(provider, dedupeKey, false, tenantId, {
-          headers: this.extractHeaders(req),
+        const dedupeKey = this.createDedupeKey(providerParam, tenantId, body);
+        await this.storeWebhook(providerParam, dedupeKey, false, tenantId, {
+          headers,
           body: typeof body === 'string' ? body : JSON.stringify(body),
           error: error instanceof Error ? error.message : 'Unknown error',
         });
       } catch (storeError) {
         console.error('Failed to store failed webhook:', storeError);
       }
-      
+
       res.status(500).json({ status: 'error', message: 'Webhook processing failed' });
-      
+
       return {
         processed: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -194,7 +213,35 @@ export class WebhookRouter {
     
     return { eventId, paymentUpdated, refundUpdated };
   }
-  
+
+  private async resolveCandidateProviders(
+    providerParam: PaymentProvider,
+    tenantId: string
+  ): Promise<PaymentProvider[]> {
+    const enabledConfigs = await configResolver.getEnabledProviders(this.environment, tenantId);
+    const enabledProviders = enabledConfigs.map((config) => config.provider);
+
+    const normalized = this.normalizeProvider(providerParam);
+    if (normalized) {
+      return enabledProviders.includes(normalized) ? [normalized] : [];
+    }
+
+    return enabledProviders;
+  }
+
+  private normalizeProvider(provider: string | undefined): PaymentProvider | null {
+    const allowed: PaymentProvider[] = [
+      'razorpay', 'payu', 'ccavenue', 'cashfree',
+      'paytm', 'billdesk', 'phonepe', 'stripe'
+    ];
+
+    if (provider && allowed.includes(provider as PaymentProvider)) {
+      return provider as PaymentProvider;
+    }
+
+    return null;
+  }
+
   /**
    * Update payment status from webhook
    */
@@ -308,9 +355,9 @@ export class WebhookRouter {
   /**
    * Create dedupe key from webhook content
    */
-  private createDedupeKey(provider: PaymentProvider, body: string | Buffer): string {
+  private createDedupeKey(provider: string, tenantId: string, body: string | Buffer): string {
     const content = typeof body === 'string' ? body : body.toString();
-    return crypto.createHash('sha256').update(`${provider}:${content}`).digest('hex');
+    return crypto.createHash('sha256').update(`${tenantId}:${provider}:${content}`).digest('hex');
   }
   
   /**
