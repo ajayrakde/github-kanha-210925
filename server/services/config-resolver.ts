@@ -248,27 +248,52 @@ export class ConfigResolver {
       'paytm', 'billdesk', 'phonepe', 'stripe'
     ];
     
+    const resolveEnvironmentStatus = async (
+      provider: PaymentProvider,
+      environment: Environment
+    ): Promise<{ enabled: boolean; configured: boolean; missingSecrets: string[] }> => {
+      try {
+        const config = await this.resolveConfig(provider, environment, tenantId);
+
+        return {
+          enabled: config.enabled,
+          configured: config.isValid,
+          missingSecrets: config.missingSecrets,
+        };
+      } catch (error) {
+        if (error instanceof ConfigurationError) {
+          console.warn(
+            `Skipping misconfigured provider ${provider} (${environment}) for status check: ${error.message}`
+          );
+
+          const dbConfig = await this.getDbConfig(provider, environment, tenantId);
+
+          return {
+            enabled: dbConfig?.isEnabled ?? false,
+            configured: false,
+            missingSecrets: error.missingKeys ?? [],
+          };
+        }
+
+        throw error;
+      }
+    };
+
     const status = await Promise.all(
       allProviders.map(async (provider) => {
-        const testConfig = await this.resolveConfig(provider, 'test', tenantId);
-        const liveConfig = await this.resolveConfig(provider, 'live', tenantId);
-        
+        const [testStatus, liveStatus] = await Promise.all([
+          resolveEnvironmentStatus(provider, 'test'),
+          resolveEnvironmentStatus(provider, 'live'),
+        ]);
+
         return {
           provider,
-          test: {
-            enabled: testConfig.enabled,
-            configured: testConfig.isValid,
-            missingSecrets: testConfig.missingSecrets,
-          },
-          live: {
-            enabled: liveConfig.enabled,
-            configured: liveConfig.isValid,
-            missingSecrets: liveConfig.missingSecrets,
-          },
+          test: testStatus,
+          live: liveStatus,
         };
       })
     );
-    
+
     return status;
   }
   

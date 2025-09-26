@@ -91,3 +91,82 @@ describe("ConfigResolver.getEnabledProviders", () => {
     );
   });
 });
+
+describe("ConfigResolver.getProviderStatus", () => {
+  let ConfigResolverClass: ConfigResolverModule["ConfigResolver"];
+  let configResolver: InstanceType<ConfigResolverModule["ConfigResolver"]>;
+
+  beforeAll(async () => {
+    process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
+    ({ ConfigResolver: ConfigResolverClass } = await import("../config-resolver"));
+    configResolver = ConfigResolverClass.getInstance();
+  });
+
+  beforeEach(() => {
+    (configResolver as any).configCache?.clear?.();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("reports missing secrets while continuing to other providers", async () => {
+    const resolveConfigSpy = vi.spyOn(ConfigResolverClass.prototype, "resolveConfig");
+    const getDbConfigSpy = vi
+      .spyOn(ConfigResolverClass.prototype as any, "getDbConfig")
+      .mockResolvedValue({ isEnabled: true });
+
+    resolveConfigSpy.mockImplementation(async (provider, env) => {
+      if (provider === "payu" && env === "test") {
+        throw new ConfigurationError("Missing secrets", provider, [
+          "PAYAPP_TEST_PAYU_SALT",
+        ]);
+      }
+
+      if (provider === "razorpay") {
+        return baseConfig(provider, { enabled: true, isValid: true });
+      }
+
+      return baseConfig(provider);
+    });
+
+    const status = await configResolver.getProviderStatus(tenantId);
+
+    const razorpayStatus = status.find((entry) => entry.provider === "razorpay");
+    const payuStatus = status.find((entry) => entry.provider === "payu");
+
+    expect(razorpayStatus?.test).toEqual({
+      enabled: true,
+      configured: true,
+      missingSecrets: [],
+    });
+
+    expect(payuStatus?.test).toEqual({
+      enabled: true,
+      configured: false,
+      missingSecrets: ["PAYAPP_TEST_PAYU_SALT"],
+    });
+
+    expect(payuStatus?.live).toEqual({
+      enabled: false,
+      configured: false,
+      missingSecrets: [],
+    });
+
+    expect(getDbConfigSpy).toHaveBeenCalledWith("payu", "test", tenantId);
+  });
+
+  it("rethrows unexpected errors", async () => {
+    const resolveConfigSpy = vi.spyOn(ConfigResolverClass.prototype, "resolveConfig");
+
+    resolveConfigSpy.mockImplementation(async (provider, env) => {
+      if (provider === "razorpay" && env === "test") {
+        throw new Error("boom");
+      }
+
+      return baseConfig(provider);
+    });
+
+    await expect(configResolver.getProviderStatus(tenantId)).rejects.toThrow("boom");
+  });
+});
