@@ -7,6 +7,7 @@
 
 import type { PaymentProvider, Environment } from "../../shared/payment-providers";
 import type { GatewayConfig } from "../../shared/payment-types";
+import { ConfigurationError } from "../../shared/payment-types";
 import { secretsResolver, ProviderSecrets } from "../utils/secrets-resolver";
 import { db } from "../db";
 import { paymentProviderConfig } from "../../shared/schema";
@@ -81,15 +82,38 @@ export class ConfigResolver {
     // Get database configuration
     const dbConfig = await this.getDbConfig(provider, environment, tenantId);
     
-    // Resolve secrets
-    const secrets = secretsResolver.resolveSecrets(provider, environment);
+    const isEnabled = dbConfig?.isEnabled ?? false;
+
+    // Resolve secrets only when the provider is enabled
+    let secrets: ProviderSecrets;
+    if (isEnabled) {
+      try {
+        secrets = secretsResolver.resolveSecrets(provider, environment);
+      } catch (error) {
+        if (error instanceof ConfigurationError) {
+          throw error;
+        }
+
+        throw new ConfigurationError(
+          `Failed to resolve secrets for ${provider} (${environment})`,
+          provider
+        );
+      }
+    } else {
+      secrets = {
+        provider,
+        environment,
+        environmentPrefix: `PAYAPP_${environment.toUpperCase()}_${provider.toUpperCase()}_`,
+      };
+    }
+
     const validation = secretsResolver.validateSecrets(provider, environment);
-    
+
     // Combine configuration
     const resolvedConfig: ResolvedConfig = {
       provider,
       environment,
-      enabled: dbConfig?.isEnabled ?? false,
+      enabled: isEnabled,
       tenantId,
 
       // Database fields
@@ -157,11 +181,46 @@ export class ConfigResolver {
       'paytm', 'billdesk', 'phonepe', 'stripe'
     ];
     
-    const configs = await Promise.all(
-      allProviders.map(provider => this.resolveConfig(provider, environment, tenantId))
+    type ResolutionResult =
+      | { provider: PaymentProvider; config: ResolvedConfig }
+      | { provider: PaymentProvider; error: unknown };
+
+    const results: ResolutionResult[] = await Promise.all(
+      allProviders.map(async (provider) => {
+        try {
+          const config = await this.resolveConfig(provider, environment, tenantId);
+          return { provider, config } as const;
+        } catch (error) {
+          return { provider, error } as const;
+        }
+      })
     );
-    
-    return configs.filter(config => config.enabled && config.isValid);
+
+    const enabledProviders: ResolvedConfig[] = [];
+
+    for (const result of results) {
+      if ("config" in result) {
+        const { config } = result;
+
+        if (config.enabled && config.isValid) {
+          enabledProviders.push(config);
+        }
+        continue;
+      }
+
+      const error = result.error;
+
+      if (error instanceof ConfigurationError) {
+        console.warn(
+          `Skipping misconfigured provider ${result.provider} (${environment}): ${error.message}`
+        );
+        continue;
+      }
+
+      throw error;
+    }
+
+    return enabledProviders;
   }
   
   /**
@@ -189,27 +248,52 @@ export class ConfigResolver {
       'paytm', 'billdesk', 'phonepe', 'stripe'
     ];
     
+    const resolveEnvironmentStatus = async (
+      provider: PaymentProvider,
+      environment: Environment
+    ): Promise<{ enabled: boolean; configured: boolean; missingSecrets: string[] }> => {
+      try {
+        const config = await this.resolveConfig(provider, environment, tenantId);
+
+        return {
+          enabled: config.enabled,
+          configured: config.isValid,
+          missingSecrets: config.missingSecrets,
+        };
+      } catch (error) {
+        if (error instanceof ConfigurationError) {
+          console.warn(
+            `Skipping misconfigured provider ${provider} (${environment}) for status check: ${error.message}`
+          );
+
+          const dbConfig = await this.getDbConfig(provider, environment, tenantId);
+
+          return {
+            enabled: dbConfig?.isEnabled ?? false,
+            configured: false,
+            missingSecrets: error.missingKeys ?? [],
+          };
+        }
+
+        throw error;
+      }
+    };
+
     const status = await Promise.all(
       allProviders.map(async (provider) => {
-        const testConfig = await this.resolveConfig(provider, 'test', tenantId);
-        const liveConfig = await this.resolveConfig(provider, 'live', tenantId);
-        
+        const [testStatus, liveStatus] = await Promise.all([
+          resolveEnvironmentStatus(provider, 'test'),
+          resolveEnvironmentStatus(provider, 'live'),
+        ]);
+
         return {
           provider,
-          test: {
-            enabled: testConfig.enabled,
-            configured: testConfig.isValid,
-            missingSecrets: testConfig.missingSecrets,
-          },
-          live: {
-            enabled: liveConfig.enabled,
-            configured: liveConfig.isValid,
-            missingSecrets: liveConfig.missingSecrets,
-          },
+          test: testStatus,
+          live: liveStatus,
         };
       })
     );
-    
+
     return status;
   }
   

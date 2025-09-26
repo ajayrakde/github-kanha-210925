@@ -160,7 +160,19 @@ export class AdapterFactory implements PaymentAdapterFactory {
     }
 
     // Resolve configuration
-    const config = await configResolver.resolveConfig(provider, environment, tenantId);
+    let config: ResolvedConfig;
+    try {
+      config = await configResolver.resolveConfig(provider, environment, tenantId);
+    } catch (error) {
+      if (error instanceof ConfigurationError) {
+        throw error;
+      }
+
+      throw new ConfigurationError(
+        `Failed to resolve configuration for ${provider} (${environment})`,
+        provider
+      );
+    }
 
     // Validate configuration
     if (!config.enabled) {
