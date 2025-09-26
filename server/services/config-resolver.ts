@@ -181,11 +181,46 @@ export class ConfigResolver {
       'paytm', 'billdesk', 'phonepe', 'stripe'
     ];
     
-    const configs = await Promise.all(
-      allProviders.map(provider => this.resolveConfig(provider, environment, tenantId))
+    type ResolutionResult =
+      | { provider: PaymentProvider; config: ResolvedConfig }
+      | { provider: PaymentProvider; error: unknown };
+
+    const results: ResolutionResult[] = await Promise.all(
+      allProviders.map(async (provider) => {
+        try {
+          const config = await this.resolveConfig(provider, environment, tenantId);
+          return { provider, config } as const;
+        } catch (error) {
+          return { provider, error } as const;
+        }
+      })
     );
-    
-    return configs.filter(config => config.enabled && config.isValid);
+
+    const enabledProviders: ResolvedConfig[] = [];
+
+    for (const result of results) {
+      if ("config" in result) {
+        const { config } = result;
+
+        if (config.enabled && config.isValid) {
+          enabledProviders.push(config);
+        }
+        continue;
+      }
+
+      const error = result.error;
+
+      if (error instanceof ConfigurationError) {
+        console.warn(
+          `Skipping misconfigured provider ${result.provider} (${environment}): ${error.message}`
+        );
+        continue;
+      }
+
+      throw error;
+    }
+
+    return enabledProviders;
   }
   
   /**
