@@ -31,10 +31,12 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - Enforce ownership checks via `userId` in session.  
    - Data stored via `usersRepository`.
 
-5. **Checkout / Place Order**  
-   - `POST /api/orders` handled by `server/routes/orders.ts`.  
-   - Enriches order with addresses, offers, and shipping rules using domain repositories.  
+5. **Checkout / Place Order**
+   - `POST /api/orders` handled by `server/routes/orders.ts`.
+   - Enriches order with addresses, offers, and shipping rules using domain repositories.
    - Order placement flow, including offer validation and shipping, is unchanged.
+   - `GET /api/payments/order-info/:orderId` aggregates payment attempts, refund totals, and normalized order status so the thank-you page can poll for completion without calling provider-specific APIs.
+   - UPI/PhonePe payments now inject explicit success, failure, and cancel URLs so that successful payments land on `/thank-you?orderId=...` and failures or cancellations route shoppers back to `/checkout` with contextual messaging. The cart is only cleared after the payment has been confirmed, allowing buyers to retry without losing their selections when a payment attempt fails.
 
 6. **Shipping Charges**  
    - Shipping calculation moved to `shippingRepository`.  
@@ -68,7 +70,10 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
 6. **Payment Providers**
    - Enabling a gateway now requires matching Replit secrets to be present.
    - Missing secrets cause an explicit configuration error instead of silently proceeding, ensuring admins fix misconfigurations before go-live.
+   - Runtime API calls (create/verify payment, refunds) now return HTTP 409 with the provider name and missing secret keys when no enabled gateway can be resolved, so client flows can surface actionable setup guidance instead of generic failures.
    - Webhook ingestion now auto-detects the correct provider across all enabled configs per tenant and deduplicates payloads with tenant-aware hashes, preventing cross-tenant collisions.
+   - Payment records and refunds are persisted with explicit tenant scoping so audit reports and follow-up actions never mix data across tenants.
+   - Admin dashboards load payment provider setup data via `/api/payments/admin/provider-configs`, which now returns both raw database configuration rows and secret validation status so the Payments tab can render reliably.
 
 ---
 

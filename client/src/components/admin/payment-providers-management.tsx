@@ -37,6 +37,25 @@ import type { PaymentProviderConfig } from "@shared/schema";
 type PaymentProvider = 'razorpay' | 'payu' | 'ccavenue' | 'cashfree' | 'paytm' | 'billdesk' | 'phonepe' | 'stripe';
 type Environment = 'test' | 'live';
 
+type ProviderEnvironmentStatus = {
+  enabled: boolean;
+  configured: boolean;
+  missingSecrets: string[];
+};
+
+type ProviderStatusSummary = {
+  provider: PaymentProvider;
+  test: ProviderEnvironmentStatus;
+  live: ProviderEnvironmentStatus;
+};
+
+type ProviderConfigQueryResult = {
+  configs: PaymentProviderConfig[];
+  status: ProviderStatusSummary[];
+};
+
+const PROVIDER_CONFIG_QUERY_KEY = ['payments', 'admin', 'provider-configs'] as const;
+
 // Capability matrix (from TASK 2 specification)
 const capabilityMatrix: Record<PaymentProvider, Record<string, boolean>> = {
   razorpay: { cards: true, upi: true, netbanking: true, wallets: true, refunds: true, payouts: true, tokenization: true, international: true, webhooks: true },
@@ -85,7 +104,9 @@ const capabilityIcons: Record<string, any> = {
   refunds: RefreshCw, payouts: ArrowUpDown, tokenization: Shield, international: Globe, webhooks: Webhook
 };
 
-interface ProviderConfigData extends Omit<PaymentProviderConfig, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'> {}
+type ProviderConfigData = Partial<
+  Omit<PaymentProviderConfig, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'>
+> & Pick<PaymentProviderConfig, 'provider' | 'environment' | 'isEnabled'>;
 
 export default function PaymentProvidersManagement() {
   const { toast } = useToast();
@@ -95,17 +116,48 @@ export default function PaymentProvidersManagement() {
   const [healthCheckStatus, setHealthCheckStatus] = useState<Record<string, 'idle' | 'checking' | 'success' | 'error'>>({});
 
   // Fetch provider configurations
-  const { data: configs = [], isLoading } = useQuery<PaymentProviderConfig[]>({
-    queryKey: ['/api/admin/payment-provider-configs'],
+  const { data: providerConfigData, isLoading } = useQuery<ProviderConfigQueryResult>({
+    queryKey: PROVIDER_CONFIG_QUERY_KEY,
+    queryFn: async () => {
+      const res = await fetch('/api/payments/admin/provider-configs', {
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error(`${res.status}: ${message || 'Failed to load payment provider configurations'}`);
+      }
+
+      const body = await res.json();
+      const payload = body?.data;
+
+      const rawConfigs = Array.isArray(payload?.configs)
+        ? payload.configs
+        : Array.isArray(body?.data)
+          ? body.data
+          : [];
+
+      const rawStatus = Array.isArray(payload?.status)
+        ? payload.status
+        : [];
+
+      return {
+        configs: (rawConfigs ?? []) as PaymentProviderConfig[],
+        status: (rawStatus ?? []) as ProviderStatusSummary[],
+      };
+    },
   });
+
+  const configs = providerConfigData?.configs ?? [];
+  const providerStatus = providerConfigData?.status ?? [];
 
   // Create/update provider configuration
   const configMutation = useMutation({
     mutationFn: async (data: ProviderConfigData) => {
-      return apiRequest('POST', '/api/admin/payment-provider-configs', data);
+      return apiRequest('POST', '/api/payments/admin/provider-configs', data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/payment-provider-configs'] });
+      queryClient.invalidateQueries({ queryKey: PROVIDER_CONFIG_QUERY_KEY });
       toast({ title: "Success", description: "Provider configuration saved successfully" });
       setShowConfigDialog(false);
     },
@@ -117,7 +169,7 @@ export default function PaymentProvidersManagement() {
   // Health check mutation
   const healthCheckMutation = useMutation({
     mutationFn: async ({ provider, environment }: { provider: PaymentProvider, environment: Environment }) => {
-      return apiRequest('POST', `/api/admin/payment-providers/${provider}/health-check?environment=${environment}`);
+      return apiRequest('POST', `/api/payments/admin/providers/${provider}/health-check?environment=${environment}`);
     },
     onSuccess: (_, { provider, environment }) => {
       const key = `${provider}-${environment}`;
@@ -135,12 +187,30 @@ export default function PaymentProvidersManagement() {
     return configs.find(c => c.provider === provider && c.environment === environment);
   };
 
+  const sanitizeConfig = (config: PaymentProviderConfig): ProviderConfigData => {
+    const { id, tenantId, createdAt, updatedAt, capabilities, metadata, ...rest } = config;
+    return {
+      ...rest,
+      capabilities: (capabilities as Record<string, boolean> | null) ?? {},
+      metadata: (metadata as Record<string, any> | null) ?? {},
+    };
+  };
+
   const handleToggleProvider = async (provider: PaymentProvider, environment: Environment, enabled: boolean) => {
     const existingConfig = getConfigForProvider(provider, environment);
     if (existingConfig) {
       const data: ProviderConfigData = {
-        ...existingConfig,
+        ...sanitizeConfig(existingConfig),
         isEnabled: enabled,
+      };
+      configMutation.mutate(data);
+    } else {
+      const data: ProviderConfigData = {
+        provider,
+        environment,
+        isEnabled: enabled,
+        capabilities: {},
+        metadata: {},
       };
       configMutation.mutate(data);
     }
@@ -179,6 +249,11 @@ export default function PaymentProvidersManagement() {
 
   const renderProviderCard = (provider: PaymentProvider, environment: Environment) => {
     const config = getConfigForProvider(provider, environment);
+    const statusEntry = providerStatus.find(status => status.provider === provider);
+    const environmentStatus = statusEntry ? statusEntry[environment] : undefined;
+    const isEnabled = environmentStatus?.enabled ?? config?.isEnabled ?? false;
+    const isConfigured = environmentStatus?.configured ?? Boolean(config);
+    const missingSecrets = environmentStatus?.missingSecrets ?? [];
     const healthKey = `${provider}-${environment}`;
     const healthStatus = healthCheckStatus[healthKey] || 'idle';
     const requiredSecrets = providerSecretKeys[provider][environment];
@@ -200,12 +275,12 @@ export default function PaymentProvidersManagement() {
             </div>
             <div className="flex items-center space-x-3">
               <Switch
-                checked={config?.isEnabled ?? false}
+                checked={isEnabled}
                 onCheckedChange={(checked) => handleToggleProvider(provider, environment, checked)}
                 data-testid={`toggle-${provider}-${environment}`}
               />
-              <Badge variant={config?.isEnabled ? "default" : "secondary"}>
-                {config?.isEnabled ? "Enabled" : "Disabled"}
+              <Badge variant={isEnabled ? "default" : "secondary"}>
+                {isEnabled ? "Enabled" : "Disabled"}
               </Badge>
             </div>
           </div>
@@ -215,7 +290,7 @@ export default function PaymentProvidersManagement() {
           {/* Configuration Status */}
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center space-x-2">
-              {config ? (
+              {isConfigured ? (
                 <>
                   <CheckCircle className="w-4 h-4 text-green-500" />
                   <span className="text-green-600">Configured</span>
@@ -232,7 +307,7 @@ export default function PaymentProvidersManagement() {
                 size="sm"
                 variant="outline"
                 onClick={() => handleHealthCheck(provider, environment)}
-                disabled={!config?.isEnabled || healthStatus === 'checking'}
+                disabled={!isEnabled || healthStatus === 'checking'}
                 data-testid={`health-check-${provider}-${environment}`}
               >
                 <Activity className={`w-4 h-4 mr-1 ${healthStatus === 'checking' ? 'animate-spin' : ''}`} />
@@ -268,6 +343,12 @@ export default function PaymentProvidersManagement() {
               ))}
             </div>
           </div>
+
+          {missingSecrets.length > 0 && (
+            <div className="p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+              <span className="font-medium">Missing secrets:</span> {missingSecrets.join(', ')}
+            </div>
+          )}
 
           {/* Health Status */}
           {healthStatus !== 'idle' && (

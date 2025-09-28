@@ -47,6 +47,33 @@ export default function Checkout() {
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
   const [isPincodeValid, setIsPincodeValid] = useState(false);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('paymentStatus');
+
+    if (!paymentStatus) {
+      return;
+    }
+
+    if (paymentStatus === 'failed') {
+      toast({
+        title: "Payment failed",
+        description: "We couldn't complete your payment. Please review your details and try again.",
+        variant: "destructive",
+      });
+    } else if (paymentStatus === 'cancelled') {
+      toast({
+        title: "Payment cancelled",
+        description: "Your payment was cancelled before completion. You can retry when you're ready.",
+      });
+    }
+
+    params.delete('paymentStatus');
+    const nextSearch = params.toString();
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}`;
+    window.history.replaceState({}, document.title, nextUrl);
+  }, [toast]);
+
   // Function to validate pincode (6 digits)
   const validatePincode = (pincode: string): boolean => {
     return /^\d{6}$/.test(pincode);
@@ -271,8 +298,9 @@ export default function Checkout() {
       return await response.json();
     },
     onSuccess: async (data) => {
-      // Clear the cart after successful order
-      clearCart.mutate();
+      if (paymentMethod !== 'upi') {
+        await clearCart.mutateAsync();
+      }
       // Invalidate orders cache to show the new order
       queryClient.invalidateQueries({ queryKey: ["/api/auth/orders"] });
       queryClient.setQueryData(["checkout", "selectedOffer"], null);
@@ -291,7 +319,7 @@ export default function Checkout() {
       if (paymentMethod === 'upi') {
         setLocation(`/payment?orderId=${data.order.id}`);
       } else {
-        setLocation("/thank-you");
+        setLocation(`/thank-you?orderId=${data.order.id}`);
       }
     },
   });

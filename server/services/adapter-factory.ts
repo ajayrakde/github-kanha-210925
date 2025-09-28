@@ -276,11 +276,16 @@ export class AdapterFactory implements PaymentAdapterFactory {
     environment: Environment,
     tenantId: string
   ): Promise<PaymentsAdapter> {
+    const configurationErrors: ConfigurationError[] = [];
+
     // Try preferred provider first
     try {
       return await this.createAdapter(preferredProvider, environment, tenantId);
     } catch (error) {
       console.warn(`Preferred provider ${preferredProvider} failed:`, error);
+      if (error instanceof ConfigurationError) {
+        configurationErrors.push(error);
+      }
     }
 
     // Try fallback providers
@@ -291,10 +296,35 @@ export class AdapterFactory implements PaymentAdapterFactory {
         return await this.createAdapter(provider, environment, tenantId);
       } catch (error) {
         console.warn(`Fallback provider ${provider} failed:`, error);
+        if (error instanceof ConfigurationError) {
+          configurationErrors.push(error);
+        }
         continue;
       }
     }
-    
+
+    if (configurationErrors.length > 0) {
+      const missingKeys = configurationErrors
+        .flatMap(error => error.missingKeys ?? [])
+        .filter((value, index, array) => array.indexOf(value) === index);
+
+      const detailMessage = configurationErrors
+        .map(error => {
+          const provider = error.provider ?? 'unknown';
+          if (error.missingKeys && error.missingKeys.length > 0) {
+            return `${provider}: missing [${error.missingKeys.join(', ')}]`;
+          }
+          return `${provider}: ${error.message}`;
+        })
+        .join('; ');
+
+      throw new ConfigurationError(
+        `No working payment provider available for ${environment} environment. ${detailMessage}`,
+        preferredProvider,
+        missingKeys.length > 0 ? missingKeys : undefined
+      );
+    }
+
     throw new ConfigurationError(
       `No working payment provider available for ${environment} environment`,
       preferredProvider

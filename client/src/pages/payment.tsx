@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,85 +54,89 @@ export default function Payment() {
     retry: false
   });
 
+  const paymentUrls = useMemo(() => {
+    if (!orderId) {
+      return null;
+    }
+
+    const baseUrl = window.location.origin;
+    const orderQuery = `orderId=${orderId}`;
+
+    return {
+      success: `${baseUrl}/thank-you?${orderQuery}`,
+      failure: `${baseUrl}/checkout?${orderQuery}&paymentStatus=failed`,
+      cancel: `${baseUrl}/checkout?${orderQuery}&paymentStatus=cancelled`
+    };
+  }, [orderId]);
+
   // Create payment mutation
   const createPaymentMutation = useMutation({
     mutationFn: async () => {
       const currentOrderData = orderData || order;
       if (!currentOrderData) throw new Error('No order data available');
-      
+
       const response = await apiRequest("POST", "/api/payments/create", {
-        orderId: orderId,
+        orderId,
         amount: parseFloat(currentOrderData.total),
-        redirectUrl: `${window.location.origin}/payment/success?orderId=${orderId}`,
-        callbackUrl: `${window.location.origin}/api/payments/webhook/phonepe`,
-        mobileNumber: currentOrderData.userInfo.phone
+        successUrl: paymentUrls?.success,
+        failureUrl: paymentUrls?.failure,
+        cancelUrl: paymentUrls?.cancel,
+        customer: {
+          name: currentOrderData.userInfo.name,
+          email: currentOrderData.userInfo.email,
+          phone: currentOrderData.userInfo.phone,
+        },
+        metadata: {
+          initiatedFrom: 'buyer_portal_checkout',
+        },
       });
-      
+
       return response.json();
     },
     onSuccess: (data) => {
-      setPaymentStatus('processing');
-      
-      // Check if we have a payment URL to redirect to
-      if (data.data && data.data.redirectUrl) {
-        // For PhonePe, redirect to their payment page
+      if (data?.success && data.data?.redirectUrl) {
+        setPaymentStatus('processing');
         window.location.href = data.data.redirectUrl;
-      } else {
-        toast({
-          title: "Payment Error",
-          description: "Unable to initiate payment. Please try again.",
-          variant: "destructive"
-        });
-        setPaymentStatus('failed');
+        return;
       }
+
+      toast({
+        title: "Payment Error",
+        description: "Unable to initiate payment. Please try again.",
+        variant: "destructive",
+      });
+      setPaymentStatus('failed');
     },
     onError: (error) => {
       console.error('Payment creation failed:', error);
       toast({
         title: "Payment Failed",
         description: "Unable to process payment. Please try again.",
-        variant: "destructive"
+        variant: "destructive",
       });
       setPaymentStatus('failed');
-    }
+    },
   });
 
-  // Payment status checking mutation
-  const checkPaymentStatusMutation = useMutation({
-    mutationFn: async (merchantTransactionId: string) => {
-      const response = await apiRequest("GET", `/api/payments/status/${merchantTransactionId}`);
-      return response.json();
-    },
-    onSuccess: (data) => {
-      if (data.data && data.data.statusResponse && data.data.statusResponse.data) {
-        const status = data.data.statusResponse.data.state;
-        if (status === 'COMPLETED') {
-          setPaymentStatus('completed');
-          toast({
-            title: "Payment Successful",
-            description: "Your payment has been completed successfully!",
-          });
-          setTimeout(() => {
-            setLocation("/thank-you");
-          }, 2000);
-        } else if (status === 'FAILED') {
-          setPaymentStatus('failed');
-          toast({
-            title: "Payment Failed",
-            description: "Your payment could not be processed. Please try again.",
-            variant: "destructive"
-          });
-        }
-      }
+  useEffect(() => {
+    if (paymentStatus !== 'failed') {
+      return;
     }
-  });
+
+    const target = paymentUrls?.failure || '/checkout';
+    const timer = window.setTimeout(() => {
+      setLocation(target);
+    }, 1200);
+
+    return () => window.clearTimeout(timer);
+  }, [paymentStatus, paymentUrls, setLocation]);
 
   const currentOrderData = orderData || order;
   const isLoading = isLoadingOrder || createPaymentMutation.isPending;
 
   // Handle back to checkout
   const handleBackToCheckout = () => {
-    setLocation("/checkout");
+    setLocation(paymentUrls?.cancel || '/checkout');
   };
 
   // Handle retry payment

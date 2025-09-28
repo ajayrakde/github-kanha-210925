@@ -18,6 +18,7 @@ import type {
   CreateRefundParams
 } from '../../shared/payment-types';
 import type { PaymentProvider, Environment } from '../../shared/payment-providers';
+import { ConfigurationError, PaymentError } from '../../shared/payment-types';
 
 export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   const router = Router();
@@ -138,14 +139,23 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       
     } catch (error) {
       console.error('Payment creation error:', error);
-      
+
       if (error instanceof z.ZodError) {
         return res.status(400).json({
           error: 'Invalid request data',
           details: error.errors
         });
       }
-      
+
+      if (error instanceof ConfigurationError) {
+        return res.status(409).json({
+          error: 'Provider configuration invalid',
+          message: error.message,
+          provider: error.provider,
+          missingKeys: error.missingKeys ?? [],
+        });
+      }
+
       res.status(500).json({
         error: 'Payment creation failed',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -184,14 +194,23 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       
     } catch (error) {
       console.error('Payment verification error:', error);
-      
+
       if (error instanceof z.ZodError) {
         return res.status(400).json({
           error: 'Invalid request data',
           details: error.errors
         });
       }
-      
+
+      if (error instanceof ConfigurationError) {
+        return res.status(409).json({
+          error: 'Provider configuration invalid',
+          message: error.message,
+          provider: error.provider,
+          missingKeys: error.missingKeys ?? [],
+        });
+      }
+
       res.status(500).json({
         error: 'Payment verification failed',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -237,10 +256,71 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       
     } catch (error) {
       console.error('Payment status check error:', error);
-      
+
+      if (error instanceof ConfigurationError) {
+        return res.status(409).json({
+          error: 'Provider configuration invalid',
+          message: error.message,
+          provider: error.provider,
+          missingKeys: error.missingKeys ?? [],
+        });
+      }
+
       res.status(500).json({
         error: 'Payment status check failed',
         message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  router.get('/order-info/:orderId', async (req: SessionRequest, res) => {
+    const { orderId } = req.params;
+
+    if (!orderId) {
+      return res.status(400).json({
+        error: 'Order ID is required',
+      });
+    }
+
+    const isAdmin = req.session.userRole === 'admin' || Boolean(req.session.adminId);
+
+    if (!req.session.userId && !isAdmin) {
+      return res.status(401).json({
+        error: 'Authentication required',
+      });
+    }
+
+    try {
+      const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+      const summary = await paymentsService.getOrderPaymentSummary(orderId, tenantId, {
+        userId: req.session.userId,
+        role: isAdmin ? 'admin' : req.session.userRole,
+      });
+
+      res.json({
+        success: true,
+        data: summary,
+      });
+    } catch (error) {
+      console.error('Order payment summary error:', error);
+
+      if (error instanceof PaymentError) {
+        if (error.code === 'ORDER_NOT_FOUND') {
+          return res.status(404).json({
+            error: 'Order not found',
+          });
+        }
+
+        if (error.code === 'ORDER_ACCESS_DENIED') {
+          return res.status(403).json({
+            error: 'Access denied',
+          });
+        }
+      }
+
+      res.status(500).json({
+        error: 'Failed to load order payment summary',
+        message: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   });
@@ -282,14 +362,23 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       
     } catch (error) {
       console.error('Refund creation error:', error);
-      
+
       if (error instanceof z.ZodError) {
         return res.status(400).json({
           error: 'Invalid request data',
           details: error.errors
         });
       }
-      
+
+      if (error instanceof ConfigurationError) {
+        return res.status(409).json({
+          error: 'Provider configuration invalid',
+          message: error.message,
+          provider: error.provider,
+          missingKeys: error.missingKeys ?? [],
+        });
+      }
+
       res.status(500).json({
         error: 'Refund creation failed',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -331,7 +420,16 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       
     } catch (error) {
       console.error('Refund status check error:', error);
-      
+
+      if (error instanceof ConfigurationError) {
+        return res.status(409).json({
+          error: 'Provider configuration invalid',
+          message: error.message,
+          provider: error.provider,
+          missingKeys: error.missingKeys ?? [],
+        });
+      }
+
       res.status(500).json({
         error: 'Refund status check failed',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -380,13 +478,19 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   router.get('/admin/provider-configs', requireAdmin, async (req: SessionRequest, res) => {
     try {
       const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
-      const configs = await configResolver.getProviderStatus(tenantId);
-      
+      const [configs, status] = await Promise.all([
+        configResolver.listConfigs(tenantId),
+        configResolver.getProviderStatus(tenantId)
+      ]);
+
       res.json({
         success: true,
-        data: configs
+        data: {
+          configs,
+          status,
+        }
       });
-      
+
     } catch (error) {
       console.error('Error fetching provider configurations:', error);
       res.status(500).json({
@@ -405,8 +509,16 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       const validatedData = providerConfigSchema.parse(req.body);
       const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
 
-      await configResolver.updateConfig({ ...validatedData, tenantId });
-      
+      const { provider, environment, isEnabled, ...rest } = validatedData;
+
+      await configResolver.updateConfig({
+        provider,
+        environment,
+        enabled: isEnabled,
+        tenantId,
+        ...rest,
+      });
+
       res.json({
         success: true,
         message: 'Provider configuration saved successfully'

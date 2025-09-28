@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
+import { useCart } from "@/hooks/use-cart";
 
 interface OrderData {
   orderId: string;
@@ -82,8 +83,10 @@ const PaymentStatusBadge = ({ status, className = "" }: { status: string; classN
 
 export default function ThankYou() {
   const [, setLocation] = useLocation();
+  const { clearCart } = useCart();
   const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [orderId, setOrderId] = useState<string>("");
+  const [cartCleared, setCartCleared] = useState(false);
   const [orderDate] = useState(new Date().toLocaleDateString('en-IN', {
     year: 'numeric',
     month: 'long',
@@ -132,6 +135,22 @@ export default function ThankYou() {
   const currentOrderData = paymentInfo?.order || orderData;
   const currentPaymentStatus = paymentInfo?.order?.paymentStatus || 'pending';
   const currentOrderStatus = paymentInfo?.order?.status || 'pending';
+
+  useEffect(() => {
+    if (cartCleared) {
+      return;
+    }
+
+    const paymentMethod = currentOrderData?.paymentMethod?.toLowerCase();
+    const isUpiPayment = paymentMethod === 'upi' || paymentMethod === 'phonepe';
+    const paymentComplete =
+      currentPaymentStatus === 'paid' || paymentInfo?.latestTransaction?.status === 'completed';
+
+    if (!isUpiPayment || paymentComplete) {
+      clearCart.mutate();
+      setCartCleared(true);
+    }
+  }, [cartCleared, clearCart, currentOrderData?.paymentMethod, currentPaymentStatus, paymentInfo?.latestTransaction?.status]);
 
   // Dynamic header info based on payment status
   const getHeaderInfo = (paymentStatus: string, orderStatus: string) => {

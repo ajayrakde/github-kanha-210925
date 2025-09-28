@@ -296,7 +296,22 @@ export class ConfigResolver {
 
     return status;
   }
-  
+
+  /**
+   * List raw provider configurations stored in the database
+   */
+  public async listConfigs(tenantId: string = "default") {
+    try {
+      return await db
+        .select()
+        .from(paymentProviderConfig)
+        .where(eq(paymentProviderConfig.tenantId, tenantId));
+    } catch (error) {
+      console.error(`Failed to list provider configs for tenant ${tenantId}:`, error);
+      return [];
+    }
+  }
+
   /**
    * Update provider configuration in database
    */

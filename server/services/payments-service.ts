@@ -18,16 +18,20 @@ import type {
   RefundResult,
   PaymentServiceConfig,
   PaymentEvent,
-  HealthCheckResult
+  HealthCheckResult,
+  PaymentStatus,
+  Currency,
+  RefundStatus
 } from "../../shared/payment-types";
 
 import { adapterFactory } from "./adapter-factory";
 import { idempotencyService } from "./idempotency-service";
 import { PaymentError, RefundError, ConfigurationError } from "../../shared/payment-types";
 import { db } from "../db";
-import { payments, refunds, paymentEvents } from "../../shared/schema";
-import { eq, and } from "drizzle-orm";
+import { orders, payments, refunds, paymentEvents } from "../../shared/schema";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import crypto from "crypto";
+import { buildOrderPaymentSummary } from "./order-summary";
 
 /**
  * Main payments service orchestrating all payment operations
@@ -91,6 +95,7 @@ export class PaymentsService {
           // Add service-level configurations
           const enrichedParams: CreatePaymentParams = {
             ...params,
+            tenantId: resolvedTenantId,
             idempotencyKey,
             successUrl: params.successUrl || this.getDefaultSuccessUrl(),
             failureUrl: params.failureUrl || this.getDefaultFailureUrl(),
@@ -143,12 +148,33 @@ export class PaymentsService {
               },
               occurredAt: result.createdAt,
             });
+
+            const nextOrderStatus = this.mapPaymentStatusToOrderStatus(result.status);
+            if (nextOrderStatus) {
+              await trx
+                .update(orders)
+                .set({
+                  status: nextOrderStatus,
+                  updatedAt: new Date(),
+                })
+                .where(
+                  and(
+                    eq(orders.id, params.orderId),
+                    eq(orders.tenantId, resolvedTenantId)
+                  )
+                );
+            }
           });
-          
+
           return result;
-          
+
         } catch (error) {
           console.error('Payment creation failed:', error);
+
+          if (error instanceof ConfigurationError) {
+            throw error;
+          }
+
           throw new PaymentError(
             'Failed to create payment',
             'PAYMENT_CREATION_FAILED',
@@ -204,6 +230,11 @@ export class PaymentsService {
       
     } catch (error) {
       console.error('Payment verification failed:', error);
+
+      if (error instanceof ConfigurationError) {
+        throw error;
+      }
+
       throw new PaymentError(
         'Failed to verify payment',
         'PAYMENT_VERIFICATION_FAILED',
@@ -297,6 +328,11 @@ export class PaymentsService {
           
         } catch (error) {
           console.error('Refund creation failed:', error);
+
+          if (error instanceof ConfigurationError) {
+            throw error;
+          }
+
           throw new RefundError(
             'Failed to create refund',
             'REFUND_CREATION_FAILED',
@@ -356,6 +392,11 @@ export class PaymentsService {
       
     } catch (error) {
       console.error('Refund status check failed:', error);
+
+      if (error instanceof ConfigurationError) {
+        throw error;
+      }
+
       throw new RefundError(
         'Failed to get refund status',
         'REFUND_STATUS_CHECK_FAILED',
@@ -443,6 +484,11 @@ export class PaymentsService {
       return captureResult;
     } catch (error) {
       console.error('Payment capture failed:', error);
+
+      if (error instanceof ConfigurationError) {
+        throw error;
+      }
+
       throw new PaymentError(
         'Failed to capture payment',
         'PAYMENT_CAPTURE_FAILED',
@@ -450,6 +496,120 @@ export class PaymentsService {
         error
       );
     }
+  }
+
+  public async getOrderPaymentSummary(
+    orderId: string,
+    tenantId: string,
+    requester?: { userId?: string; role?: string }
+  ) {
+    const resolvedTenantId = tenantId || "default";
+
+    const [orderRecord] = await db
+      .select({
+        id: orders.id,
+        userId: orders.userId,
+        status: orders.status,
+        total: orders.total,
+        amountMinor: orders.amountMinor,
+        currency: orders.currency,
+        createdAt: orders.createdAt,
+        updatedAt: orders.updatedAt,
+      })
+      .from(orders)
+      .where(
+        and(
+          eq(orders.id, orderId),
+          eq(orders.tenantId, resolvedTenantId)
+        )
+      )
+      .limit(1);
+
+    if (!orderRecord) {
+      throw new PaymentError('Order not found', 'ORDER_NOT_FOUND');
+    }
+
+    if (
+      requester &&
+      requester.role !== 'admin' &&
+      requester.userId &&
+      requester.userId !== orderRecord.userId
+    ) {
+      throw new PaymentError('Not authorized to view this order', 'ORDER_ACCESS_DENIED');
+    }
+
+    const paymentRecords = await db
+      .select({
+        id: payments.id,
+        provider: payments.provider,
+        providerPaymentId: payments.providerPaymentId,
+        providerOrderId: payments.providerOrderId,
+        status: payments.status,
+        amountAuthorizedMinor: payments.amountAuthorizedMinor,
+        amountCapturedMinor: payments.amountCapturedMinor,
+        currency: payments.currency,
+        methodKind: payments.methodKind,
+        createdAt: payments.createdAt,
+        updatedAt: payments.updatedAt,
+      })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.orderId, orderId),
+          eq(payments.tenantId, resolvedTenantId)
+        )
+      )
+      .orderBy(desc(payments.updatedAt));
+
+    const paymentIds = paymentRecords.map(payment => payment.id);
+
+    const refundRecords = paymentIds.length === 0
+      ? []
+      : await db
+          .select({
+            amountMinor: refunds.amountMinor,
+            status: refunds.status,
+            createdAt: refunds.createdAt,
+            updatedAt: refunds.updatedAt,
+          })
+          .from(refunds)
+          .where(
+            and(
+              eq(refunds.tenantId, resolvedTenantId),
+              inArray(refunds.paymentId, paymentIds)
+            )
+          );
+
+    return buildOrderPaymentSummary(
+      {
+        id: orderRecord.id,
+        status: orderRecord.status,
+        total: orderRecord.total,
+        amountMinor: orderRecord.amountMinor ?? 0,
+        currency: (orderRecord.currency as Currency) ?? 'INR',
+        createdAt: orderRecord.createdAt ?? new Date(),
+        updatedAt: orderRecord.updatedAt ?? orderRecord.createdAt ?? new Date(),
+      },
+      paymentRecords.map((payment) => ({
+        ...payment,
+        amountAuthorizedMinor: payment.amountAuthorizedMinor ?? 0,
+        amountCapturedMinor: payment.amountCapturedMinor ?? 0,
+        createdAt: payment.createdAt ?? new Date(),
+        updatedAt: payment.updatedAt ?? payment.createdAt ?? new Date(),
+        methodKind: payment.methodKind ?? null,
+        provider: payment.provider,
+        providerPaymentId: payment.providerPaymentId,
+        providerOrderId: payment.providerOrderId,
+        currency: (payment.currency as Currency) ?? 'INR',
+        status: (payment.status as PaymentStatus),
+      })),
+      refundRecords.map((refund) => ({
+        ...refund,
+        createdAt: refund.createdAt ?? new Date(),
+        updatedAt: refund.updatedAt ?? refund.createdAt ?? new Date(),
+        status: refund.status as RefundStatus,
+      }))
+    );
   }
   
   /**
@@ -505,10 +665,16 @@ export class PaymentsService {
   /**
    * Store payment in database
    */
-  private async storePayment(result: PaymentResult, provider: PaymentProvider): Promise<void> {
+  private async storePayment(
+    result: PaymentResult,
+    provider: PaymentProvider,
+    tenantId: string,
+    orderId: string
+  ): Promise<void> {
     await db.insert(payments).values({
       id: result.paymentId,
-      orderId: result.providerOrderId || result.paymentId,
+      tenantId,
+      orderId,
       provider: provider,
       environment: this.config.environment,
       providerPaymentId: result.providerPaymentId,
@@ -523,7 +689,7 @@ export class PaymentsService {
       updatedAt: result.updatedAt || result.createdAt,
     });
   }
-  
+
   /**
    * Update stored payment with transaction safety
    */
@@ -559,6 +725,33 @@ export class PaymentsService {
           )
         );
 
+      const [paymentRecord] = await trx
+        .select({ orderId: payments.orderId })
+        .from(payments)
+        .where(
+          and(
+            eq(payments.id, result.paymentId),
+            eq(payments.tenantId, tenantId)
+          )
+        )
+        .limit(1);
+
+      const nextOrderStatus = this.mapPaymentStatusToOrderStatus(result.status);
+      if (paymentRecord && nextOrderStatus) {
+        await trx
+          .update(orders)
+          .set({
+            status: nextOrderStatus,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(orders.id, paymentRecord.orderId),
+              eq(orders.tenantId, tenantId)
+            )
+          );
+      }
+
       await trx.insert(paymentEvents).values({
         id: event.id,
         tenantId,
@@ -592,9 +785,14 @@ export class PaymentsService {
   /**
    * Store refund in database
    */
-  private async storeRefund(result: RefundResult, provider: PaymentProvider): Promise<void> {
+  private async storeRefund(
+    result: RefundResult,
+    provider: PaymentProvider,
+    tenantId: string
+  ): Promise<void> {
     await db.insert(refunds).values({
       id: result.refundId,
+      tenantId,
       paymentId: result.paymentId,
       provider: provider,
       providerRefundId: result.providerRefundId,
@@ -669,6 +867,27 @@ export class PaymentsService {
    */
   private getDefaultFailureUrl(): string {
     return `${process.env.BASE_URL || 'http://localhost:3000'}/payment-failed`;
+  }
+
+  private mapPaymentStatusToOrderStatus(status: PaymentStatus): string | null {
+    switch (status) {
+      case 'created':
+      case 'initiated':
+        return 'pending';
+      case 'processing':
+      case 'authorized':
+        return 'processing';
+      case 'captured':
+        return 'confirmed';
+      case 'partially_refunded':
+        return 'partially_refunded';
+      case 'refunded':
+        return 'refunded';
+      case 'cancelled':
+        return 'cancelled';
+      default:
+        return null;
+    }
   }
 }
 
