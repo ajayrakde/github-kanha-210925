@@ -192,10 +192,16 @@ describe("payments router", () => {
   });
 
   describe("POST /api/payments/token-url", () => {
-    const computeKey = (tenant: string, orderId: string, amountMinor: number, currency: string) => {
+    const computeKey = (
+      prefix: "phonepe-token" | "phonepe-payment",
+      tenant: string,
+      orderId: string,
+      amountMinor: number,
+      currency: string
+    ) => {
       const hash = createHash("sha256");
       hash.update([tenant, orderId, amountMinor.toString(), currency].join(":"));
-      return `phonepe-token:${hash.digest("hex")}`;
+      return `${prefix}:${hash.digest("hex")}`;
     };
 
     const buildTokenRequest = (overrides: { body?: any; headers?: Record<string, string> } = {}) => {
@@ -285,7 +291,7 @@ describe("payments router", () => {
       mockPaymentsService.createPayment.mockResolvedValue(paymentResult);
 
       const amountMinor = 1000;
-      const expectedKey = computeKey("tenant-a", "order-123", amountMinor, "INR");
+      const expectedKey = computeKey("phonepe-token", "tenant-a", "order-123", amountMinor, "INR");
       const expiredPayload = {
         success: true,
         data: {
@@ -336,12 +342,18 @@ describe("payments router", () => {
       await handler(req, res, () => {});
 
       const expectedAmountMinor = Math.round(25.5 * 100);
-      const expectedKey = computeKey("tenant-a", "order-123", expectedAmountMinor, "INR");
+      const expectedTokenKey = computeKey("phonepe-token", "tenant-a", "order-123", expectedAmountMinor, "INR");
+      const expectedPaymentKey = computeKey("phonepe-payment", "tenant-a", "order-123", expectedAmountMinor, "INR");
 
       expect(mockPaymentsService.createPayment).toHaveBeenCalledWith(
-        expect.objectContaining({ idempotencyKey: expectedKey, orderAmount: expectedAmountMinor }),
+        expect.objectContaining({ idempotencyKey: expectedPaymentKey, orderAmount: expectedAmountMinor }),
         "tenant-a",
         "phonepe"
+      );
+      expect(executeWithIdempotencyMock).toHaveBeenCalledWith(
+        expectedTokenKey,
+        "phonepe_token_url",
+        expect.any(Function)
       );
       expect(res.jsonPayload.data.expiresAt).toBeTruthy();
     });

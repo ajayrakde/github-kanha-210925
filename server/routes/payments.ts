@@ -191,7 +191,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
 
   const TOKEN_URL_SCOPE = 'phonepe_token_url';
 
-  const deriveTokenUrlIdempotencyKey = (
+  const derivePhonePeIdempotencyKey = (
+    prefix: 'phonepe-token' | 'phonepe-payment',
     tenant: string,
     orderId: string,
     amountMinor: number,
@@ -199,8 +200,22 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   ): string => {
     const hash = createHash('sha256');
     hash.update([tenant, orderId, amountMinor.toString(), currency].join(':'));
-    return `phonepe-token:${hash.digest('hex')}`;
+    return `${prefix}:${hash.digest('hex')}`;
   };
+
+  const deriveTokenUrlIdempotencyKey = (
+    tenant: string,
+    orderId: string,
+    amountMinor: number,
+    currency: string
+  ): string => derivePhonePeIdempotencyKey('phonepe-token', tenant, orderId, amountMinor, currency);
+
+  const derivePaymentCreationIdempotencyKey = (
+    tenant: string,
+    orderId: string,
+    amountMinor: number,
+    currency: string
+  ): string => derivePhonePeIdempotencyKey('phonepe-payment', tenant, orderId, amountMinor, currency);
 
   const cancelPaymentSchema = z.object({
     paymentId: z.string().min(1, 'Payment ID is required'),
@@ -350,7 +365,13 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       const failureUrl = validatedData.redirectUrl || `${baseUrl}/payment/failed`;
       const cancelUrl = validatedData.redirectUrl || `${baseUrl}/payment/failed`;
       const orderAmountMinor = Math.round(validatedData.amount * 100);
-      const idempotencyKey = deriveTokenUrlIdempotencyKey(
+      const tokenUrlIdempotencyKey = deriveTokenUrlIdempotencyKey(
+        tenantId,
+        validatedData.orderId,
+        orderAmountMinor,
+        validatedData.currency
+      );
+      const paymentCreationIdempotencyKey = derivePaymentCreationIdempotencyKey(
         tenantId,
         validatedData.orderId,
         orderAmountMinor,
@@ -360,7 +381,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
 
       const [existingJob, cachedResult] = await Promise.all([
         phonePePollingStore.getLatestJobForOrder(validatedData.orderId, tenantId),
-        idempotencyService.checkKey(idempotencyKey, TOKEN_URL_SCOPE),
+        idempotencyService.checkKey(tokenUrlIdempotencyKey, TOKEN_URL_SCOPE),
       ]);
 
       let shouldInvalidateKey = false;
@@ -391,11 +412,11 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       }
 
       if (shouldInvalidateKey) {
-        await idempotencyService.invalidateKey(idempotencyKey, TOKEN_URL_SCOPE);
+        await idempotencyService.invalidateKey(tokenUrlIdempotencyKey, TOKEN_URL_SCOPE);
       }
 
       const payload = await idempotencyService.executeWithIdempotency(
-        idempotencyKey,
+        tokenUrlIdempotencyKey,
         TOKEN_URL_SCOPE,
         async () => {
           const paymentParams: CreatePaymentParams = {
@@ -414,7 +435,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
               phonepeCallbackUrl: validatedData.callbackUrl,
               createdVia: 'token-url',
             },
-            idempotencyKey,
+            idempotencyKey: paymentCreationIdempotencyKey,
           };
 
           const result = await paymentsService.createPayment(
