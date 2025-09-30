@@ -7,6 +7,8 @@ import type {
   PhonePePollingPersistence,
 } from "../services/phonepe-polling-worker";
 
+const STORE_LOGGER_PREFIX = "phonepe-polling-store";
+
 function toJob(record: typeof phonepePollingJobs.$inferSelect | undefined | null): PhonePePollingJob | null {
   if (!record) {
     return null;
@@ -44,6 +46,22 @@ export class PhonePePollingStore implements PhonePePollingPersistence {
     const firstIntervalMs = Math.max(0, Math.floor(params.initialIntervalSeconds)) * 1000;
     const timeUntilExpiry = Math.max(0, expireAt.getTime() - createdAt.getTime());
     const initialDelay = Math.min(firstIntervalMs, timeUntilExpiry);
+
+    if (timeUntilExpiry <= 0) {
+      console.info(`${STORE_LOGGER_PREFIX}:job-expired-before-scheduling`, {
+        tenantId: params.tenantId,
+        paymentId: params.paymentId,
+        orderId: params.orderId,
+      });
+    } else if (initialDelay < firstIntervalMs) {
+      console.debug(`${STORE_LOGGER_PREFIX}:initial-delay-truncated`, {
+        tenantId: params.tenantId,
+        paymentId: params.paymentId,
+        orderId: params.orderId,
+        requestedSeconds: Math.floor(params.initialIntervalSeconds),
+        scheduledSeconds: Math.floor(initialDelay / 1000),
+      });
+    }
     const nextPollAt = new Date(createdAt.getTime() + initialDelay);
 
     const job = await db.transaction(async (trx) => {
@@ -168,6 +186,15 @@ export class PhonePePollingStore implements PhonePePollingPersistence {
       })
       .where(eq(phonepePollingJobs.id, jobId))
       .returning();
+
+    if (record) {
+      console.info(`${STORE_LOGGER_PREFIX}:job-expired`, {
+        jobId: record.id,
+        attempt: update.attempt,
+        paymentId: record.paymentId,
+        tenantId: record.tenantId,
+      });
+    }
 
     return toJob(record);
   }

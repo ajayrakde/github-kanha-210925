@@ -91,7 +91,31 @@ export interface PhonePePollingWorkerOptions {
   logger?: Partial<WorkerLogger>;
 }
 
-export const PHONEPE_POLL_INTERVALS_SECONDS = Object.freeze([15, 30, 60, 120, 240]);
+const buildMandatedIntervals = (): readonly number[] => {
+  const intervals: number[] = [];
+
+  // Initial stagger before aggressive probing
+  intervals.push(20, 25);
+
+  // 3s cadence for the next 30s (10 attempts)
+  intervals.push(...Array.from({ length: 10 }, () => 3));
+
+  // 6s cadence for the following 60s (10 attempts)
+  intervals.push(...Array.from({ length: 10 }, () => 6));
+
+  // 10s cadence for the following 60s (6 attempts)
+  intervals.push(...Array.from({ length: 6 }, () => 10));
+
+  // 30s cadence for the following 60s (2 attempts)
+  intervals.push(...Array.from({ length: 2 }, () => 30));
+
+  // Fallback cadence once the aggressive probing windows are exhausted
+  intervals.push(60);
+
+  return intervals;
+};
+
+export const PHONEPE_POLL_INTERVALS_SECONDS = Object.freeze(buildMandatedIntervals());
 
 const TERMINAL_SUCCESS_STATUSES = new Set([
   "captured",
@@ -124,6 +148,7 @@ export class PhonePePollingWorker {
   private readonly pollIntervals: readonly number[];
   private readonly now: () => Date;
   private readonly logger: WorkerLogger;
+  private readonly attemptIntervalCache = new Map<number, number>();
 
   private running = false;
   private readonly timers = new Map<string, NodeJS.Timeout>();
@@ -323,15 +348,21 @@ export class PhonePePollingWorker {
   }
 
   private resolveIntervalForAttempt(attempt: number): number {
+    if (this.attemptIntervalCache.has(attempt)) {
+      return this.attemptIntervalCache.get(attempt)!;
+    }
+
+    let resolved: number;
     if (attempt < 0) {
-      return this.pollIntervals[0] ?? 15;
+      resolved = this.pollIntervals[0] ?? 60;
+    } else if (attempt >= this.pollIntervals.length) {
+      resolved = this.pollIntervals[this.pollIntervals.length - 1] ?? 60;
+    } else {
+      const interval = this.pollIntervals[attempt];
+      resolved = Number.isFinite(interval) && interval > 0 ? interval : this.pollIntervals[0] ?? 60;
     }
 
-    if (attempt >= this.pollIntervals.length) {
-      return this.pollIntervals[this.pollIntervals.length - 1] ?? 15;
-    }
-
-    const interval = this.pollIntervals[attempt];
-    return Number.isFinite(interval) && interval > 0 ? interval : this.pollIntervals[0] ?? 15;
+    this.attemptIntervalCache.set(attempt, resolved);
+    return resolved;
   }
 }

@@ -179,8 +179,10 @@ describe("PhonePePollingWorker", () => {
 
   it("polls pending payments until completion using mandated intervals", async () => {
     const store = new InMemoryPollingStore();
-    const statuses = ["created", "processing", "captured"];
-    const verifyPayment = vi.fn().mockImplementation(async () => buildPaymentResult(statuses.shift()!));
+    const statuses = ["created", "processing", "processing", "captured"];
+    const verifyPayment = vi
+      .fn()
+      .mockImplementation(async () => buildPaymentResult(statuses.shift() ?? "processing"));
 
     const worker = new PhonePePollingWorker({
       store,
@@ -189,13 +191,14 @@ describe("PhonePePollingWorker", () => {
     });
 
     await worker.start();
+    const createdAt = new Date(Date.now());
     const job = await worker.registerJob({
       tenantId: "default",
       orderId: "order-1",
       paymentId: "pay-1",
       merchantTransactionId: "mt-1",
       expireAfterSeconds: 900,
-      createdAt: new Date(Date.now()),
+      createdAt,
     });
 
     expect(verifyPayment).not.toHaveBeenCalled();
@@ -204,7 +207,12 @@ describe("PhonePePollingWorker", () => {
     expect(verifyPayment).toHaveBeenCalledTimes(1);
     const afterFirstPoll = store.getJobSnapshot(job.id)!;
     expect(afterFirstPoll.attempt).toBe(1);
-    expect(afterFirstPoll.nextPollAt.getTime()).toBe(Date.now() + PHONEPE_POLL_INTERVALS_SECONDS[1] * 1000);
+    expect(afterFirstPoll.lastPolledAt!.getTime()).toBe(
+      createdAt.getTime() + PHONEPE_POLL_INTERVALS_SECONDS[0] * 1000
+    );
+    expect(afterFirstPoll.nextPollAt.getTime()).toBe(
+      afterFirstPoll.lastPolledAt!.getTime() + PHONEPE_POLL_INTERVALS_SECONDS[1] * 1000
+    );
 
     await worker.registerJob({
       tenantId: "default",
@@ -220,22 +228,43 @@ describe("PhonePePollingWorker", () => {
     expect(verifyPayment).toHaveBeenCalledTimes(2);
     const afterSecondPoll = store.getJobSnapshot(job.id)!;
     expect(afterSecondPoll.attempt).toBe(2);
+    expect(afterSecondPoll.lastPolledAt!.getTime()).toBe(
+      afterFirstPoll.lastPolledAt!.getTime() + PHONEPE_POLL_INTERVALS_SECONDS[1] * 1000
+    );
+    expect(afterSecondPoll.nextPollAt.getTime()).toBe(
+      afterSecondPoll.lastPolledAt!.getTime() + PHONEPE_POLL_INTERVALS_SECONDS[2] * 1000
+    );
 
     await vi.advanceTimersByTimeAsync(PHONEPE_POLL_INTERVALS_SECONDS[2] * 1000);
     expect(verifyPayment).toHaveBeenCalledTimes(3);
-    const completedJob = store.getJobSnapshot(job.id)!;
-    expect(completedJob.status).toBe("completed");
+    const afterThirdPoll = store.getJobSnapshot(job.id)!;
+    expect(afterThirdPoll.attempt).toBe(3);
+    expect(afterThirdPoll.status).toBe("pending");
+    expect(afterThirdPoll.lastPolledAt!.getTime()).toBe(
+      afterSecondPoll.lastPolledAt!.getTime() + PHONEPE_POLL_INTERVALS_SECONDS[2] * 1000
+    );
+    expect(afterThirdPoll.nextPollAt.getTime()).toBe(
+      afterThirdPoll.lastPolledAt!.getTime() + PHONEPE_POLL_INTERVALS_SECONDS[3] * 1000
+    );
 
     await vi.advanceTimersByTimeAsync(PHONEPE_POLL_INTERVALS_SECONDS[3] * 1000);
-    expect(verifyPayment).toHaveBeenCalledTimes(3);
+    expect(verifyPayment).toHaveBeenCalledTimes(4);
+    const completedJob = store.getJobSnapshot(job.id)!;
+    expect(completedJob.status).toBe("completed");
+    expect(completedJob.attempt).toBe(4);
+    expect(completedJob.lastPolledAt!.getTime()).toBe(
+      afterThirdPoll.lastPolledAt!.getTime() + PHONEPE_POLL_INTERVALS_SECONDS[3] * 1000
+    );
 
     worker.stop();
   });
 
   it("marks jobs as failed when PhonePe reports failure", async () => {
     const store = new InMemoryPollingStore();
-    const statuses = ["created", "failed"];
-    const verifyPayment = vi.fn().mockImplementation(async () => buildPaymentResult(statuses.shift()!));
+    const statuses = ["created", "processing", "failed"];
+    const verifyPayment = vi
+      .fn()
+      .mockImplementation(async () => buildPaymentResult(statuses.shift() ?? "processing"));
 
     const worker = new PhonePePollingWorker({
       store,
@@ -244,17 +273,24 @@ describe("PhonePePollingWorker", () => {
     });
 
     await worker.start();
+    const createdAt = new Date(Date.now());
     const job = await worker.registerJob({
       tenantId: "default",
       orderId: "order-2",
       paymentId: "pay-2",
       merchantTransactionId: "mt-2",
       expireAfterSeconds: 900,
-      createdAt: new Date(Date.now()),
+      createdAt,
     });
 
     await vi.advanceTimersByTimeAsync(PHONEPE_POLL_INTERVALS_SECONDS[0] * 1000);
     expect(verifyPayment).toHaveBeenCalledTimes(1);
+    const afterFirstPoll = store.getJobSnapshot(job.id)!;
+    expect(afterFirstPoll.attempt).toBe(1);
+    expect(afterFirstPoll.status).toBe("pending");
+    expect(afterFirstPoll.nextPollAt.getTime()).toBe(
+      afterFirstPoll.lastPolledAt!.getTime() + PHONEPE_POLL_INTERVALS_SECONDS[1] * 1000
+    );
 
     await worker.registerJob({
       tenantId: "default",
@@ -264,15 +300,28 @@ describe("PhonePePollingWorker", () => {
       expireAfterSeconds: 900,
       createdAt: new Date(Date.now()),
     });
+    expect(store.getJobSnapshot(job.id)?.attempt).toBe(1);
 
     await vi.advanceTimersByTimeAsync(PHONEPE_POLL_INTERVALS_SECONDS[1] * 1000);
     expect(verifyPayment).toHaveBeenCalledTimes(2);
-    const failedJob = store.getJobSnapshot(job.id)!;
-    expect(failedJob.status).toBe("failed");
-    expect(failedJob.attempt).toBe(2);
+    const afterSecondPoll = store.getJobSnapshot(job.id)!;
+    expect(afterSecondPoll.status).toBe("pending");
+    expect(afterSecondPoll.attempt).toBe(2);
+    expect(afterSecondPoll.lastPolledAt!.getTime()).toBe(
+      afterFirstPoll.lastPolledAt!.getTime() + PHONEPE_POLL_INTERVALS_SECONDS[1] * 1000
+    );
+    expect(afterSecondPoll.nextPollAt.getTime()).toBe(
+      afterSecondPoll.lastPolledAt!.getTime() + PHONEPE_POLL_INTERVALS_SECONDS[2] * 1000
+    );
 
     await vi.advanceTimersByTimeAsync(PHONEPE_POLL_INTERVALS_SECONDS[2] * 1000);
-    expect(verifyPayment).toHaveBeenCalledTimes(2);
+    expect(verifyPayment).toHaveBeenCalledTimes(3);
+    const finalState = store.getJobSnapshot(job.id)!;
+    expect(finalState.status).toBe("failed");
+    expect(finalState.attempt).toBe(3);
+    expect(finalState.lastPolledAt!.getTime()).toBe(
+      afterSecondPoll.lastPolledAt!.getTime() + PHONEPE_POLL_INTERVALS_SECONDS[2] * 1000
+    );
 
     worker.stop();
   });
