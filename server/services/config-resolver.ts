@@ -271,6 +271,12 @@ export class ConfigResolver {
       ]
     );
 
+    const hosts = phonepeSecrets.hosts;
+    const secretActiveHost = typeof phonepeSecrets.activeHost === 'string'
+      ? phonepeSecrets.activeHost.trim()
+      : undefined;
+    const metadataActiveHost = this.pickPhonePeHostSelection(dbConfig?.metadata ?? null);
+
     return {
       client_id: phonepeSecrets.client_id,
       client_secret: phonepeSecrets.client_secret,
@@ -278,7 +284,8 @@ export class ConfigResolver {
       merchantId,
       webhookAuth: phonepeSecrets.webhookAuth,
       redirectUrl,
-      hosts: phonepeSecrets.hosts,
+      hosts,
+      activeHost: metadataActiveHost ?? secretActiveHost,
     };
   }
 
@@ -310,6 +317,23 @@ export class ConfigResolver {
     }
 
     return available[0].value;
+  }
+
+  private pickPhonePeHostSelection(metadata: Record<string, any> | null): string | undefined {
+    if (!metadata) {
+      return undefined;
+    }
+
+    const fromFlat = typeof metadata.phonepeHost === 'string' ? metadata.phonepeHost : undefined;
+    const fromNested = typeof metadata.phonepe?.host === 'string' ? metadata.phonepe.host : undefined;
+    const raw = fromFlat ?? fromNested;
+
+    if (typeof raw !== 'string') {
+      return undefined;
+    }
+
+    const trimmed = raw.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
   }
   
   /**

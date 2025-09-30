@@ -211,6 +211,7 @@ describe("ConfigResolver.resolveConfig for PhonePe", () => {
         webhookAuth: { username: 'hook-user', password: 'hook-pass' },
         hosts: { uat: 'https://uat.phonepe.local', prod: 'https://prod.phonepe.local' },
         redirectUrl: 'https://env.example/pay',
+        activeHost: undefined,
         ...phonepeOverrides,
       },
       ...rest,
@@ -241,7 +242,28 @@ describe("ConfigResolver.resolveConfig for PhonePe", () => {
       webhookAuth: { username: 'hook-user', password: 'hook-pass' },
       redirectUrl: 'https://env.example/pay',
       hosts: { uat: 'https://uat.phonepe.local', prod: 'https://prod.phonepe.local' },
+      activeHost: undefined,
     });
+  });
+
+  it('prefers metadata host override when provided', async () => {
+    vi.spyOn(ConfigResolverClass.prototype as any, 'getDbConfig').mockResolvedValue({
+      isEnabled: true,
+      merchantId: 'merchant-from-db',
+      successUrl: undefined,
+      metadata: { phonepeHost: 'prod' },
+    });
+
+    vi.spyOn(secretsResolver, 'resolveSecrets').mockReturnValue(buildSecrets());
+    vi.spyOn(secretsResolver, 'validateSecrets').mockReturnValue({
+      isValid: true,
+      missingSecrets: [],
+      availableSecrets: [],
+    });
+
+    const config = await configResolver.resolveConfig('phonepe', 'test', 'tenant-1');
+
+    expect(config.phonepeConfig?.activeHost).toBe('prod');
   });
 
   it("throws when merchantId is provided by multiple sources", async () => {

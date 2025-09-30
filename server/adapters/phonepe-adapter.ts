@@ -29,6 +29,7 @@ import type { PaymentProvider, Environment, PhonePeConfig } from "../../shared/p
 import type { ResolvedConfig } from "../services/config-resolver";
 import { PhonePeTokenManager } from "../services/phonepe-token-manager";
 import { PaymentError, RefundError, WebhookError } from "../../shared/payment-types";
+import { resolvePhonePeHost } from "../services/phonepe-host";
 
 /**
  * PhonePe API Response Types
@@ -174,9 +175,7 @@ export class PhonePeAdapter implements PaymentsAdapter {
     this.tokenManager = dependencies.tokenManager;
 
     // Set API base URL based on environment
-    this.baseUrl = this.environment === 'live'
-      ? this.phonepeConfig.hosts.prod
-      : this.phonepeConfig.hosts.uat;
+    this.baseUrl = resolvePhonePeHost(this.phonepeConfig, this.environment);
 
     if (!this.merchantId || !this.salt) {
       throw new PaymentError(

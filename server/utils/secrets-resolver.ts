@@ -12,7 +12,10 @@ import type {
   PaymentProvider,
   Environment,
   PhonePeConfig,
+  PhonePeHosts,
+  PhonePeHostSelection,
 } from "../../shared/payment-providers";
+import { PHONEPE_DEFAULT_HOSTS } from "../../shared/payment-providers";
 import { ConfigurationError } from "../../shared/payment-types";
 
 interface PhonePeSecretConfig {
@@ -20,7 +23,8 @@ interface PhonePeSecretConfig {
   client_secret: PhonePeConfig["client_secret"];
   client_version: PhonePeConfig["client_version"];
   webhookAuth: PhonePeConfig["webhookAuth"];
-  hosts: PhonePeConfig["hosts"];
+  hosts: PhonePeHosts;
+  activeHost?: PhonePeHostSelection;
   redirectUrl?: PhonePeConfig["redirectUrl"];
   merchantId?: PhonePeConfig["merchantId"];
 }
@@ -165,6 +169,10 @@ export class SecretsResolver {
           }
         }
 
+        const hostUat = getOptionalEnvValue(`${environmentPrefix}HOST_UAT`) ?? PHONEPE_DEFAULT_HOSTS.uat;
+        const hostProd = getOptionalEnvValue(`${environmentPrefix}HOST_PROD`) ?? PHONEPE_DEFAULT_HOSTS.prod;
+        const activeHost = getOptionalEnvValue(`${environmentPrefix}HOST_ACTIVE`);
+
         secrets.phonepe = {
           client_id: resolvedEnvValues[`${environmentPrefix}CLIENT_ID`],
           client_secret: resolvedEnvValues[`${environmentPrefix}CLIENT_SECRET`],
@@ -174,9 +182,10 @@ export class SecretsResolver {
             password: resolvedEnvValues[`${environmentPrefix}WEBHOOK_PASSWORD`],
           },
           hosts: {
-            uat: resolvedEnvValues[`${environmentPrefix}HOST_UAT`],
-            prod: resolvedEnvValues[`${environmentPrefix}HOST_PROD`],
+            uat: hostUat,
+            prod: hostProd,
           },
+          activeHost: activeHost,
         };
 
         {

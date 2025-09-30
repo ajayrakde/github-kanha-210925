@@ -37,6 +37,7 @@ const baseConfig: ResolvedConfig = {
       uat: 'https://uat.phonepe.example',
       prod: 'https://prod.phonepe.example',
     },
+    activeHost: undefined,
   },
 };
 
@@ -73,7 +74,7 @@ describe('PhonePeAdapter.createPayment', () => {
     }
   });
 
-  const createAdapter = () => {
+  const createAdapter = (options?: { activeHost?: string }) => {
     const tokenManager = {
       getAccessToken: vi.fn().mockResolvedValue('cached-token'),
       invalidateToken: vi.fn(),
@@ -82,7 +83,17 @@ describe('PhonePeAdapter.createPayment', () => {
     const fetchMock = vi.fn().mockResolvedValue(buildFetchResponse());
     global.fetch = fetchMock as unknown as typeof fetch;
 
-    const adapter = new PhonePeAdapter(baseConfig, {
+    const adapterConfig: ResolvedConfig = {
+      ...baseConfig,
+      phonepeConfig: {
+        ...baseConfig.phonepeConfig!,
+        ...(options?.activeHost !== undefined
+          ? { activeHost: options.activeHost }
+          : {}),
+      },
+    };
+
+    const adapter = new PhonePeAdapter(adapterConfig, {
       tokenManager: tokenManager as any,
     });
 
@@ -139,6 +150,22 @@ describe('PhonePeAdapter.createPayment', () => {
     const [, fetchOptions] = fetchMock.mock.calls[0]!;
     const headers = fetchOptions.headers as Record<string, string>;
     expect(headers['Authorization']).toBe('O-Bearer cached-token');
+  });
+
+  it('uses the activeHost override to construct API URLs', async () => {
+    const customHost = 'https://sandbox-gateway.phonepe.example';
+    const { adapter, fetchMock } = createAdapter({ activeHost: customHost });
+
+    await adapter.createPayment({
+      orderId: 'order-host',
+      orderAmount: 1000,
+      currency: 'INR',
+      customer: {},
+    });
+
+    expect(fetchMock).toHaveBeenCalled();
+    const [requestUrl] = fetchMock.mock.calls[0]!;
+    expect(requestUrl).toBe(`${customHost}/pg/v1/pay`);
   });
 });
 

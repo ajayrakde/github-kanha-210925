@@ -252,6 +252,9 @@ describe("PhonePe UPI happy path", () => {
           amountCapturedMinor: 0,
         },
       ],
+      [
+        { paymentStatus: "pending" },
+      ],
     ]);
 
     const res = createMockResponse();
@@ -314,6 +317,9 @@ describe("PhonePe callback/webhook ordering", () => {
           provider: "phonepe",
         },
       ],
+      [
+        { paymentStatus: "pending" },
+      ],
     ]);
     updateRowCounts.push(1, 1, 1, 0, 1);
     adapter.verifyPayment.mockResolvedValue(phonePeImmediateCapture);
@@ -337,6 +343,9 @@ describe("PhonePe callback/webhook ordering", () => {
           amountAuthorizedMinor: phonePeCreatePayment.amount,
           amountCapturedMinor: phonePeCreatePayment.amount,
         },
+      ],
+      [
+        { paymentStatus: "paid" },
       ],
     ]);
 
@@ -382,6 +391,9 @@ describe("PhonePe callback/webhook ordering", () => {
           amountCapturedMinor: 0,
         },
       ],
+      [
+        { paymentStatus: "pending" },
+      ],
     ]);
     await router.processWebhook(
       "phonepe",
@@ -406,6 +418,9 @@ describe("PhonePe callback/webhook ordering", () => {
           amountAuthorizedMinor: phonePeCreatePayment.amount,
           provider: "phonepe",
         },
+      ],
+      [
+        { paymentStatus: "paid" },
       ],
     ]);
     updateRowCounts.push(1, 0);

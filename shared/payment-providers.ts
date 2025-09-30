@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+export interface PhonePeHosts {
+  uat: string;
+  prod: string;
+}
+
+export type PhonePeHostSelection = keyof PhonePeHosts | string;
+
+export const PHONEPE_DEFAULT_HOSTS: PhonePeHosts = {
+  uat: 'https://api-preprod.phonepe.com/apis/pgsandbox',
+  prod: 'https://api.phonepe.com/apis/hermes',
+};
+
 // Payment provider enum - exactly 8 providers as specified
 export const PaymentProviderEnum = z.enum([
   'razorpay',
@@ -28,10 +40,8 @@ export interface PhonePeConfig {
     password: string;
   };
   redirectUrl: string;
-  hosts: {
-    uat: string;
-    prod: string;
-  };
+  hosts: PhonePeHosts;
+  activeHost?: PhonePeHostSelection;
 }
 
 // Capability matrix interface
@@ -189,8 +199,6 @@ export const providerSecretKeys: Record<PaymentProvider, {
       'PAYAPP_TEST_PHONEPE_CLIENT_VERSION',
       'PAYAPP_TEST_PHONEPE_WEBHOOK_USERNAME',
       'PAYAPP_TEST_PHONEPE_WEBHOOK_PASSWORD',
-      'PAYAPP_TEST_PHONEPE_HOST_UAT',
-      'PAYAPP_TEST_PHONEPE_HOST_PROD',
       'PAYAPP_TEST_PHONEPE_REDIRECT_URL',
     ],
     live: [
@@ -201,8 +209,6 @@ export const providerSecretKeys: Record<PaymentProvider, {
       'PAYAPP_LIVE_PHONEPE_CLIENT_VERSION',
       'PAYAPP_LIVE_PHONEPE_WEBHOOK_USERNAME',
       'PAYAPP_LIVE_PHONEPE_WEBHOOK_PASSWORD',
-      'PAYAPP_LIVE_PHONEPE_HOST_UAT',
-      'PAYAPP_LIVE_PHONEPE_HOST_PROD',
       'PAYAPP_LIVE_PHONEPE_REDIRECT_URL',
     ],
   },
