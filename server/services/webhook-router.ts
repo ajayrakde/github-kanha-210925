@@ -363,8 +363,16 @@ export class WebhookRouter {
 
         const currentLifecycle = this.toLifecycleStatus(paymentRecord.currentStatus);
         const nextLifecycle = this.toLifecycleStatus(normalizedStatus);
+        const isSameLifecycle = currentLifecycle === nextLifecycle;
+        const allowVerifiedCompletionReplay =
+          isSameLifecycle &&
+          nextLifecycle === 'completed' &&
+          options?.verified === true;
 
-        if (!this.canTransitionLifecycleStatus(currentLifecycle, nextLifecycle)) {
+        if (
+          !this.canTransitionLifecycleStatus(currentLifecycle, nextLifecycle) &&
+          !allowVerifiedCompletionReplay
+        ) {
           return false;
         }
 

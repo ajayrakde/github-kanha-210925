@@ -346,6 +346,46 @@ describe("WebhookRouter.updatePaymentStatus lifecycle", () => {
     expect(updateSpy).toHaveBeenCalledTimes(2);
   });
 
+  it("allows verified completion replays to promote the order", async () => {
+    const router = buildRouter();
+    const selectSpy = vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => [
+            {
+              id: "pay_1",
+              orderId: "ord_1",
+              provider: "phonepe",
+              currentStatus: "captured",
+              amountAuthorizedMinor: 1000,
+              amountCapturedMinor: 1000,
+            },
+          ]),
+        })),
+      })),
+    }));
+    const updateSpy = vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) }));
+
+    transactionMock.mockImplementation(async (callback) => {
+      return await callback({
+        select: selectSpy,
+        update: updateSpy,
+        insert: vi.fn(),
+      });
+    });
+
+    const result = await (router as any).updatePaymentStatus(
+      "pay_1",
+      "captured",
+      { amount: 1000 },
+      "default",
+      { verified: true }
+    );
+
+    expect(result).toBe(true);
+    expect(updateSpy).toHaveBeenCalledTimes(2);
+  });
+
   it("short-circuits replays after a terminal status", async () => {
     const router = buildRouter();
     const selectSpy = vi.fn(() => ({

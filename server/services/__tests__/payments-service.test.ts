@@ -280,6 +280,39 @@ describe("PaymentsService.updateStoredPayment lifecycle", () => {
     expect(eventInsertSpy).toHaveBeenCalledTimes(1);
   });
 
+  it("allows verified completion replays to promote the order", async () => {
+    const updateSpy = vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) }));
+    const eventInsertSpy = vi.fn();
+    const selectSpy = vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => [
+            { orderId: "ord_1", currentStatus: "captured" },
+          ]),
+        })),
+      })),
+    }));
+
+    transactionMock.mockImplementation(async (callback) => {
+      await callback({
+        select: selectSpy,
+        update: updateSpy,
+        insert: vi.fn(() => ({ values: eventInsertSpy })),
+      });
+    });
+
+    const service = createPaymentsService({ environment: "test" });
+
+    await (service as any).updateStoredPayment(
+      { ...baseResult, status: "captured" },
+      "default",
+      { ...baseEvent, type: "payment_verified", status: "captured" }
+    );
+
+    expect(updateSpy).toHaveBeenCalledTimes(2);
+    expect(eventInsertSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("does not promote the order when the completed status is not verified", async () => {
     const updateSpy = vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) }));
     const eventInsertSpy = vi.fn();

@@ -691,8 +691,16 @@ export class PaymentsService {
 
       const currentLifecycle = PaymentsService.normalizeLifecycleStatus(existingPayment.currentStatus);
       const nextLifecycle = PaymentsService.normalizeLifecycleStatus(result.status);
+      const isSameLifecycle = currentLifecycle === nextLifecycle;
+      const allowVerifiedCompletionReplay =
+        isSameLifecycle &&
+        nextLifecycle === 'completed' &&
+        event.type === 'payment_verified';
 
-      if (!PaymentsService.canTransitionLifecycleStatus(currentLifecycle, nextLifecycle)) {
+      if (
+        !PaymentsService.canTransitionLifecycleStatus(currentLifecycle, nextLifecycle) &&
+        !allowVerifiedCompletionReplay
+      ) {
         return;
       }
 
