@@ -267,7 +267,7 @@ describe("PhonePe UPI happy path", () => {
     expect(res.statusCode).toBe(200);
     expect(res.jsonPayload).toMatchObject({ status: "processed" });
 
-    const paymentUpdate = updateCalls.find((call) => call.table === payments && call.data.status === "captured");
+    const paymentUpdate = updateCalls.find((call) => call.table === payments && call.data.status === "COMPLETED");
     expect(paymentUpdate?.data).toMatchObject({
       amountCapturedMinor: phonePeCreatePayment.amount,
       upiPayerHandle: "buyer@upi",
@@ -303,7 +303,7 @@ describe("PhonePe callback/webhook ordering", () => {
       {
         id: "pay_test_123",
         provider: "phonepe",
-        status: "processing",
+        status: "PENDING",
         tenantId: "default",
         providerPaymentId: "pg_payment_123",
       },
@@ -312,7 +312,7 @@ describe("PhonePe callback/webhook ordering", () => {
       [
         {
           orderId: "order-1",
-          currentStatus: "processing",
+          currentStatus: "PENDING",
           amountAuthorizedMinor: phonePeCreatePayment.amount,
           provider: "phonepe",
         },
@@ -405,7 +405,7 @@ describe("PhonePe callback/webhook ordering", () => {
       {
         id: "pay_test_123",
         provider: "phonepe",
-        status: "captured",
+        status: "COMPLETED",
         tenantId: "default",
         providerPaymentId: "pg_payment_123",
       },
@@ -414,7 +414,7 @@ describe("PhonePe callback/webhook ordering", () => {
       [
         {
           orderId: "order-1",
-          currentStatus: "captured",
+          currentStatus: "COMPLETED",
           amountAuthorizedMinor: phonePeCreatePayment.amount,
           provider: "phonepe",
         },
@@ -474,7 +474,7 @@ describe("PhonePe exceptional flows", () => {
     );
 
     expect(res.jsonPayload).toMatchObject({ status: "processed" });
-    const paymentUpdate = updateCalls.find((call) => call.table === payments && call.data.status === "cancelled");
+    const paymentUpdate = updateCalls.find((call) => call.table === payments && call.data.status === "CANCELLED");
     expect(paymentUpdate).toBeTruthy();
     const orderUpdate = updateCalls.find((call) => call.table === orders && call.data.paymentStatus === "paid");
     expect(orderUpdate).toBeUndefined();
@@ -518,7 +518,7 @@ describe("PhonePe exceptional flows", () => {
       res
     );
 
-    const paymentUpdate = updateCalls.find((call) => call.table === payments && call.data.status === "cancelled");
+    const paymentUpdate = updateCalls.find((call) => call.table === payments && call.data.status === "CANCELLED");
     expect(paymentUpdate).toBeTruthy();
   });
 

@@ -241,9 +241,9 @@ export default function ThankYou() {
     refetchInterval: (queryData) => {
       // Stop polling on terminal states
       const data = queryData?.state?.data as PaymentStatusInfo | undefined;
-      if (data?.latestTransaction?.status === 'completed' ||
-          data?.latestTransaction?.status === 'failed' ||
-          data?.order?.paymentStatus === 'paid') {
+      const latestStatus = normalizeStatus(data?.latestTransaction?.status);
+      const orderPaymentStatus = normalizeStatus(data?.order?.paymentStatus);
+      if (['completed', 'failed'].includes(latestStatus) || orderPaymentStatus === 'paid') {
         return false;
       }
 

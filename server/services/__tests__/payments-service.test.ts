@@ -177,6 +177,32 @@ describe("PaymentsService.createPayment", () => {
 
     expect(adapter.createPayment).toHaveBeenCalledTimes(1);
   });
+
+  it("stores normalized lifecycle statuses for captured PhonePe payments", async () => {
+    executeWithIdempotencyMock.mockImplementation(async (_key, _scope, operation) => {
+      return await operation();
+    });
+
+    const paymentResult: PaymentResult = {
+      paymentId: "pay_1",
+      status: "captured",
+      amount: 1000,
+      currency: "INR",
+      provider: "phonepe",
+      environment: "test",
+      createdAt: new Date(),
+      providerData: {},
+    };
+
+    adapter.createPayment.mockResolvedValue(paymentResult);
+
+    const service = createPaymentsService({ environment: "test" });
+
+    upiQueryResults.push([]);
+    await service.createPayment(baseParams, "default");
+
+    expect(paymentInserts[0]?.status).toBe("COMPLETED");
+  });
 });
 
 describe("PaymentsService.updateStoredPayment lifecycle", () => {
@@ -220,7 +246,7 @@ describe("PaymentsService.updateStoredPayment lifecycle", () => {
       from: vi.fn(() => ({
         where: vi.fn(() => ({
           limit: vi.fn(async () => [
-            { orderId: "ord_1", currentStatus: "captured" },
+            { orderId: "ord_1", currentStatus: "COMPLETED" },
           ]),
         })),
       })),
@@ -248,7 +274,13 @@ describe("PaymentsService.updateStoredPayment lifecycle", () => {
   });
 
   it("promotes the order only when a verified completed result is processed", async () => {
-    const updateSpy = vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) }));
+    const updateCalls: any[] = [];
+    const updateSpy = vi.fn(() => ({
+      set: vi.fn((data) => {
+        updateCalls.push(data);
+        return { where: vi.fn() };
+      }),
+    }));
     const eventInsertSpy = vi.fn();
     let selectCall = 0;
     const selectSpy = vi.fn(() => ({
@@ -257,7 +289,7 @@ describe("PaymentsService.updateStoredPayment lifecycle", () => {
           limit: vi.fn(async () => {
             selectCall += 1;
             if (selectCall === 1) {
-              return [{ orderId: "ord_1", currentStatus: "processing" }];
+              return [{ orderId: "ord_1", currentStatus: "PENDING" }];
             }
             return [{ paymentStatus: "pending" }];
           }),
@@ -283,54 +315,89 @@ describe("PaymentsService.updateStoredPayment lifecycle", () => {
 
     expect(updateSpy).toHaveBeenCalledTimes(2);
     expect(eventInsertSpy).toHaveBeenCalledTimes(1);
+    expect(updateCalls[0].status).toBe("COMPLETED");
   });
 
-  it("allows verified completion replays to promote the order", async () => {
-    const updateSpy = vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) }));
-    const eventInsertSpy = vi.fn();
-    let selectCall = 0;
-    const selectSpy = vi.fn(() => ({
-      from: vi.fn(() => ({
-        where: vi.fn(() => ({
-          limit: vi.fn(async () => {
-            selectCall += 1;
-            if (selectCall === 1) {
-              return [{ orderId: "ord_1", currentStatus: "captured" }];
-            }
-            return [{ paymentStatus: "pending" }];
-          }),
-        })),
-      })),
-    }));
-
-    transactionMock.mockImplementation(async (callback) => {
-      await callback({
-        select: selectSpy,
-        update: updateSpy,
-        insert: vi.fn(() => ({ values: eventInsertSpy })),
-      });
-    });
-
-    const service = createPaymentsService({ environment: "test" });
-
-    await (service as any).updateStoredPayment(
-      { ...baseResult, status: "captured" },
-      "default",
-      { ...baseEvent, type: "payment_verified", status: "captured" }
-    );
-
-    expect(updateSpy).toHaveBeenCalledTimes(2);
-    expect(eventInsertSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not promote the order when the completed status is not verified", async () => {
+  it("treats repeated completion notifications as idempotent no-ops", async () => {
     const updateSpy = vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) }));
     const eventInsertSpy = vi.fn();
     const selectSpy = vi.fn(() => ({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
           limit: vi.fn(async () => [
-            { orderId: "ord_1", currentStatus: "processing" },
+            { orderId: "ord_1", currentStatus: "COMPLETED" },
+          ]),
+        })),
+      })),
+    }));
+
+    transactionMock.mockImplementation(async (callback) => {
+      await callback({
+        select: selectSpy,
+        update: updateSpy,
+        insert: vi.fn(() => ({ values: eventInsertSpy })),
+      });
+    });
+
+    const service = createPaymentsService({ environment: "test" });
+
+    await (service as any).updateStoredPayment(
+      { ...baseResult, status: "captured" },
+      "default",
+      { ...baseEvent, type: "payment_verified", status: "captured" }
+    );
+
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(eventInsertSpy).not.toHaveBeenCalled();
+  });
+
+  it("ignores replays once a payment is marked failed", async () => {
+    const updateSpy = vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) }));
+    const eventInsertSpy = vi.fn();
+    const selectSpy = vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => [
+            { orderId: "ord_1", currentStatus: "FAILED" },
+          ]),
+        })),
+      })),
+    }));
+
+    transactionMock.mockImplementation(async (callback) => {
+      await callback({
+        select: selectSpy,
+        update: updateSpy,
+        insert: vi.fn(() => ({ values: eventInsertSpy })),
+      });
+    });
+
+    const service = createPaymentsService({ environment: "test" });
+
+    await (service as any).updateStoredPayment(
+      { ...baseResult, status: "failed" },
+      "default",
+      { ...baseEvent, type: "payment_failed", status: "failed" }
+    );
+
+    expect(updateSpy).not.toHaveBeenCalled();
+    expect(eventInsertSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not promote the order when the completed status is not verified", async () => {
+    const updateCalls: any[] = [];
+    const updateSpy = vi.fn(() => ({
+      set: vi.fn((data) => {
+        updateCalls.push(data);
+        return { where: vi.fn() };
+      }),
+    }));
+    const eventInsertSpy = vi.fn();
+    const selectSpy = vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => [
+            { orderId: "ord_1", currentStatus: "PENDING" },
           ]),
         })),
       })),
@@ -354,5 +421,6 @@ describe("PaymentsService.updateStoredPayment lifecycle", () => {
 
     expect(updateSpy).toHaveBeenCalledTimes(1);
     expect(eventInsertSpy).toHaveBeenCalledTimes(1);
+    expect(updateCalls[0].status).toBe("COMPLETED");
   });
 });

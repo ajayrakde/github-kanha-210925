@@ -7,6 +7,104 @@
 
 import type { PaymentProvider, Environment } from "./payment-providers";
 
+export type PaymentLifecycleStatus =
+  | 'CREATED'
+  | 'PENDING'
+  | 'COMPLETED'
+  | 'FAILED';
+
+const pendingLifecycleAliases = new Set([
+  'PENDING',
+  'PROCESSING',
+  'INITIATED',
+  'REQUIRES_ACTION',
+  'AUTHORIZED',
+  'AUTH_SUCCESS',
+  'IN_PROGRESS',
+]);
+
+const completedLifecycleAliases = new Set([
+  'COMPLETED',
+  'CAPTURED',
+  'SUCCESS',
+  'SUCCEEDED',
+  'PAID',
+  'SETTLED',
+]);
+
+const failedLifecycleAliases = new Set([
+  'FAILED',
+  'FAILURE',
+  'CANCELLED',
+  'CANCELED',
+  'TIMEOUT',
+  'TIMED_OUT',
+  'TIMEDOUT',
+  'EXPIRED',
+  'DECLINED',
+  'DENIED',
+  'ERROR',
+  'REFUNDED',
+  'PARTIALLY_REFUNDED',
+  'ABORTED',
+  'USER_CANCELLED',
+]);
+
+export function normalizePaymentLifecycleStatus(
+  status: string | null | undefined
+): PaymentLifecycleStatus {
+  if (!status) {
+    return 'CREATED';
+  }
+
+  const normalized = status.toString().trim().toUpperCase();
+
+  if (!normalized) {
+    return 'CREATED';
+  }
+
+  if (completedLifecycleAliases.has(normalized)) {
+    return 'COMPLETED';
+  }
+
+  if (failedLifecycleAliases.has(normalized)) {
+    return 'FAILED';
+  }
+
+  if (pendingLifecycleAliases.has(normalized)) {
+    return 'PENDING';
+  }
+
+  if (normalized === 'CREATED') {
+    return 'CREATED';
+  }
+
+  return 'PENDING';
+}
+
+export function canTransitionPaymentLifecycle(
+  current: PaymentLifecycleStatus,
+  next: PaymentLifecycleStatus
+): boolean {
+  if (current === next) {
+    return false;
+  }
+
+  if (current === 'COMPLETED' || current === 'FAILED') {
+    return false;
+  }
+
+  if (current === 'CREATED') {
+    return next === 'PENDING' || next === 'COMPLETED' || next === 'FAILED';
+  }
+
+  if (current === 'PENDING') {
+    return next === 'COMPLETED' || next === 'FAILED';
+  }
+
+  return false;
+}
+
 // Base types for common payment fields
 export type Currency = 'INR' | 'USD' | 'EUR' | 'GBP';
 export type PaymentStatus = 'created' | 'initiated' | 'processing' | 'authorized' | 'captured' | 'failed' | 'cancelled' | 'refunded' | 'partially_refunded';

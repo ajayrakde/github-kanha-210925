@@ -96,6 +96,7 @@ export const PHONEPE_POLL_INTERVALS_SECONDS = Object.freeze([15, 30, 60, 120, 24
 const TERMINAL_SUCCESS_STATUSES = new Set([
   "captured",
   "completed",
+  "COMPLETED",
   "paid",
   "succeeded",
   "success",
@@ -103,6 +104,7 @@ const TERMINAL_SUCCESS_STATUSES = new Set([
 
 const TERMINAL_FAILURE_STATUSES = new Set([
   "failed",
+  "FAILED",
   "cancelled",
   "canceled",
   "timedout",

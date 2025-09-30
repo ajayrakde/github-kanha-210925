@@ -273,10 +273,10 @@ describe("payments router", () => {
       expect(res.jsonPayload.payment.providerTransactionId).toBe("txn");
     });
 
-    it("prioritizes captured UPI payment details", async () => {
+    it("prioritizes completed UPI payment details", async () => {
       const captured = {
         id: "pay_captured",
-        status: "captured",
+        status: "COMPLETED",
         provider: "phonepe",
         methodKind: "upi",
         amountAuthorizedMinor: 1000,
@@ -298,6 +298,7 @@ describe("payments router", () => {
       });
 
       expect(res.jsonPayload.order.paymentStatus).toBe("paid");
+      expect(res.jsonPayload.payment.status).toBe("COMPLETED");
       expect(res.jsonPayload.payment.upiUtr).toBe("123456");
       expect(res.jsonPayload.payment.receiptUrl).toBe("https://receipt");
       expect(res.jsonPayload.totals.paidMinor).toBe(1000);
@@ -334,7 +335,7 @@ describe("payments router", () => {
     it("handles webhook-first captures before order promotion", async () => {
       const captured = {
         id: "pay_captured",
-        status: "captured",
+        status: "COMPLETED",
         provider: "phonepe",
         methodKind: "upi",
         amountAuthorizedMinor: 1000,
@@ -355,7 +356,7 @@ describe("payments router", () => {
       });
 
       expect(res.jsonPayload.order.paymentStatus).toBe("pending");
-      expect(res.jsonPayload.payment.status).toBe("captured");
+      expect(res.jsonPayload.payment.status).toBe("COMPLETED");
       expect(res.jsonPayload.totals.paidMinor).toBe(1000);
     });
   });

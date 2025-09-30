@@ -221,7 +221,7 @@ export const payments = pgTable("payments", {
   uniqueUpiCapturePerOrder: uniqueIndex("payments_upi_captured_order_unique")
     .on(table.orderId)
     .where(
-      sql`${table.methodKind} = 'upi' AND ${table.status} IN ('captured','completed','succeeded','success','paid')`
+      sql`${table.methodKind} = 'upi' AND ${table.status} IN ('captured','completed','COMPLETED','succeeded','success','paid')`
     ),
 }));
 
