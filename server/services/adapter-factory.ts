@@ -23,11 +23,12 @@ import type {
 } from "../../shared/payment-types";
 import { configResolver, ResolvedConfig } from "./config-resolver";
 import { ConfigurationError } from "../../shared/payment-types";
+import { PhonePeTokenManager } from "./phonepe-token-manager";
 
 // Import adapter implementations (will be created in TASK 6)
 // For now, we'll use placeholder imports that will be implemented
 interface AdapterConstructor {
-  new (config: ResolvedConfig): PaymentsAdapter;
+  new (config: ResolvedConfig, dependencies?: { tokenManager?: PhonePeTokenManager }): PaymentsAdapter;
 }
 
 class UnsupportedAdapter implements PaymentsAdapter {
@@ -200,7 +201,8 @@ export class AdapterFactory implements PaymentAdapterFactory {
     }
     
     // Create adapter instance
-    const adapter = new AdapterConstructor(config);
+    const dependencies = this.buildAdapterDependencies(provider, config);
+    const adapter = new AdapterConstructor(config, dependencies);
     
     // Validate adapter configuration
     const validation = await adapter.validateConfig();
@@ -215,6 +217,22 @@ export class AdapterFactory implements PaymentAdapterFactory {
     this.adapterCache.set(cacheKey, adapter);
 
     return adapter;
+  }
+
+  private buildAdapterDependencies(
+    provider: PaymentProvider,
+    config: ResolvedConfig
+  ): { tokenManager?: PhonePeTokenManager } | undefined {
+    if (provider === 'phonepe' && config.phonepeConfig) {
+      return {
+        tokenManager: new PhonePeTokenManager({
+          config: config.phonepeConfig,
+          environment: config.environment,
+        }),
+      };
+    }
+
+    return undefined;
   }
   
   /**

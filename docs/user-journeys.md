@@ -75,6 +75,7 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - Missing secrets cause an explicit configuration error instead of silently proceeding, ensuring admins fix misconfigurations before go-live.
    - Webhook ingestion now auto-detects the correct provider across all enabled configs per tenant, deduplicates payloads with event/transaction identifiers, and rejects invalid signatures with audit logs so replay attempts are acknowledged without mutating state.
    - PhonePe now sources its client credentials (`client_id`, `client_secret`, `client_version`), webhook basic-auth pair, redirect URL, and API hosts from the PAYAPP_* secret bundle while keeping the merchant ID in admin-managed database config, preventing drift between environments.
+   - PhonePe API traffic now reuses a shared OAuth token manager that refreshes access tokens a few minutes before expiry and retries once on authentication failures, ensuring checkout, refund, and status checks remain seamless for buyers and support staff even during sustained traffic.
 
 ---
 

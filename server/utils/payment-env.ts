@@ -29,9 +29,12 @@ export interface PaymentProviderEnvVars {
 }
 
 const stripUndefined = <T extends Record<string, any>>(source: T): Partial<T> => {
-  return Object.fromEntries(
-    Object.entries(source).filter(([, value]) => value !== undefined && value !== null)
-  );
+  const filteredEntries = Object.entries(source).filter(([, value]) => value !== undefined && value !== null) as Array<[
+    keyof T,
+    T[keyof T]
+  ]>;
+
+  return Object.fromEntries(filteredEntries) as Partial<T>;
 };
 
 /**
