@@ -275,7 +275,7 @@ describe("WebhookRouter.updatePaymentStatus lifecycle", () => {
               id: "pay_1",
               orderId: "ord_1",
               provider: "phonepe",
-              currentStatus: "captured",
+              currentStatus: "COMPLETED",
               amountAuthorizedMinor: 1000,
               amountCapturedMinor: 1000,
             },
@@ -316,7 +316,7 @@ describe("WebhookRouter.updatePaymentStatus lifecycle", () => {
               id: "pay_1",
               orderId: "ord_1",
               provider: "phonepe",
-              currentStatus: "processing",
+              currentStatus: "PENDING",
               amountAuthorizedMinor: 1000,
               amountCapturedMinor: 0,
             },
@@ -324,7 +324,13 @@ describe("WebhookRouter.updatePaymentStatus lifecycle", () => {
         })),
       })),
     }));
-    const updateSpy = vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) }));
+    const updateCalls: any[] = [];
+    const updateSpy = vi.fn(() => ({
+      set: vi.fn((data) => {
+        updateCalls.push(data);
+        return { where: vi.fn() };
+      }),
+    }));
 
     transactionMock.mockImplementation(async (callback) => {
       return await callback({
@@ -344,9 +350,10 @@ describe("WebhookRouter.updatePaymentStatus lifecycle", () => {
 
     expect(result).toBe(true);
     expect(updateSpy).toHaveBeenCalledTimes(2);
+    expect(updateCalls[0].status).toBe("COMPLETED");
   });
 
-  it("allows verified completion replays to promote the order", async () => {
+  it("treats verified completion replays as no-ops", async () => {
     const router = buildRouter();
     const selectSpy = vi.fn(() => ({
       from: vi.fn(() => ({
@@ -356,7 +363,7 @@ describe("WebhookRouter.updatePaymentStatus lifecycle", () => {
               id: "pay_1",
               orderId: "ord_1",
               provider: "phonepe",
-              currentStatus: "captured",
+              currentStatus: "COMPLETED",
               amountAuthorizedMinor: 1000,
               amountCapturedMinor: 1000,
             },
@@ -382,8 +389,8 @@ describe("WebhookRouter.updatePaymentStatus lifecycle", () => {
       { verified: true }
     );
 
-    expect(result).toBe(true);
-    expect(updateSpy).toHaveBeenCalledTimes(2);
+    expect(result).toBe(false);
+    expect(updateSpy).not.toHaveBeenCalled();
   });
 
   it("short-circuits replays after a terminal status", async () => {
@@ -396,7 +403,7 @@ describe("WebhookRouter.updatePaymentStatus lifecycle", () => {
               id: "pay_1",
               orderId: "ord_1",
               provider: "phonepe",
-              currentStatus: "failed",
+              currentStatus: "FAILED",
               amountAuthorizedMinor: 1000,
               amountCapturedMinor: 0,
             },

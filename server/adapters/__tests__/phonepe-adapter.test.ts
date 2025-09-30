@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ResolvedConfig } from '../../services/config-resolver';
 import { PhonePeAdapter } from '../phonepe-adapter';
+import { normalizePaymentLifecycleStatus } from '../../../shared/payment-types';
 
 const baseConfig: ResolvedConfig = {
   provider: 'phonepe',
@@ -193,7 +194,9 @@ describe('PhonePeAdapter status normalization', () => {
   it('maps success and failure states without mislabeling cancellations', () => {
     const adapter = buildAdapter();
 
-    expect((adapter as any).mapPaymentStatus('completed')).toBe('captured');
+    expect(
+      normalizePaymentLifecycleStatus((adapter as any).mapPaymentStatus('completed'))
+    ).toBe('COMPLETED');
     expect((adapter as any).mapPaymentStatus('pending')).toBe('processing');
     expect((adapter as any).mapPaymentStatus('failed')).toBe('failed');
     expect((adapter as any).mapPaymentStatus('  unknown_state  ')).toBe('processing');

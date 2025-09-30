@@ -15,12 +15,17 @@ import type {
   WebhookVerifyParams,
   WebhookVerifyResult,
   WebhookProcessResult,
-  PaymentEvent
+  PaymentEvent,
+  PaymentLifecycleStatus,
 } from "../../shared/payment-types";
 
 import { adapterFactory } from "./adapter-factory";
 import { configResolver } from "./config-resolver";
-import { WebhookError } from "../../shared/payment-types";
+import {
+  WebhookError,
+  normalizePaymentLifecycleStatus,
+  canTransitionPaymentLifecycle,
+} from "../../shared/payment-types";
 import { db } from "../db";
 import { webhookInbox, payments, refunds, paymentEvents, orders } from "../../shared/schema";
 import { eq, and, sql, or } from "drizzle-orm";
@@ -31,36 +36,6 @@ import crypto from "crypto";
  */
 export class WebhookRouter {
   private static instance: WebhookRouter;
-  private static readonly lifecycleStatuses = ['created', 'pending', 'completed', 'failed'] as const;
-  private static readonly pendingStatusAliases = new Set([
-    'pending',
-    'processing',
-    'initiated',
-    'requires_action',
-    'authorized',
-    'auth_success',
-    'in_progress',
-  ]);
-  private static readonly completedStatusAliases = new Set([
-    'completed',
-    'captured',
-    'success',
-    'succeeded',
-    'paid',
-    'settled',
-  ]);
-  private static readonly failedStatusAliases = new Set([
-    'failed',
-    'failure',
-    'cancelled',
-    'canceled',
-    'timeout',
-    'timed_out',
-    'timedout',
-    'expired',
-    'declined',
-    'denied',
-  ]);
   
   private constructor(
     private environment: Environment
@@ -363,21 +338,17 @@ export class WebhookRouter {
 
         const currentLifecycle = this.toLifecycleStatus(paymentRecord.currentStatus);
         const nextLifecycle = this.toLifecycleStatus(normalizedStatus);
-        const isSameLifecycle = currentLifecycle === nextLifecycle;
-        const allowVerifiedCompletionReplay =
-          isSameLifecycle &&
-          nextLifecycle === 'completed' &&
-          options?.verified === true;
+        const transitionAllowed = this.canTransitionLifecycleStatus(
+          currentLifecycle,
+          nextLifecycle
+        );
 
-        if (
-          !this.canTransitionLifecycleStatus(currentLifecycle, nextLifecycle) &&
-          !allowVerifiedCompletionReplay
-        ) {
+        if (!transitionAllowed) {
           return false;
         }
 
         const updateData: Record<string, any> = {
-          status: normalizedStatus,
+          status: this.toStorageStatus(normalizedStatus),
           updatedAt: new Date(),
         };
         let skipOrderPromotion = false;
@@ -406,7 +377,7 @@ export class WebhookRouter {
           updateData.receiptUrl = providerMetadata.receiptUrl;
         }
 
-        if (nextLifecycle === 'completed' && typeof capturedAmount === 'number') {
+        if (nextLifecycle === 'COMPLETED' && typeof capturedAmount === 'number') {
           const expected =
             typeof paymentRecord.amountAuthorizedMinor === 'number'
               ? paymentRecord.amountAuthorizedMinor
@@ -437,8 +408,9 @@ export class WebhookRouter {
 
         const shouldPromoteOrder =
           options?.verified === true &&
-          nextLifecycle === 'completed' &&
-          !skipOrderPromotion;
+          nextLifecycle === 'COMPLETED' &&
+          !skipOrderPromotion &&
+          transitionAllowed;
 
         if (shouldPromoteOrder) {
           await trx
@@ -548,53 +520,50 @@ export class WebhookRouter {
     }
   }
 
-  private toLifecycleStatus(status: any): 'created' | 'pending' | 'completed' | 'failed' {
-    if (!status || typeof status !== 'string') {
-      return 'created';
-    }
-
-    const normalized = status.toLowerCase();
-
-    if (normalized === 'created') {
-      return 'created';
-    }
-
-    if (WebhookRouter.pendingStatusAliases.has(normalized)) {
-      return 'pending';
-    }
-
-    if (WebhookRouter.completedStatusAliases.has(normalized)) {
-      return 'completed';
-    }
-
-    if (WebhookRouter.failedStatusAliases.has(normalized)) {
-      return 'failed';
-    }
-
-    return 'created';
+  private toLifecycleStatus(status: any): PaymentLifecycleStatus {
+    return normalizePaymentLifecycleStatus(status);
   }
 
   private canTransitionLifecycleStatus(
-    current: (typeof WebhookRouter.lifecycleStatuses)[number],
-    next: (typeof WebhookRouter.lifecycleStatuses)[number]
+    current: PaymentLifecycleStatus,
+    next: PaymentLifecycleStatus
   ): boolean {
-    if (current === next) {
-      return false;
+    return canTransitionPaymentLifecycle(current, next);
+  }
+
+  private toStorageStatus(status: any): string {
+    if (typeof status !== 'string') {
+      return 'PENDING';
     }
 
-    if (current === 'completed' || current === 'failed') {
-      return false;
+    const normalized = status.trim();
+    if (!normalized) {
+      return 'PENDING';
     }
 
-    if (current === 'created') {
-      return next === 'pending' || next === 'completed' || next === 'failed';
+    const upper = normalized.toUpperCase();
+    const lifecycle = normalizePaymentLifecycleStatus(upper);
+
+    if (lifecycle === 'COMPLETED') {
+      return 'COMPLETED';
     }
 
-    if (current === 'pending') {
-      return next === 'completed' || next === 'failed';
+    if (lifecycle === 'PENDING') {
+      return 'PENDING';
     }
 
-    return false;
+    if (lifecycle === 'FAILED') {
+      if (upper === 'FAILED' || upper === 'FAILURE') {
+        return 'FAILED';
+      }
+      return upper;
+    }
+
+    if (lifecycle === 'CREATED' || upper === 'CREATED') {
+      return 'CREATED';
+    }
+
+    return upper;
   }
 
   private extractPaymentMetadata(payload?: Record<string, any>): {

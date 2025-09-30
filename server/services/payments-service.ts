@@ -18,12 +18,19 @@ import type {
   RefundResult,
   PaymentServiceConfig,
   PaymentEvent,
-  HealthCheckResult
+  HealthCheckResult,
+  PaymentLifecycleStatus,
 } from "../../shared/payment-types";
 
 import { adapterFactory } from "./adapter-factory";
 import { idempotencyService } from "./idempotency-service";
-import { PaymentError, RefundError, ConfigurationError } from "../../shared/payment-types";
+import {
+  PaymentError,
+  RefundError,
+  ConfigurationError,
+  normalizePaymentLifecycleStatus,
+  canTransitionPaymentLifecycle,
+} from "../../shared/payment-types";
 import { db } from "../db";
 import { payments, refunds, paymentEvents, orders } from "../../shared/schema";
 import { eq, and, sql, or, inArray, gt } from "drizzle-orm";
@@ -37,40 +44,11 @@ export class PaymentsService {
   private static readonly upiCaptureStatuses = [
     "captured",
     "completed",
+    "COMPLETED",
     "succeeded",
     "success",
     "paid",
   ];
-  private static readonly lifecycleStatuses = ["created", "pending", "completed", "failed"] as const;
-  private static readonly pendingStatusAliases = new Set([
-    "pending",
-    "processing",
-    "initiated",
-    "requires_action",
-    "authorized",
-    "auth_success",
-    "in_progress",
-  ]);
-  private static readonly completedStatusAliases = new Set([
-    "completed",
-    "captured",
-    "success",
-    "succeeded",
-    "paid",
-    "settled",
-  ]);
-  private static readonly failedStatusAliases = new Set([
-    "failed",
-    "failure",
-    "cancelled",
-    "canceled",
-    "timeout",
-    "timed_out",
-    "timedout",
-    "expired",
-    "declined",
-    "denied",
-  ]);
   
   private constructor(
     private config: PaymentServiceConfig
@@ -173,7 +151,7 @@ export class PaymentsService {
               providerReferenceId: providerMetadata.providerReferenceId,
               amountAuthorizedMinor: result.amount,
               currency: result.currency,
-              status: result.status,
+              status: PaymentsService.toStorageStatus(result.status),
               methodKind: result.method?.type,
               methodBrand: result.method?.brand,
               last4: result.method?.last4,
@@ -657,7 +635,7 @@ export class PaymentsService {
       providerOrderId: result.providerOrderId,
       amountAuthorizedMinor: result.amount,
       currency: result.currency,
-      status: result.status,
+      status: PaymentsService.toStorageStatus(result.status),
       methodKind: result.method?.type,
       methodBrand: result.method?.brand,
       last4: result.method?.last4,
@@ -691,21 +669,17 @@ export class PaymentsService {
 
       const currentLifecycle = PaymentsService.normalizeLifecycleStatus(existingPayment.currentStatus);
       const nextLifecycle = PaymentsService.normalizeLifecycleStatus(result.status);
-      const isSameLifecycle = currentLifecycle === nextLifecycle;
-      const allowVerifiedCompletionReplay =
-        isSameLifecycle &&
-        nextLifecycle === 'completed' &&
-        event.type === 'payment_verified';
+      const transitionAllowed = PaymentsService.canTransitionLifecycleStatus(
+        currentLifecycle,
+        nextLifecycle
+      );
 
-      if (
-        !PaymentsService.canTransitionLifecycleStatus(currentLifecycle, nextLifecycle) &&
-        !allowVerifiedCompletionReplay
-      ) {
+      if (!transitionAllowed) {
         return;
       }
 
       const updateData: Record<string, any> = {
-        status: result.status,
+        status: PaymentsService.toStorageStatus(result.status),
         methodKind: result.method?.type,
         methodBrand: result.method?.brand,
         last4: result.method?.last4,
@@ -722,7 +696,7 @@ export class PaymentsService {
         updateData.providerOrderId = result.providerOrderId;
       }
 
-      if (nextLifecycle === 'completed' && typeof result.amount === 'number') {
+      if (nextLifecycle === 'COMPLETED' && typeof result.amount === 'number') {
         updateData.amountCapturedMinor = result.amount;
       }
 
@@ -769,8 +743,9 @@ export class PaymentsService {
       const paymentOrderId = existingPayment?.orderId;
       let shouldPromoteOrder =
         paymentOrderId &&
-        nextLifecycle === 'completed' &&
-        event.type === 'payment_verified';
+        nextLifecycle === 'COMPLETED' &&
+        event.type === 'payment_verified' &&
+        transitionAllowed;
 
       if (shouldPromoteOrder) {
         const [orderRecord] = await trx
@@ -802,49 +777,51 @@ export class PaymentsService {
     });
   }
 
-  private static normalizeLifecycleStatus(status: string | null | undefined): (typeof PaymentsService.lifecycleStatuses)[number] {
-    if (!status) {
-      return 'created';
-    }
-
-    const normalized = status.toLowerCase();
-
-    if (PaymentsService.completedStatusAliases.has(normalized)) {
-      return 'completed';
-    }
-
-    if (PaymentsService.failedStatusAliases.has(normalized)) {
-      return 'failed';
-    }
-
-    if (PaymentsService.pendingStatusAliases.has(normalized)) {
-      return 'pending';
-    }
-
-    return 'created';
+  private static normalizeLifecycleStatus(status: string | null | undefined): PaymentLifecycleStatus {
+    return normalizePaymentLifecycleStatus(status);
   }
 
   private static canTransitionLifecycleStatus(
-    current: (typeof PaymentsService.lifecycleStatuses)[number],
-    next: (typeof PaymentsService.lifecycleStatuses)[number]
+    current: PaymentLifecycleStatus,
+    next: PaymentLifecycleStatus
   ): boolean {
-    if (current === next) {
-      return false;
+    return canTransitionPaymentLifecycle(current, next);
+  }
+
+  private static toStorageStatus(status: string | null | undefined): string {
+    if (!status) {
+      return 'CREATED';
     }
 
-    if (current === 'completed' || current === 'failed') {
-      return false;
+    const normalized = status.toString().trim();
+
+    if (!normalized) {
+      return 'CREATED';
     }
 
-    if (current === 'created') {
-      return next === 'pending' || next === 'completed' || next === 'failed';
+    const upper = normalized.toUpperCase();
+    const lifecycle = normalizePaymentLifecycleStatus(upper);
+
+    if (lifecycle === 'COMPLETED') {
+      return 'COMPLETED';
     }
 
-    if (current === 'pending') {
-      return next === 'completed' || next === 'failed';
+    if (lifecycle === 'PENDING') {
+      return 'PENDING';
     }
 
-    return false;
+    if (lifecycle === 'FAILED') {
+      if (upper === 'FAILED' || upper === 'FAILURE') {
+        return 'FAILED';
+      }
+      return upper;
+    }
+
+    if (lifecycle === 'CREATED' || upper === 'CREATED') {
+      return 'CREATED';
+    }
+
+    return upper;
   }
   
   /**

@@ -64,7 +64,7 @@ describe("Thank-you page", () => {
       },
       latestTransaction: {
         id: "txn-captured",
-        status: "captured",
+        status: "COMPLETED",
         merchantTransactionId: "MERCHANT_TXN_123",
         providerTransactionId: "PG_TXN_123",
         upiUtr: "UTR1234567",
