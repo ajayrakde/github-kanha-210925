@@ -31,6 +31,8 @@ interface PaymentTransactionInfo {
   providerReferenceId?: string;
   upiPayerHandle?: string;
   upiUtr?: string;
+  upiInstrumentVariant?: string;
+  upiInstrumentLabel?: string;
   receiptUrl?: string;
   provider?: string;
   methodKind?: string;
@@ -49,6 +51,7 @@ interface PaymentStatusInfo {
     createdAt: string;
     updatedAt: string;
   };
+  payment?: PaymentTransactionInfo | null;
   transactions: PaymentTransactionInfo[];
   latestTransaction?: PaymentTransactionInfo;
   totalPaid: number;
@@ -573,6 +576,14 @@ export default function ThankYou() {
                     <span>Provider Txn ID:</span>
                     <span className="font-mono text-xs">
                       {formatIdentifier(latestTransaction.providerTransactionId)}
+                    </span>
+                  </div>
+                )}
+                {(latestTransaction.upiInstrumentLabel || latestTransaction.upiInstrumentVariant) && (
+                  <div className="flex justify-between">
+                    <span>UPI Instrument:</span>
+                    <span className="font-medium text-xs">
+                      {latestTransaction.upiInstrumentLabel ?? latestTransaction.upiInstrumentVariant}
                     </span>
                   </div>
                 )}

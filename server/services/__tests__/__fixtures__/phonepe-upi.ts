@@ -1,4 +1,5 @@
 import type { PaymentResult, WebhookVerifyResult } from "../../../../shared/payment-types";
+import { phonePeIdentifierFixture } from "../../../../shared/__fixtures__/upi";
 
 const now = new Date();
 
@@ -17,7 +18,13 @@ export const phonePeCreatePayment: PaymentResult = {
   providerData: {
     merchantTransactionId: "MERCHANT_TXN_123",
     transactionId: "PG_TXN_123",
-    payerVpa: "buyer@upi",
+    payerVpa: phonePeIdentifierFixture.vpa,
+    utr: phonePeIdentifierFixture.utr,
+    instrumentResponse: {
+      type: phonePeIdentifierFixture.variant,
+      vpa: phonePeIdentifierFixture.vpa,
+      utr: phonePeIdentifierFixture.utr,
+    },
   },
 };
 
@@ -27,7 +34,7 @@ export const phonePeImmediateCapture: PaymentResult = {
   amount: 49900,
   providerData: {
     ...phonePeCreatePayment.providerData,
-    utr: "UTR1234567",
+    utr: phonePeIdentifierFixture.utr,
     receiptUrl: "https://phonepe.example/receipt/pay_test_123",
   },
 };
@@ -43,8 +50,8 @@ export const phonePeWebhookCaptured: WebhookVerifyResult = {
       providerTransactionId: "PG_TXN_123",
       amount: "499.00",
       amountMinor: 49900,
-      payerHandle: "buyer@upi",
-      utr: "UTR1234567",
+      payerHandle: phonePeIdentifierFixture.vpa,
+      utr: phonePeIdentifierFixture.utr,
       receiptUrl: "https://phonepe.example/receipt/pay_test_123",
     },
   },
@@ -87,8 +94,8 @@ export const phonePeWebhookTamperedAmount: WebhookVerifyResult = {
       providerTransactionId: "PG_TXN_123",
       amount: "999.00",
       amountMinor: 99900,
-      utr: "UTR1234567",
-      payerVpa: "buyer@upi",
+      utr: phonePeIdentifierFixture.utr,
+      payerVpa: phonePeIdentifierFixture.vpa,
     },
   },
 };

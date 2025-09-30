@@ -1,6 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Request, Response } from "express";
 import { payments, orders, paymentEvents } from "../../../shared/schema";
+import { phonePeIdentifierFixture } from "../../../shared/__fixtures__/upi";
 import {
   phonePeCreatePayment,
   phonePeImmediateCapture,
@@ -236,7 +237,8 @@ describe("PhonePe UPI happy path", () => {
     expect(paymentInsert?.values).toMatchObject({
       orderId: "order-1",
       provider: "phonepe",
-      upiPayerHandle: "buyer@upi",
+      upiPayerHandle: phonePeIdentifierFixture.maskedVpa,
+      upiInstrumentVariant: phonePeIdentifierFixture.variant,
     });
 
     const router = buildRouter();
@@ -270,8 +272,8 @@ describe("PhonePe UPI happy path", () => {
     const paymentUpdate = updateCalls.find((call) => call.table === payments && call.data.status === "COMPLETED");
     expect(paymentUpdate?.data).toMatchObject({
       amountCapturedMinor: phonePeCreatePayment.amount,
-      upiPayerHandle: "buyer@upi",
-      upiUtr: "UTR1234567",
+      upiPayerHandle: phonePeIdentifierFixture.maskedVpa,
+      upiUtr: phonePeIdentifierFixture.maskedUtr,
     });
 
     const orderUpdate = updateCalls.find((call) => call.table === orders && call.data.paymentStatus === "paid");

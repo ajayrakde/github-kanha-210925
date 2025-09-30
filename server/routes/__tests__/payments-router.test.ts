@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Request, Response } from "express";
 import type { Router } from "express";
 import { paymentEvents } from "../../../shared/schema";
+import { phonePeIdentifierFixture } from "../../../shared/__fixtures__/upi";
 
 process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
 
@@ -256,9 +257,10 @@ describe("payments router", () => {
         providerPaymentId: "mtid",
         providerTransactionId: "txn",
         providerReferenceId: "ref",
-        upiPayerHandle: "user@upi",
+        upiPayerHandle: phonePeIdentifierFixture.vpa,
         upiUtr: null,
         receiptUrl: null,
+        upiInstrumentVariant: phonePeIdentifierFixture.variant,
         createdAt: new Date("2024-01-01T00:05:00Z"),
         updatedAt: new Date("2024-01-01T00:06:00Z"),
       };
@@ -271,6 +273,9 @@ describe("payments router", () => {
       expect(res.jsonPayload.latestTransaction.status).toBe("processing");
       expect(res.jsonPayload.payment.status).toBe("processing");
       expect(res.jsonPayload.payment.providerTransactionId).toBe("txn");
+      expect(res.jsonPayload.payment.upiPayerHandle).toBe(phonePeIdentifierFixture.maskedVpa);
+      expect(res.jsonPayload.payment.upiInstrumentVariant).toBe(phonePeIdentifierFixture.variant);
+      expect(res.jsonPayload.payment.upiInstrumentLabel).toBe(phonePeIdentifierFixture.label);
     });
 
     it("prioritizes completed UPI payment details", async () => {
@@ -285,8 +290,9 @@ describe("payments router", () => {
         providerPaymentId: "mtid",
         providerTransactionId: "txn",
         providerReferenceId: "ref",
-        upiPayerHandle: "user@upi",
-        upiUtr: "123456",
+        upiPayerHandle: phonePeIdentifierFixture.vpa,
+        upiUtr: phonePeIdentifierFixture.utr,
+        upiInstrumentVariant: phonePeIdentifierFixture.variant,
         receiptUrl: "https://receipt",
         createdAt: new Date("2024-01-01T00:05:00Z"),
         updatedAt: new Date("2024-01-01T00:07:00Z"),
@@ -299,7 +305,8 @@ describe("payments router", () => {
 
       expect(res.jsonPayload.order.paymentStatus).toBe("paid");
       expect(res.jsonPayload.payment.status).toBe("COMPLETED");
-      expect(res.jsonPayload.payment.upiUtr).toBe("123456");
+      expect(res.jsonPayload.payment.upiUtr).toBe(phonePeIdentifierFixture.maskedUtr);
+      expect(res.jsonPayload.payment.upiInstrumentLabel).toBe(phonePeIdentifierFixture.label);
       expect(res.jsonPayload.payment.receiptUrl).toBe("https://receipt");
       expect(res.jsonPayload.totals.paidMinor).toBe(1000);
     });
@@ -316,8 +323,9 @@ describe("payments router", () => {
         providerPaymentId: "mtid",
         providerTransactionId: null,
         providerReferenceId: "ref",
-        upiPayerHandle: "user@upi",
+        upiPayerHandle: phonePeIdentifierFixture.vpa,
         upiUtr: null,
+        upiInstrumentVariant: phonePeIdentifierFixture.variant,
         receiptUrl: null,
         createdAt: new Date("2024-01-01T00:05:00Z"),
         updatedAt: new Date("2024-01-01T00:07:00Z"),
@@ -330,6 +338,7 @@ describe("payments router", () => {
       expect(res.jsonPayload.order.paymentStatus).toBe("failed");
       expect(res.jsonPayload.payment.status).toBe("failed");
       expect(res.jsonPayload.totals.paidMinor).toBe(0);
+      expect(res.jsonPayload.payment.upiPayerHandle).toBe(phonePeIdentifierFixture.maskedVpa);
     });
 
     it("handles webhook-first captures before order promotion", async () => {
@@ -344,8 +353,9 @@ describe("payments router", () => {
         providerPaymentId: "mtid",
         providerTransactionId: "txn",
         providerReferenceId: "ref",
-        upiPayerHandle: "user@upi",
-        upiUtr: "123456",
+        upiPayerHandle: phonePeIdentifierFixture.vpa,
+        upiUtr: phonePeIdentifierFixture.utr,
+        upiInstrumentVariant: phonePeIdentifierFixture.variant,
         receiptUrl: "https://receipt",
         createdAt: new Date("2024-01-01T00:05:00Z"),
         updatedAt: new Date("2024-01-01T00:05:30Z"),
@@ -358,6 +368,7 @@ describe("payments router", () => {
       expect(res.jsonPayload.order.paymentStatus).toBe("pending");
       expect(res.jsonPayload.payment.status).toBe("COMPLETED");
       expect(res.jsonPayload.totals.paidMinor).toBe(1000);
+      expect(res.jsonPayload.payment.upiUtr).toBe(phonePeIdentifierFixture.maskedUtr);
     });
   });
 
