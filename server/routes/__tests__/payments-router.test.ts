@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Request, Response } from "express";
 import type { Router } from "express";
+import { paymentEvents } from "../../../shared/schema";
 
 process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
 
@@ -37,6 +38,21 @@ const mockOrdersRepository = {
 
 vi.mock("../../storage", () => ({
   ordersRepository: mockOrdersRepository,
+}));
+
+const insertValuesMock = vi.fn(async (_values: any) => ({ rowCount: 1 }));
+const insertMock = vi.fn(() => ({ values: insertValuesMock }));
+const updateMock = vi.fn(() => ({
+  set: vi.fn(() => ({
+    where: vi.fn(async () => ({ rowCount: 0 })),
+  })),
+}));
+
+vi.mock("../../db", () => ({
+  db: {
+    insert: insertMock,
+    update: updateMock,
+  },
 }));
 
 describe("payments router", () => {
@@ -284,6 +300,46 @@ describe("payments router", () => {
       expect(res.jsonPayload.order.paymentStatus).toBe("pending");
       expect(res.jsonPayload.payment.status).toBe("captured");
       expect(res.jsonPayload.totals.paidMinor).toBe(1000);
+    });
+  });
+
+  describe("GET /api/payments/phonepe/return", () => {
+    it("records a processing marker without mutating order state", async () => {
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "get", "/phonepe/return");
+      const res = createMockResponse();
+      const req = {
+        query: {
+          orderId: "order-1",
+          merchantTransactionId: "merchant-123",
+          state: "PENDING",
+          code: "PAYMENT_PENDING",
+        },
+        headers: {},
+      } as unknown as Request;
+
+      await handler(req, res, () => {});
+
+      expect(insertMock).toHaveBeenCalledWith(paymentEvents);
+      expect(insertValuesMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: "phonepe",
+          type: "phonepe.return.processing",
+          data: expect.objectContaining({
+            orderId: "order-1",
+            merchantTransactionId: "merchant-123",
+            status: "processing",
+          }),
+        })
+      );
+      expect(updateMock).not.toHaveBeenCalled();
+      expect(res.status).not.toHaveBeenCalled();
+      expect(res.jsonPayload).toMatchObject({
+        status: "processing",
+        reconciliation: expect.objectContaining({
+          shouldPoll: true,
+        }),
+      });
     });
   });
 });

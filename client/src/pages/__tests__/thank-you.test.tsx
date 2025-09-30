@@ -14,7 +14,10 @@ describe("Thank-you page", () => {
   beforeEach(() => {
     setLocationMock.mockReset();
     sessionStorage.clear();
-    global.fetch = vi.fn();
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: "processing", message: "Processing" }),
+    }) as unknown as typeof fetch;
     window.history.replaceState({}, "", "/thank-you?orderId=order-1");
   });
 
