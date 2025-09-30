@@ -27,6 +27,7 @@ import type {
 
 import type { PaymentProvider, Environment, PhonePeConfig } from "../../shared/payment-providers";
 import type { ResolvedConfig } from "../services/config-resolver";
+import { PhonePeTokenManager } from "../services/phonepe-token-manager";
 import { PaymentError, RefundError, WebhookError } from "../../shared/payment-types";
 
 /**
@@ -119,8 +120,9 @@ export class PhonePeAdapter implements PaymentsAdapter {
   private readonly defaultRedirectUrl: string;
   private readonly clientId: string;
   private readonly clientVersion: string;
+  private readonly tokenManager: PhonePeTokenManager;
 
-  constructor(private config: ResolvedConfig) {
+  constructor(config: ResolvedConfig, dependencies?: { tokenManager?: PhonePeTokenManager }) {
     this.environment = config.environment;
 
     // Extract configuration
@@ -141,6 +143,15 @@ export class PhonePeAdapter implements PaymentsAdapter {
     this.clientId = this.phonepeConfig.client_id;
     this.clientVersion = this.phonepeConfig.client_version;
     this.defaultRedirectUrl = this.phonepeConfig.redirectUrl;
+
+    if (!dependencies?.tokenManager) {
+      throw new PaymentError(
+        'Missing PhonePe token manager',
+        'PHONEPE_TOKEN_MANAGER_MISSING',
+        'phonepe'
+      );
+    }
+    this.tokenManager = dependencies.tokenManager;
 
     // Set API base URL based on environment
     this.baseUrl = this.environment === 'live'
@@ -630,8 +641,10 @@ export class PhonePeAdapter implements PaymentsAdapter {
     endpoint: string,
     method: 'GET' | 'POST' | 'PUT' | 'DELETE',
     data?: any,
-    customHeaders?: Record<string, string>
+    customHeaders?: Record<string, string>,
+    attempt: number = 0
   ): Promise<T> {
+    const accessToken = await this.tokenManager.getAccessToken(attempt > 0);
     const url = `${this.baseUrl}${endpoint}`;
 
     const headers = {
@@ -639,21 +652,45 @@ export class PhonePeAdapter implements PaymentsAdapter {
       'User-Agent': `PhonePeAdapter/${this.clientVersion}`,
       'X-CLIENT-ID': this.clientId,
       'X-CLIENT-VERSION': this.clientVersion,
+      'accept': 'application/json',
+      'Authorization': `O-Bearer ${accessToken}`,
       ...customHeaders,
     };
-    
+
     const response = await fetch(url, {
       method,
       headers,
       body: data ? JSON.stringify(data) : undefined,
     });
-    
+
+    const rawBody = await response.text();
+    let parsedBody: any = undefined;
+    try {
+      parsedBody = rawBody ? JSON.parse(rawBody) : undefined;
+    } catch {
+      parsedBody = rawBody;
+    }
+
+    const tokenExpired =
+      response.status === 401 ||
+      response.status === 403 ||
+      (parsedBody && typeof parsedBody === 'object' && typeof parsedBody.code === 'string' && /TOKEN.*EXPIRED/i.test(parsedBody.code));
+
+    if (tokenExpired) {
+      this.tokenManager.invalidateToken();
+      if (attempt === 0) {
+        return this.makeApiCall<T>(endpoint, method, data, customHeaders, attempt + 1);
+      }
+    }
+
     if (!response.ok) {
-      const error = await response.text();
+      const error = typeof parsedBody === 'string' || parsedBody === undefined
+        ? rawBody
+        : JSON.stringify(parsedBody);
       throw new Error(`PhonePe API error: ${response.status} ${error}`);
     }
-    
-    return response.json();
+
+    return parsedBody as T;
   }
   
   /**
