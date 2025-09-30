@@ -189,6 +189,12 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     metadata: z.record(z.any()).optional(),
   });
 
+  const cancelPaymentSchema = z.object({
+    paymentId: z.string().min(1, 'Payment ID is required'),
+    orderId: z.string().min(1, 'Order ID is required'),
+    reason: z.string().optional(),
+  });
+
   const verifyPaymentSchema = z.object({
     paymentId: z.string().min(1),
     providerData: z.record(z.any()).optional(),
@@ -392,6 +398,44 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
 
       res.status(500).json({
         error: 'Failed to create PhonePe token URL',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  router.post('/cancel', async (req, res) => {
+    try {
+      const validatedData = cancelPaymentSchema.parse(req.body);
+      const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+
+      await paymentsService.cancelPayment(
+        {
+          paymentId: validatedData.paymentId,
+          orderId: validatedData.orderId,
+          reason: validatedData.reason,
+        },
+        tenantId
+      );
+
+      res.json({ success: true });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          error: 'Invalid request data',
+          details: error.errors,
+        });
+      }
+
+      if (error instanceof PaymentError) {
+        return res.status(400).json({
+          error: error.message,
+          code: error.code,
+        });
+      }
+
+      console.error('Payment cancellation error:', error);
+      res.status(500).json({
+        error: 'Failed to cancel payment',
         message: error instanceof Error ? error.message : 'Unknown error',
       });
     }

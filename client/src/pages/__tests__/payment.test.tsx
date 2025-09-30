@@ -109,4 +109,54 @@ describe("Payment page", () => {
       })
     );
   });
+
+  it("records cancellation when the PhonePe iframe reports USER_CANCEL", async () => {
+    const queryClient = new QueryClient();
+    apiRequestMock.mockResolvedValueOnce({
+      json: async () => ({
+        data: {
+          tokenUrl: "https://phonepe.example/pay",
+          merchantTransactionId: "merchant-1",
+          paymentId: "pay_123",
+        },
+      }),
+    } as any);
+    apiRequestMock.mockResolvedValueOnce({ ok: true } as any);
+
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Payment />
+      </QueryClientProvider>
+    );
+
+    const payButton = await screen.findByTestId("button-initiate-payment");
+    await user.click(payButton);
+
+    await waitFor(() => {
+      expect(window.PhonePeCheckout?.transact).toHaveBeenCalled();
+    });
+
+    const transactMock = window.PhonePeCheckout?.transact as ReturnType<typeof vi.fn>;
+    const callback = transactMock.mock.calls[0]?.[0]?.callback as ((event: any) => void) | undefined;
+    expect(callback).toBeTypeOf("function");
+
+    callback?.({ status: "USER_CANCEL" });
+
+    await waitFor(() => {
+      expect(apiRequestMock).toHaveBeenCalledWith(
+        "POST",
+        "/api/payments/cancel",
+        expect.objectContaining({
+          paymentId: "pay_123",
+          orderId: "order-1",
+          reason: "USER_CANCEL",
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Payment Failed/i)).toBeInTheDocument();
+    });
+  });
 });
