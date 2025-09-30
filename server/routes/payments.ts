@@ -16,7 +16,7 @@ import { adapterFactory } from '../services/adapter-factory';
 import { idempotencyService } from '../services/idempotency-service';
 import { ordersRepository, phonePePollingStore } from '../storage';
 import { phonePePollingWorker } from '../services/phonepe-polling-registry';
-import { PaymentError } from '../../shared/payment-types';
+import { PaymentError, normalizePaymentLifecycleStatus } from '../../shared/payment-types';
 import type {
   CreatePaymentParams,
   CreateRefundParams
@@ -632,6 +632,34 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       const transactions = sortedPayments.map(mapPayment);
       const upiTransactions = transactions.filter((txn) => txn.methodKind === 'upi');
       const latestTransaction = upiTransactions[0] ?? transactions[0] ?? undefined;
+      const latestTransactionPayment = latestTransaction
+        ? sortedPayments.find((payment) => payment.id === latestTransaction.id)
+        : undefined;
+
+      const latestTransactionFailed = latestTransaction
+        ? normalizePaymentLifecycleStatus(latestTransaction.status ?? null) === 'FAILED'
+        : false;
+
+      const latestTransactionFailureAt = latestTransactionFailed
+        ? (() => {
+            const candidate =
+              order.paymentFailedAt ??
+              latestTransactionPayment?.updatedAt ??
+              latestTransactionPayment?.createdAt ??
+              null;
+            if (!candidate) {
+              return null;
+            }
+            if (candidate instanceof Date) {
+              return candidate.toISOString();
+            }
+            if (typeof candidate === 'string') {
+              const parsed = new Date(candidate);
+              return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+            }
+            return null;
+          })()
+        : null;
 
       const totalPaidMinor = sortedPayments.reduce((sum, payment) => sum + (payment.amountCapturedMinor ?? 0), 0);
       const totalRefundedMinor = sortedPayments.reduce((sum, payment) => sum + (payment.amountRefundedMinor ?? 0), 0);
@@ -657,6 +685,10 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           id: order.id,
           status: order.status,
           paymentStatus: order.paymentStatus,
+          paymentFailedAt:
+            order.paymentFailedAt instanceof Date
+              ? order.paymentFailedAt.toISOString()
+              : order.paymentFailedAt ?? null,
           paymentMethod: order.paymentMethod,
           total: order.total,
           shippingCharge: order.shippingCharge,
@@ -679,6 +711,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           : null,
         transactions,
         latestTransaction,
+        latestTransactionFailed,
+        latestTransactionFailureAt,
         totals: {
           paidMinor: totalPaidMinor,
           refundedMinor: totalRefundedMinor,

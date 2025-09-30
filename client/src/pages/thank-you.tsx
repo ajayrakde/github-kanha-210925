@@ -45,6 +45,7 @@ interface PaymentStatusInfo {
     id: string;
     status: string;
     paymentStatus: string;
+    paymentFailedAt?: string | null;
     paymentMethod: string;
     total: string;
     shippingCharge?: string;
@@ -54,6 +55,8 @@ interface PaymentStatusInfo {
   payment?: PaymentTransactionInfo | null;
   transactions: PaymentTransactionInfo[];
   latestTransaction?: PaymentTransactionInfo;
+  latestTransactionFailed?: boolean;
+  latestTransactionFailureAt?: string | null;
   totalPaid: number;
   totalRefunded: number;
   reconciliation?: {
@@ -244,7 +247,9 @@ export default function ThankYou() {
     refetchInterval: (queryData) => {
       // Stop polling on terminal states
       const data = queryData?.state?.data as PaymentStatusInfo | undefined;
-      const latestStatus = normalizeStatus(data?.latestTransaction?.status);
+      const latestStatus = data?.latestTransactionFailed
+        ? 'failed'
+        : normalizeStatus(data?.latestTransaction?.status);
       const orderPaymentStatus = normalizeStatus(data?.order?.paymentStatus);
       if (['completed', 'failed'].includes(latestStatus) || orderPaymentStatus === 'paid') {
         return false;
@@ -325,7 +330,13 @@ export default function ThankYou() {
   const currentOrderData = paymentInfo?.order || orderData;
   const paymentStatusFromOrder = paymentInfo?.order?.paymentStatus;
   const normalizedPaymentStatus = normalizeStatus(paymentStatusFromOrder);
+  const latestTransactionFailed =
+    paymentInfo?.latestTransactionFailed === true || normalizeStatus(paymentInfo?.latestTransaction?.status) === 'failed';
+  const latestTransactionFailureAt = paymentInfo?.latestTransactionFailureAt ?? null;
   const currentPaymentStatus = (() => {
+    if (latestTransactionFailed && normalizedPaymentStatus !== 'paid') {
+      return 'failed';
+    }
     if (paymentStatusFromOrder && normalizedPaymentStatus && normalizedPaymentStatus !== 'pending') {
       return paymentStatusFromOrder;
     }
@@ -648,7 +659,7 @@ export default function ThankYou() {
               </div>
             )}
             
-            {paymentInfo.order.paymentStatus === 'failed' && (
+            {(paymentInfo.order.paymentStatus === 'failed' || latestTransactionFailed) && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <div className="flex items-center">
                   <XCircle className="w-5 h-5 text-red-600 mr-2" />
@@ -657,6 +668,11 @@ export default function ThankYou() {
                     <p className="text-sm text-red-700 mt-1">
                       Your payment could not be processed. Please contact support if amount was debited from your account.
                     </p>
+                    {latestTransactionFailureAt && (
+                      <p className="text-xs text-red-600 mt-2">
+                        Last failed attempt recorded at {new Date(latestTransactionFailureAt).toLocaleString('en-IN')}.
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -710,7 +726,16 @@ export default function ThankYou() {
 
       {/* Action Buttons */}
       <div className="space-y-3 text-center">
-        <Button 
+        {latestTransactionFailed && displayOrderData && (
+          <Button
+            className="w-full max-w-md bg-red-600 hover:bg-red-700"
+            onClick={() => setLocation(`/payment?orderId=${displayOrderData.orderId}`)}
+            data-testid="button-retry-payment"
+          >
+            Retry Payment
+          </Button>
+        )}
+        <Button
           className="w-full max-w-md bg-blue-600 hover:bg-blue-700"
           onClick={() => setLocation("/")}
           data-testid="button-continue-shopping-final"

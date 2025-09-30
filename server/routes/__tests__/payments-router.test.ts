@@ -170,6 +170,7 @@ describe("payments router", () => {
       id: "order-1",
       status: "pending",
       paymentStatus: "pending",
+      paymentFailedAt: null,
       paymentMethod: "upi",
       subtotal: "100.00",
       discountAmount: "10.00",
@@ -203,6 +204,8 @@ describe("payments router", () => {
       expect(res.jsonPayload.order.paymentStatus).toBe("pending");
       expect(res.jsonPayload.payment).toBeNull();
       expect(res.jsonPayload.latestTransaction).toBeUndefined();
+      expect(res.jsonPayload.latestTransactionFailed).toBe(false);
+      expect(res.jsonPayload.latestTransactionFailureAt).toBeNull();
       expect(res.jsonPayload.reconciliation).toBeNull();
       expect(res.jsonPayload.breakdown).toEqual({
         subtotal: 100,
@@ -332,13 +335,17 @@ describe("payments router", () => {
       };
       const res = await invoke({
         paymentStatus: "failed",
+        paymentFailedAt: new Date("2024-01-01T00:08:00Z"),
         payments: [failed],
       });
 
       expect(res.jsonPayload.order.paymentStatus).toBe("failed");
+      expect(res.jsonPayload.order.paymentFailedAt).toBe("2024-01-01T00:08:00.000Z");
       expect(res.jsonPayload.payment.status).toBe("failed");
       expect(res.jsonPayload.totals.paidMinor).toBe(0);
       expect(res.jsonPayload.payment.upiPayerHandle).toBe(phonePeIdentifierFixture.maskedVpa);
+      expect(res.jsonPayload.latestTransactionFailed).toBe(true);
+      expect(res.jsonPayload.latestTransactionFailureAt).toBe("2024-01-01T00:08:00.000Z");
     });
 
     it("handles webhook-first captures before order promotion", async () => {

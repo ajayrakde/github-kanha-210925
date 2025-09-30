@@ -126,6 +126,7 @@ export const orders = pgTable("orders", {
   paymentStatus: varchar("payment_status", { length: 50 })
     .notNull()
     .default('pending'), // pending|processing|paid|failed
+  paymentFailedAt: timestamp("payment_failed_at"),
   paymentMethod: varchar("payment_method", { length: 50 })
     .notNull()
     .default('unselected'), // cod|upi|card|netbanking|wallet|unselected
