@@ -2,6 +2,8 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import type { ResolvedConfig } from "../config-resolver";
 import type { PaymentProvider } from "../../../shared/payment-providers";
 import { ConfigurationError } from "../../../shared/payment-types";
+import { secretsResolver } from "../../utils/secrets-resolver";
+import type { ProviderSecrets } from "../../utils/secrets-resolver";
 
 type ConfigResolverModule = typeof import("../config-resolver");
 
@@ -32,6 +34,7 @@ const baseConfig = (provider: PaymentProvider, overrides: Partial<ResolvedConfig
   metadata: {},
   isValid: false,
   missingSecrets: [],
+  phonepeConfig: undefined,
   ...overrides,
 });
 
@@ -168,5 +171,118 @@ describe("ConfigResolver.getProviderStatus", () => {
     });
 
     await expect(configResolver.getProviderStatus(tenantId)).rejects.toThrow("boom");
+  });
+});
+
+describe("ConfigResolver.resolveConfig for PhonePe", () => {
+  let ConfigResolverClass: ConfigResolverModule["ConfigResolver"];
+  let configResolver: InstanceType<ConfigResolverModule["ConfigResolver"]>;
+
+  beforeAll(async () => {
+    process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
+    ({ ConfigResolver: ConfigResolverClass } = await import("../config-resolver"));
+    configResolver = ConfigResolverClass.getInstance();
+  });
+
+  beforeEach(() => {
+    (configResolver as any).configCache?.clear?.();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const buildSecrets = (overrides: Partial<ProviderSecrets> = {}): ProviderSecrets => {
+    const { phonepe: phonepeOverrides, ...rest } = overrides as {
+      phonepe?: ProviderSecrets["phonepe"];
+    } & Partial<ProviderSecrets>;
+
+    return {
+      provider: 'phonepe',
+      environment: 'test',
+      environmentPrefix: 'PAYAPP_TEST_PHONEPE_',
+      salt: 'salt',
+      webhookSecret: 'webhook',
+      saltIndex: 1,
+      phonepe: {
+        client_id: 'client-id',
+        client_secret: 'client-secret',
+        client_version: '2024-01-01',
+        webhookAuth: { username: 'hook-user', password: 'hook-pass' },
+        hosts: { uat: 'https://uat.phonepe.local', prod: 'https://prod.phonepe.local' },
+        redirectUrl: 'https://env.example/pay',
+        ...phonepeOverrides,
+      },
+      ...rest,
+    };
+  };
+
+  it("merges PhonePe config from secrets and database", async () => {
+    vi.spyOn(ConfigResolverClass.prototype as any, 'getDbConfig').mockResolvedValue({
+      isEnabled: true,
+      merchantId: 'merchant-from-db',
+      successUrl: undefined,
+    });
+
+    vi.spyOn(secretsResolver, 'resolveSecrets').mockReturnValue(buildSecrets());
+    vi.spyOn(secretsResolver, 'validateSecrets').mockReturnValue({
+      isValid: true,
+      missingSecrets: [],
+      availableSecrets: [],
+    });
+
+    const config = await configResolver.resolveConfig('phonepe', 'test', 'tenant-1');
+
+    expect(config.phonepeConfig).toEqual({
+      client_id: 'client-id',
+      client_secret: 'client-secret',
+      client_version: '2024-01-01',
+      merchantId: 'merchant-from-db',
+      webhookAuth: { username: 'hook-user', password: 'hook-pass' },
+      redirectUrl: 'https://env.example/pay',
+      hosts: { uat: 'https://uat.phonepe.local', prod: 'https://prod.phonepe.local' },
+    });
+  });
+
+  it("throws when merchantId is provided by multiple sources", async () => {
+    vi.spyOn(ConfigResolverClass.prototype as any, 'getDbConfig').mockResolvedValue({
+      isEnabled: true,
+      merchantId: 'merchant-from-db',
+      successUrl: 'https://db.example/success',
+    });
+
+    vi.spyOn(secretsResolver, 'resolveSecrets').mockReturnValue(
+      buildSecrets({ phonepe: { merchantId: 'merchant-from-env' } })
+    );
+    vi.spyOn(secretsResolver, 'validateSecrets').mockReturnValue({
+      isValid: true,
+      missingSecrets: [],
+      availableSecrets: [],
+    });
+
+    await expect(
+      configResolver.resolveConfig('phonepe', 'test', 'tenant-1')
+    ).rejects.toThrowError(/multiple sources/);
+  });
+
+  it("throws when redirectUrl is missing across sources", async () => {
+    vi.spyOn(ConfigResolverClass.prototype as any, 'getDbConfig').mockResolvedValue({
+      isEnabled: true,
+      merchantId: 'merchant-from-db',
+      successUrl: undefined,
+    });
+
+    vi.spyOn(secretsResolver, 'resolveSecrets').mockReturnValue(
+      buildSecrets({ phonepe: { redirectUrl: undefined } })
+    );
+    vi.spyOn(secretsResolver, 'validateSecrets').mockReturnValue({
+      isValid: true,
+      missingSecrets: [],
+      availableSecrets: [],
+    });
+
+    await expect(
+      configResolver.resolveConfig('phonepe', 'test', 'tenant-1')
+    ).rejects.toThrowError(/Missing PhonePe redirectUrl/);
   });
 });

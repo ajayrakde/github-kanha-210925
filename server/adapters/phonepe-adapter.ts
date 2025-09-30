@@ -25,7 +25,7 @@ import type {
   RefundStatus
 } from "../../shared/payment-types";
 
-import type { PaymentProvider, Environment } from "../../shared/payment-providers";
+import type { PaymentProvider, Environment, PhonePeConfig } from "../../shared/payment-providers";
 import type { ResolvedConfig } from "../services/config-resolver";
 import { PaymentError, RefundError, WebhookError } from "../../shared/payment-types";
 
@@ -115,21 +115,38 @@ export class PhonePeAdapter implements PaymentsAdapter {
   private readonly saltIndex: number;
   private readonly webhookSecret?: string;
   private readonly baseUrl: string;
-  
+  private readonly phonepeConfig: PhonePeConfig;
+  private readonly defaultRedirectUrl: string;
+  private readonly clientId: string;
+  private readonly clientVersion: string;
+
   constructor(private config: ResolvedConfig) {
     this.environment = config.environment;
-    
+
     // Extract configuration
-    this.merchantId = config.merchantId || '';
+    if (!config.phonepeConfig) {
+      throw new PaymentError(
+        'Missing PhonePe configuration bundle',
+        'PHONEPE_CONFIG_MISSING',
+        'phonepe'
+      );
+    }
+
+    this.phonepeConfig = config.phonepeConfig;
+    this.merchantId = this.phonepeConfig.merchantId || '';
     this.salt = config.secrets.salt || '';
     this.saltIndex = config.saltIndex || 1;
     this.webhookSecret = config.secrets.webhookSecret;
-    
+
+    this.clientId = this.phonepeConfig.client_id;
+    this.clientVersion = this.phonepeConfig.client_version;
+    this.defaultRedirectUrl = this.phonepeConfig.redirectUrl;
+
     // Set API base URL based on environment
-    this.baseUrl = this.environment === 'live' 
-      ? 'https://api.phonepe.com/apis/hermes'
-      : 'https://api-preprod.phonepe.com/apis/pg-sandbox';
-    
+    this.baseUrl = this.environment === 'live'
+      ? this.phonepeConfig.hosts.prod
+      : this.phonepeConfig.hosts.uat;
+
     if (!this.merchantId || !this.salt) {
       throw new PaymentError(
         'Missing PhonePe credentials',
@@ -150,9 +167,9 @@ export class PhonePeAdapter implements PaymentsAdapter {
         merchantTransactionId,
         merchantId: this.merchantId,
         amount: params.orderAmount, // Amount in paise
-        redirectUrl: params.successUrl || `${process.env.BASE_URL}/payment-success`,
+        redirectUrl: params.successUrl || this.defaultRedirectUrl,
         redirectMode: 'POST',
-        callbackUrl: params.successUrl,
+        callbackUrl: params.successUrl || this.defaultRedirectUrl,
         paymentInstrument: {
           type: 'UPI_COLLECT', // Default to UPI collect
         },
@@ -616,10 +633,12 @@ export class PhonePeAdapter implements PaymentsAdapter {
     customHeaders?: Record<string, string>
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     const headers = {
       'Content-Type': 'application/json',
-      'User-Agent': 'PaymentApp/1.0',
+      'User-Agent': `PhonePeAdapter/${this.clientVersion}`,
+      'X-CLIENT-ID': this.clientId,
+      'X-CLIENT-VERSION': this.clientVersion,
       ...customHeaders,
     };
     

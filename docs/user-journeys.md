@@ -74,6 +74,7 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - Enabling a gateway now requires matching Replit secrets to be present.
    - Missing secrets cause an explicit configuration error instead of silently proceeding, ensuring admins fix misconfigurations before go-live.
    - Webhook ingestion now auto-detects the correct provider across all enabled configs per tenant, deduplicates payloads with event/transaction identifiers, and rejects invalid signatures with audit logs so replay attempts are acknowledged without mutating state.
+   - PhonePe now sources its client credentials (`client_id`, `client_secret`, `client_version`), webhook basic-auth pair, redirect URL, and API hosts from the PAYAPP_* secret bundle while keeping the merchant ID in admin-managed database config, preventing drift between environments.
 
 ---
 
