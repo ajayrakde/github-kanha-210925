@@ -41,6 +41,36 @@ export class PaymentsService {
     "success",
     "paid",
   ];
+  private static readonly lifecycleStatuses = ["created", "pending", "completed", "failed"] as const;
+  private static readonly pendingStatusAliases = new Set([
+    "pending",
+    "processing",
+    "initiated",
+    "requires_action",
+    "authorized",
+    "auth_success",
+    "in_progress",
+  ]);
+  private static readonly completedStatusAliases = new Set([
+    "completed",
+    "captured",
+    "success",
+    "succeeded",
+    "paid",
+    "settled",
+  ]);
+  private static readonly failedStatusAliases = new Set([
+    "failed",
+    "failure",
+    "cancelled",
+    "canceled",
+    "timeout",
+    "timed_out",
+    "timedout",
+    "expired",
+    "declined",
+    "denied",
+  ]);
   
   private constructor(
     private config: PaymentServiceConfig
@@ -655,6 +685,17 @@ export class PaymentsService {
         )
         .limit(1);
 
+      if (!existingPayment) {
+        return;
+      }
+
+      const currentLifecycle = PaymentsService.normalizeLifecycleStatus(existingPayment.currentStatus);
+      const nextLifecycle = PaymentsService.normalizeLifecycleStatus(result.status);
+
+      if (!PaymentsService.canTransitionLifecycleStatus(currentLifecycle, nextLifecycle)) {
+        return;
+      }
+
       const updateData: Record<string, any> = {
         status: result.status,
         methodKind: result.method?.type,
@@ -673,7 +714,7 @@ export class PaymentsService {
         updateData.providerOrderId = result.providerOrderId;
       }
 
-      if (result.status === 'captured' && typeof result.amount === 'number') {
+      if (nextLifecycle === 'completed' && typeof result.amount === 'number') {
         updateData.amountCapturedMinor = result.amount;
       }
 
@@ -718,7 +759,11 @@ export class PaymentsService {
       });
 
       const paymentOrderId = existingPayment?.orderId;
-      if (paymentOrderId && result.status === 'captured') {
+      if (
+        paymentOrderId &&
+        nextLifecycle === 'completed' &&
+        event.type === 'payment_verified'
+      ) {
         await trx
           .update(orders)
           .set({
@@ -734,6 +779,51 @@ export class PaymentsService {
           );
       }
     });
+  }
+
+  private static normalizeLifecycleStatus(status: string | null | undefined): (typeof PaymentsService.lifecycleStatuses)[number] {
+    if (!status) {
+      return 'created';
+    }
+
+    const normalized = status.toLowerCase();
+
+    if (PaymentsService.completedStatusAliases.has(normalized)) {
+      return 'completed';
+    }
+
+    if (PaymentsService.failedStatusAliases.has(normalized)) {
+      return 'failed';
+    }
+
+    if (PaymentsService.pendingStatusAliases.has(normalized)) {
+      return 'pending';
+    }
+
+    return 'created';
+  }
+
+  private static canTransitionLifecycleStatus(
+    current: (typeof PaymentsService.lifecycleStatuses)[number],
+    next: (typeof PaymentsService.lifecycleStatuses)[number]
+  ): boolean {
+    if (current === next) {
+      return false;
+    }
+
+    if (current === 'completed' || current === 'failed') {
+      return false;
+    }
+
+    if (current === 'created') {
+      return next === 'pending' || next === 'completed' || next === 'failed';
+    }
+
+    if (current === 'pending') {
+      return next === 'completed' || next === 'failed';
+    }
+
+    return false;
   }
   
   /**

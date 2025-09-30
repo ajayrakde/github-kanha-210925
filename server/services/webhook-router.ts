@@ -31,6 +31,36 @@ import crypto from "crypto";
  */
 export class WebhookRouter {
   private static instance: WebhookRouter;
+  private static readonly lifecycleStatuses = ['created', 'pending', 'completed', 'failed'] as const;
+  private static readonly pendingStatusAliases = new Set([
+    'pending',
+    'processing',
+    'initiated',
+    'requires_action',
+    'authorized',
+    'auth_success',
+    'in_progress',
+  ]);
+  private static readonly completedStatusAliases = new Set([
+    'completed',
+    'captured',
+    'success',
+    'succeeded',
+    'paid',
+    'settled',
+  ]);
+  private static readonly failedStatusAliases = new Set([
+    'failed',
+    'failure',
+    'cancelled',
+    'canceled',
+    'timeout',
+    'timed_out',
+    'timedout',
+    'expired',
+    'declined',
+    'denied',
+  ]);
   
   private constructor(
     private environment: Environment
@@ -239,7 +269,8 @@ export class WebhookRouter {
         event.paymentId,
         event.status,
         event.data,
-        tenantId
+        tenantId,
+        { verified: verifyResult.verified === true }
       );
     }
     
@@ -291,7 +322,8 @@ export class WebhookRouter {
     paymentId: string,
     status: any,
     data: Record<string, any>,
-    tenantId: string
+    tenantId: string,
+    options?: { verified?: boolean }
   ): Promise<boolean> {
     try {
       const normalizedStatus = this.normalizeWebhookStatus(status);
@@ -312,6 +344,7 @@ export class WebhookRouter {
             id: payments.id,
             orderId: payments.orderId,
             provider: payments.provider,
+            currentStatus: payments.status,
             amountAuthorizedMinor: payments.amountAuthorizedMinor,
             amountCapturedMinor: payments.amountCapturedMinor,
           })
@@ -325,6 +358,13 @@ export class WebhookRouter {
           .limit(1);
 
         if (!paymentRecord) {
+          return false;
+        }
+
+        const currentLifecycle = this.toLifecycleStatus(paymentRecord.currentStatus);
+        const nextLifecycle = this.toLifecycleStatus(normalizedStatus);
+
+        if (!this.canTransitionLifecycleStatus(currentLifecycle, nextLifecycle)) {
           return false;
         }
 
@@ -358,7 +398,7 @@ export class WebhookRouter {
           updateData.receiptUrl = providerMetadata.receiptUrl;
         }
 
-        if (normalizedStatus === 'captured' && typeof capturedAmount === 'number') {
+        if (nextLifecycle === 'completed' && typeof capturedAmount === 'number') {
           const expected =
             typeof paymentRecord.amountAuthorizedMinor === 'number'
               ? paymentRecord.amountAuthorizedMinor
@@ -387,7 +427,12 @@ export class WebhookRouter {
           .set(updateData)
           .where(eq(payments.id, paymentRecord.id));
 
-        if (normalizedStatus === 'captured' && !skipOrderPromotion) {
+        const shouldPromoteOrder =
+          options?.verified === true &&
+          nextLifecycle === 'completed' &&
+          !skipOrderPromotion;
+
+        if (shouldPromoteOrder) {
           await trx
             .update(orders)
             .set({
@@ -493,6 +538,55 @@ export class WebhookRouter {
       default:
         return value;
     }
+  }
+
+  private toLifecycleStatus(status: any): 'created' | 'pending' | 'completed' | 'failed' {
+    if (!status || typeof status !== 'string') {
+      return 'created';
+    }
+
+    const normalized = status.toLowerCase();
+
+    if (normalized === 'created') {
+      return 'created';
+    }
+
+    if (WebhookRouter.pendingStatusAliases.has(normalized)) {
+      return 'pending';
+    }
+
+    if (WebhookRouter.completedStatusAliases.has(normalized)) {
+      return 'completed';
+    }
+
+    if (WebhookRouter.failedStatusAliases.has(normalized)) {
+      return 'failed';
+    }
+
+    return 'created';
+  }
+
+  private canTransitionLifecycleStatus(
+    current: (typeof WebhookRouter.lifecycleStatuses)[number],
+    next: (typeof WebhookRouter.lifecycleStatuses)[number]
+  ): boolean {
+    if (current === next) {
+      return false;
+    }
+
+    if (current === 'completed' || current === 'failed') {
+      return false;
+    }
+
+    if (current === 'created') {
+      return next === 'pending' || next === 'completed' || next === 'failed';
+    }
+
+    if (current === 'pending') {
+      return next === 'completed' || next === 'failed';
+    }
+
+    return false;
   }
 
   private extractPaymentMetadata(payload?: Record<string, any>): {

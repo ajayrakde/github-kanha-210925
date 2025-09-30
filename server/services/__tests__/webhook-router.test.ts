@@ -3,8 +3,12 @@ import type { Request, Response } from "express";
 
 process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
 
+const transactionMock = vi.fn();
+
 vi.mock("../../db", () => ({
-  db: {},
+  db: {
+    transaction: transactionMock,
+  },
 }));
 
 const getEnabledProvidersMock = vi.fn();
@@ -190,7 +194,13 @@ describe("WebhookRouter.processWebhook", () => {
     );
     expect(logEventSpy).toHaveBeenCalled();
     expect(markSpy).toHaveBeenCalled();
-    expect(updatePaymentSpy).toHaveBeenCalledWith("pay_123", "captured", expect.any(Object), "default");
+    expect(updatePaymentSpy).toHaveBeenCalledWith(
+      "pay_123",
+      "captured",
+      expect.any(Object),
+      "default",
+      { verified: true }
+    );
     expect(securitySpy).not.toHaveBeenCalled();
   });
 
@@ -242,5 +252,137 @@ describe("WebhookRouter.processWebhook", () => {
     expect(res.statusCode).toBe(404);
     expect(createAdapterMock).not.toHaveBeenCalled();
     expect(getEnabledProvidersMock).toHaveBeenCalledWith("test", "tenant-b");
+  });
+});
+
+describe("WebhookRouter.updatePaymentStatus lifecycle", () => {
+  const buildRouter = () => {
+    (WebhookRouterClass as unknown as { instance?: any }).instance = undefined;
+    return createWebhookRouter("test");
+  };
+
+  beforeEach(() => {
+    transactionMock.mockReset();
+  });
+
+  it("prevents backward transitions after completion", async () => {
+    const router = buildRouter();
+    const selectSpy = vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => [
+            {
+              id: "pay_1",
+              orderId: "ord_1",
+              provider: "phonepe",
+              currentStatus: "captured",
+              amountAuthorizedMinor: 1000,
+              amountCapturedMinor: 1000,
+            },
+          ]),
+        })),
+      })),
+    }));
+    const updateSpy = vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) }));
+
+    transactionMock.mockImplementation(async (callback) => {
+      return await callback({
+        select: selectSpy,
+        update: updateSpy,
+        insert: vi.fn(),
+      });
+    });
+
+    const result = await (router as any).updatePaymentStatus(
+      "pay_1",
+      "processing",
+      {},
+      "default",
+      { verified: true }
+    );
+
+    expect(result).toBe(false);
+    expect(selectSpy).toHaveBeenCalled();
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
+
+  it("only promotes the order when a verified completed status arrives", async () => {
+    const router = buildRouter();
+    const selectSpy = vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => [
+            {
+              id: "pay_1",
+              orderId: "ord_1",
+              provider: "phonepe",
+              currentStatus: "processing",
+              amountAuthorizedMinor: 1000,
+              amountCapturedMinor: 0,
+            },
+          ]),
+        })),
+      })),
+    }));
+    const updateSpy = vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) }));
+
+    transactionMock.mockImplementation(async (callback) => {
+      return await callback({
+        select: selectSpy,
+        update: updateSpy,
+        insert: vi.fn(),
+      });
+    });
+
+    const result = await (router as any).updatePaymentStatus(
+      "pay_1",
+      "captured",
+      { amount: 1000 },
+      "default",
+      { verified: true }
+    );
+
+    expect(result).toBe(true);
+    expect(updateSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("short-circuits replays after a terminal status", async () => {
+    const router = buildRouter();
+    const selectSpy = vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => [
+            {
+              id: "pay_1",
+              orderId: "ord_1",
+              provider: "phonepe",
+              currentStatus: "failed",
+              amountAuthorizedMinor: 1000,
+              amountCapturedMinor: 0,
+            },
+          ]),
+        })),
+      })),
+    }));
+    const updateSpy = vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) }));
+
+    transactionMock.mockImplementation(async (callback) => {
+      return await callback({
+        select: selectSpy,
+        update: updateSpy,
+        insert: vi.fn(),
+      });
+    });
+
+    const result = await (router as any).updatePaymentStatus(
+      "pay_1",
+      "captured",
+      {},
+      "default",
+      { verified: true }
+    );
+
+    expect(result).toBe(false);
+    expect(updateSpy).not.toHaveBeenCalled();
   });
 });
