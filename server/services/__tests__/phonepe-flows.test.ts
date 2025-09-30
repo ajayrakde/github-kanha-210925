@@ -411,11 +411,11 @@ describe("PhonePe callback/webhook ordering", () => {
     updateRowCounts.push(1, 0);
     adapter.verifyPayment.mockResolvedValue(phonePeImmediateCapture);
 
+    const orderUpdatesBefore = updateCalls.filter((call) => call.table === orders).length;
     await service.verifyPayment({ paymentId: "pay_test_123" }, "default");
 
     const orderUpdates = updateCalls.filter((call) => call.table === orders);
-    const latestOrderUpdate = orderUpdates.at(-1);
-    expect(latestOrderUpdate?.rowCount).toBe(0);
+    expect(orderUpdates.length).toBe(orderUpdatesBefore);
   });
 });
 
