@@ -53,6 +53,17 @@ interface PaymentStatusInfo {
   latestTransaction?: PaymentTransactionInfo;
   totalPaid: number;
   totalRefunded: number;
+  reconciliation?: {
+    status: 'pending' | 'completed' | 'failed' | 'expired';
+    attempt: number;
+    nextPollAt: string;
+    expiresAt: string;
+    lastPolledAt?: string;
+    lastStatus?: string;
+    lastResponseCode?: string;
+    lastError?: string;
+    completedAt?: string;
+  } | null;
 }
 
 // Payment status badge component
@@ -235,21 +246,77 @@ export default function ThankYou() {
           data?.order?.paymentStatus === 'paid') {
         return false;
       }
+
       // Poll for UPI/PhonePe payments that are pending
       const isUpiPayment = isUpiMethod(orderData?.paymentMethod) ||
                           isUpiMethod(data?.order?.paymentMethod);
-      return isUpiPayment ? 5000 : false;
+      if (!isUpiPayment) {
+        return false;
+      }
+
+      const reconciliation = data?.reconciliation || undefined;
+      if (reconciliation && reconciliation.status === 'pending') {
+        const nextPollAt = new Date(reconciliation.nextPollAt).getTime();
+        const delay = nextPollAt - Date.now();
+        if (Number.isFinite(delay) && delay > 0) {
+          return Math.max(Math.min(delay, 60000), 1000);
+        }
+      }
+
+      return 5000;
     },
     retry: false
   });
 
   useEffect(() => {
     const normalized = normalizeStatus(paymentInfo?.order?.paymentStatus);
-    if (['paid', 'completed', 'failed'].includes(normalized)) {
+    if (['paid', 'completed'].includes(normalized)) {
+      setReconciliationStatus('complete');
+      setReconciliationMessage(null);
+    } else if (normalized === 'failed') {
+      setReconciliationStatus('complete');
+      setReconciliationMessage((current) =>
+        current ?? 'We were unable to confirm the payment with PhonePe. Please try again or use a different method.'
+      );
+    }
+  }, [paymentInfo]);
+
+  useEffect(() => {
+    const reconciliation = paymentInfo?.reconciliation || null;
+    if (!reconciliation) {
+      return;
+    }
+
+    if (reconciliation.status === 'pending') {
+      setReconciliationStatus('processing');
+      const nextPollAt = new Date(reconciliation.nextPollAt).getTime();
+      const secondsUntilNextPoll = Math.max(Math.round((nextPollAt - Date.now()) / 1000), 0);
+      const baseMessage = 'We are waiting for PhonePe to confirm your payment.';
+      setReconciliationMessage(
+        secondsUntilNextPoll > 0
+          ? `${baseMessage} We'll check again in about ${secondsUntilNextPoll} second${secondsUntilNextPoll === 1 ? '' : 's'}.`
+          : `${baseMessage} Checking again shortly.`
+      );
+      return;
+    }
+
+    if (reconciliation.status === 'failed') {
+      setReconciliationStatus('complete');
+      setReconciliationMessage('PhonePe reported that this payment failed. Please try again or use a different payment method.');
+      return;
+    }
+
+    if (reconciliation.status === 'expired') {
+      setReconciliationStatus('complete');
+      setReconciliationMessage('The PhonePe payment request expired before it was confirmed. Please initiate a new payment.');
+      return;
+    }
+
+    if (reconciliation.status === 'completed') {
       setReconciliationStatus('complete');
       setReconciliationMessage(null);
     }
-  }, [paymentInfo]);
+  }, [paymentInfo?.reconciliation]);
 
   // Get the current order data - prioritize paymentInfo data over sessionStorage
   const currentOrderData = paymentInfo?.order || orderData;

@@ -275,8 +275,9 @@ export class PhonePeAdapter implements PaymentsAdapter {
           providerTransactionId: response.data?.transactionId,
           providerReferenceId: merchantTransactionId,
           instrumentResponse: response.data?.instrumentResponse,
+          expireAfterSeconds: expireAfter,
         },
-        
+
         createdAt: new Date(),
       };
       

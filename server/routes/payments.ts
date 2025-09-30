@@ -14,12 +14,14 @@ import { createWebhookRouter } from '../services/webhook-router';
 import { configResolver } from '../services/config-resolver';
 import { adapterFactory } from '../services/adapter-factory';
 import { idempotencyService } from '../services/idempotency-service';
-import { ordersRepository } from '../storage';
+import { ordersRepository, phonePePollingStore } from '../storage';
+import { phonePePollingWorker } from '../services/phonepe-polling-registry';
 import { PaymentError } from '../../shared/payment-types';
 import type {
   CreatePaymentParams,
   CreateRefundParams
 } from '../../shared/payment-types';
+import type { PaymentResult } from '../../shared/payment-types';
 import type { PaymentProvider, Environment } from '../../shared/payment-providers';
 import { db } from '../db';
 import { paymentEvents } from '../../shared/schema';
@@ -31,6 +33,116 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   const environment = (process.env.NODE_ENV === 'production' ? 'live' : 'test') as Environment;
   const paymentsService = createPaymentsService({ environment });
   const webhookRouter = createWebhookRouter(environment);
+
+  const clampExpireAfterSeconds = (value: unknown): number => {
+    const numeric = typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+        ? Number(value)
+        : undefined;
+
+    if (numeric === undefined || !Number.isFinite(numeric)) {
+      return 900;
+    }
+
+    const rounded = Math.floor(numeric);
+    if (rounded < 300) {
+      return 300;
+    }
+    if (rounded > 3600) {
+      return 3600;
+    }
+    return rounded;
+  };
+
+  const resolveDate = (value: unknown): Date => {
+    if (value instanceof Date) {
+      return value;
+    }
+    if (typeof value === 'number' || typeof value === 'string') {
+      const parsed = new Date(value);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+    return new Date();
+  };
+
+  const resolveMerchantTransactionId = (result: PaymentResult): string | undefined => {
+    const providerData = result.providerData ?? {};
+    const nestedData = typeof providerData.data === 'object' && providerData.data !== null
+      ? providerData.data as Record<string, unknown>
+      : {};
+    const instrumentResponse = typeof providerData.instrumentResponse === 'object' && providerData.instrumentResponse !== null
+      ? providerData.instrumentResponse as Record<string, unknown>
+      : {};
+
+    const candidates = [
+      providerData.merchantTransactionId,
+      providerData.providerReferenceId,
+      providerData.transactionId,
+      nestedData.merchantTransactionId,
+      nestedData.providerReferenceId,
+      instrumentResponse.merchantTransactionId,
+      instrumentResponse.providerReferenceId,
+      result.providerPaymentId,
+      result.providerOrderId,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim().length > 0) {
+        return candidate.trim();
+      }
+    }
+
+    return undefined;
+  };
+
+  const resolveExpireAfterSeconds = (result: PaymentResult): number => {
+    const providerData = result.providerData ?? {};
+    const instrumentResponse = typeof providerData.instrumentResponse === 'object' && providerData.instrumentResponse !== null
+      ? providerData.instrumentResponse as Record<string, unknown>
+      : {};
+
+    const candidates = [
+      providerData.expireAfterSeconds,
+      providerData.expireAfter,
+      instrumentResponse.expireAfterSeconds,
+      instrumentResponse.expireAfter,
+    ];
+
+    for (const candidate of candidates) {
+      if (candidate !== undefined && candidate !== null) {
+        return clampExpireAfterSeconds(candidate);
+      }
+    }
+
+    return 900;
+  };
+
+  const enqueuePhonePePollingJob = async (result: PaymentResult, orderId: string, tenantId: string) => {
+    if (result.provider !== 'phonepe') {
+      return;
+    }
+
+    const merchantTransactionId = resolveMerchantTransactionId(result);
+    if (!merchantTransactionId) {
+      return;
+    }
+
+    try {
+      await phonePePollingWorker.registerJob({
+        tenantId,
+        orderId,
+        paymentId: result.paymentId,
+        merchantTransactionId,
+        expireAfterSeconds: resolveExpireAfterSeconds(result),
+        createdAt: resolveDate(result.createdAt),
+      });
+    } catch (error) {
+      console.error('Failed to enqueue PhonePe polling job:', error);
+    }
+  };
 
   // Input validation schemas
   const createPaymentSchema = z.object({
@@ -156,6 +268,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         tenantId,
         validatedData.provider as PaymentProvider
       );
+
+      await enqueuePhonePePollingJob(result, paymentParams.orderId, tenantId);
       
       res.json({
         success: true,
@@ -237,6 +351,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         tenantId,
         'phonepe'
       );
+
+      await enqueuePhonePePollingJob(result, paymentParams.orderId, tenantId);
 
       if (!result.redirectUrl) {
         return res.status(502).json({
@@ -442,6 +558,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
    */
   router.get('/order-info/:orderId', async (req, res) => {
     const { orderId } = req.params;
+    const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
 
     if (!orderId) {
       return res.status(400).json({ error: 'Order ID is required' });
@@ -453,6 +570,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       if (!order) {
         return res.status(404).json({ error: 'Order not found' });
       }
+
+      const reconciliationJob = await phonePePollingStore.getLatestJobForOrder(orderId, tenantId);
 
       const parseTimestamp = (value: unknown) => {
         if (!value) return 0;
@@ -555,6 +674,23 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           shipping,
           total,
         },
+        reconciliation: reconciliationJob
+          ? {
+              status: reconciliationJob.status,
+              attempt: reconciliationJob.attempt,
+              nextPollAt: reconciliationJob.nextPollAt.toISOString(),
+              expiresAt: reconciliationJob.expireAt.toISOString(),
+              lastPolledAt: reconciliationJob.lastPolledAt
+                ? reconciliationJob.lastPolledAt.toISOString()
+                : undefined,
+              lastStatus: reconciliationJob.lastStatus ?? undefined,
+              lastResponseCode: reconciliationJob.lastResponseCode ?? undefined,
+              lastError: reconciliationJob.lastError ?? undefined,
+              completedAt: reconciliationJob.completedAt
+                ? reconciliationJob.completedAt.toISOString()
+                : undefined,
+            }
+          : null,
       });
     } catch (error) {
       console.error('Error fetching order payment info:', error);

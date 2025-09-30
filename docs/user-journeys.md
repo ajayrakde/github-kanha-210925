@@ -43,6 +43,7 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - PhonePe iframe checkouts now call `/api/payments/token-url`, which wraps the generic create-payment service to return the provider's PayPage URL and merchant transaction ID for the embedded `PhonePeCheckout.transact` flow.
    - After PhonePe redirects the buyer back, the thank-you page first pings `/api/payments/phonepe/return` to log a "processing" event without touching order state, then begins polling `/api/payments/order-info/:orderId` so buyers see a "Processing" badge until the webhook settles the charge.
    - `/api/payments/order-info/:orderId` aggregates the order totals, shipping/tax breakdown, and the latest UPI identifiers (transaction id, UTR, VPA, receipt link) so the Thank-you and order history screens stay in sync with webhook-driven updates.
+   - A PhonePe polling worker persists mandated status-check intervals in the database, surfaces the next scheduled probe through `/api/payments/order-info/:orderId`, and stops automatically once the gateway returns a terminal state or the `expireAfter` deadline passes. This keeps reconciliation idempotent across restarts and lets the thank-you page show real-time progress messages.
 
 6. **Shipping Charges**  
    - Shipping calculation moved to `shippingRepository`.  
