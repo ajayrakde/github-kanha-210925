@@ -254,6 +254,29 @@ export const paymentEvents = pgTable("payment_events", {
   occurredAt: timestamp("occurred_at").notNull().defaultNow(),
 });
 
+// PhonePe polling jobs - tracks background status polling cadence
+export const phonepePollingJobs = pgTable("phonepe_polling_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  tenantId: varchar("tenant_id").notNull().default('default'),
+  orderId: varchar("order_id").references(() => orders.id).notNull(),
+  paymentId: varchar("payment_id").references(() => payments.id).notNull(),
+  merchantTransactionId: varchar("merchant_transaction_id", { length: 255 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default('pending'),
+  attempt: integer("attempt").notNull().default(0),
+  nextPollAt: timestamp("next_poll_at").notNull(),
+  expireAt: timestamp("expire_at").notNull(),
+  lastPolledAt: timestamp("last_polled_at"),
+  lastStatus: varchar("last_status", { length: 50 }),
+  lastResponseCode: varchar("last_response_code", { length: 50 }),
+  lastError: text("last_error"),
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  uniquePayment: uniqueIndex("phonepe_polling_payment_unique")
+    .on(table.tenantId, table.paymentId),
+}));
+
 // Webhook inbox table - stores and deduplicates incoming webhooks
 export const webhookInbox = pgTable("webhook_inbox", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

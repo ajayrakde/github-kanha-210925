@@ -36,8 +36,21 @@ const mockOrdersRepository = {
   getOrderWithPayments: vi.fn(),
 };
 
+const mockPhonePePollingStore = {
+  getLatestJobForOrder: vi.fn(),
+};
+
+const mockPhonePePollingWorker = {
+  registerJob: vi.fn(),
+};
+
 vi.mock("../../storage", () => ({
   ordersRepository: mockOrdersRepository,
+  phonePePollingStore: mockPhonePePollingStore,
+}));
+
+vi.mock("../../services/phonepe-polling-registry", () => ({
+  phonePePollingWorker: mockPhonePePollingWorker,
 }));
 
 const insertValuesMock = vi.fn(async (_values: any) => ({ rowCount: 1 }));
@@ -58,6 +71,8 @@ vi.mock("../../db", () => ({
 describe("payments router", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPhonePePollingStore.getLatestJobForOrder.mockResolvedValue(null);
+    mockPhonePePollingWorker.registerJob.mockResolvedValue({});
   });
 
   const buildRouter = async () => {
@@ -114,6 +129,7 @@ describe("payments router", () => {
         amount: 1000,
         currency: "INR",
         provider: "phonepe",
+        providerPaymentId: "mtid",
         redirectUrl: "https://example.com",
         providerData: {},
         createdAt: new Date(),
@@ -137,6 +153,14 @@ describe("payments router", () => {
         undefined
       );
       expect(res.status).not.toHaveBeenCalled();
+      expect(mockPhonePePollingWorker.registerJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paymentId: "pay_1",
+          orderId: "order-1",
+          tenantId: "default",
+          merchantTransactionId: "mtid",
+        })
+      );
     });
   });
 
@@ -178,12 +202,45 @@ describe("payments router", () => {
       expect(res.jsonPayload.order.paymentStatus).toBe("pending");
       expect(res.jsonPayload.payment).toBeNull();
       expect(res.jsonPayload.latestTransaction).toBeUndefined();
+      expect(res.jsonPayload.reconciliation).toBeNull();
       expect(res.jsonPayload.breakdown).toEqual({
         subtotal: 100,
         discount: 10,
         tax: 8,
         shipping: 20,
         total: 118,
+      });
+    });
+
+    it("includes PhonePe polling progress when available", async () => {
+      mockPhonePePollingStore.getLatestJobForOrder.mockResolvedValue({
+        id: "job-1",
+        tenantId: "default",
+        orderId: "order-1",
+        paymentId: "pay-1",
+        merchantTransactionId: "mt-1",
+        status: "pending",
+        attempt: 2,
+        nextPollAt: new Date("2024-01-01T00:05:00Z"),
+        expireAt: new Date("2024-01-01T00:10:00Z"),
+        lastPolledAt: new Date("2024-01-01T00:04:00Z"),
+        lastStatus: "processing",
+        lastResponseCode: "PAYMENT_PENDING",
+        lastError: null,
+        completedAt: null,
+        createdAt: new Date("2024-01-01T00:00:00Z"),
+        updatedAt: new Date("2024-01-01T00:04:00Z"),
+      });
+
+      const res = await invoke({ payments: [] });
+
+      expect(res.jsonPayload.reconciliation).toMatchObject({
+        status: "pending",
+        attempt: 2,
+        nextPollAt: "2024-01-01T00:05:00.000Z",
+        expiresAt: "2024-01-01T00:10:00.000Z",
+        lastStatus: "processing",
+        lastResponseCode: "PAYMENT_PENDING",
       });
     });
 
