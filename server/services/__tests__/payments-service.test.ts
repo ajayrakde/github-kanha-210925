@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PaymentEvent, PaymentResult } from "../../../shared/payment-types";
+import { payments, orders, paymentEvents } from "../../../shared/schema";
 import { phonePeIdentifierFixture } from "../../../shared/__fixtures__/upi";
 
 process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
@@ -461,5 +462,131 @@ describe("PaymentsService.updateStoredPayment lifecycle", () => {
     expect(updateSpy).toHaveBeenCalledTimes(1);
     expect(eventInsertSpy).toHaveBeenCalledTimes(1);
     expect(updateCalls[0].status).toBe("COMPLETED");
+  });
+});
+
+describe("PaymentsService.cancelPayment", () => {
+  beforeEach(() => {
+    upiQueryResults.length = 0;
+    paymentInserts.length = 0;
+    insertValuesMock.mockClear();
+    transactionMock.mockClear();
+    transactionMock.mockImplementation(defaultTransactionImplementation);
+    selectMock.mockClear();
+    executeWithIdempotencyMock.mockReset();
+    generateKeyMock.mockReset();
+    generateKeyMock.mockReturnValue("generated-key");
+    adapter.createPayment.mockReset();
+    (PaymentsServiceClass as unknown as { instances: Map<string, any> }).instances = new Map();
+  });
+
+  it("marks PhonePe payments as cancelled, logs an audit event, and keeps the order payable", async () => {
+    const paymentRecord = {
+      id: "pay_1",
+      tenantId: "default",
+      orderId: "ord_1",
+      provider: "phonepe",
+      status: "CREATED",
+    };
+
+    upiQueryResults.push([paymentRecord]);
+
+    const paymentUpdates: any[] = [];
+    const orderUpdates: any[] = [];
+    const eventInserts: any[] = [];
+
+    transactionMock.mockImplementation(async (callback) => {
+      const createWhereable = () => ({ where: vi.fn() });
+
+      const updateSpy = vi.fn((table: any) => {
+        if (table === payments) {
+          return {
+            set: vi.fn((values) => {
+              paymentUpdates.push(values);
+              return createWhereable();
+            }),
+          };
+        }
+
+        if (table === orders) {
+          return {
+            set: vi.fn((values) => {
+              orderUpdates.push(values);
+              return createWhereable();
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected update call for table: ${String(table)}`);
+      });
+
+      const insertSpy = vi.fn((table: any) => {
+        if (table === paymentEvents) {
+          return {
+            values: vi.fn((values) => {
+              eventInserts.push(values);
+            }),
+          };
+        }
+
+        throw new Error(`Unexpected insert call for table: ${String(table)}`);
+      });
+
+      await callback({
+        update: updateSpy,
+        insert: insertSpy,
+      });
+    });
+
+    const service = createPaymentsService({ environment: "test" });
+
+    await service.cancelPayment({ paymentId: "pay_1", orderId: "ord_1", reason: "USER_CANCEL" }, "default");
+
+    expect(paymentUpdates).toHaveLength(1);
+    expect(paymentUpdates[0]).toMatchObject({ status: "CANCELLED" });
+
+    expect(orderUpdates).toHaveLength(1);
+    expect(orderUpdates[0]).toMatchObject({ paymentStatus: "failed" });
+    expect(orderUpdates[0]).not.toHaveProperty("status");
+
+    expect(eventInserts).toHaveLength(1);
+    expect(eventInserts[0]).toMatchObject({
+      type: "checkout.user_cancelled",
+      paymentId: "pay_1",
+    });
+
+    transactionMock.mockImplementation(defaultTransactionImplementation);
+
+    const createdAt = new Date();
+    executeWithIdempotencyMock.mockImplementation(async (_key, _scope, operation) => {
+      return await operation();
+    });
+
+    upiQueryResults.push([]);
+
+    adapter.createPayment.mockResolvedValue({
+      paymentId: "pay_retry",
+      providerPaymentId: "prov_retry",
+      provider: "phonepe",
+      environment: "test",
+      status: "created",
+      amount: 1000,
+      currency: "INR",
+      method: { type: "upi" },
+      providerData: {},
+      createdAt,
+    });
+
+    await service.createPayment(
+      {
+        orderId: "ord_1",
+        orderAmount: 1000,
+        currency: "INR",
+        customer: {},
+      },
+      "default"
+    );
+
+    expect(adapter.createPayment).toHaveBeenCalledTimes(1);
   });
 });

@@ -260,7 +260,90 @@ export class PaymentsService {
       );
     }
   }
-  
+
+  public async cancelPayment(
+    params: { paymentId: string; orderId?: string; reason?: string },
+    tenantId: string
+  ): Promise<void> {
+    const resolvedTenantId = tenantId || 'default';
+    const payment = await this.getStoredPayment(params.paymentId, resolvedTenantId);
+
+    if (!payment) {
+      throw new PaymentError('Payment not found', 'PAYMENT_NOT_FOUND');
+    }
+
+    if (payment.provider !== 'phonepe') {
+      throw new PaymentError(
+        'Only PhonePe payments can be cancelled through this endpoint',
+        'UNSUPPORTED_PROVIDER'
+      );
+    }
+
+    if (params.orderId && payment.orderId !== params.orderId) {
+      throw new PaymentError('Payment does not belong to the provided order', 'ORDER_MISMATCH');
+    }
+
+    const normalizedStatus = PaymentsService.normalizeLifecycleStatus(payment.status);
+    const storedStatus =
+      typeof payment.status === 'string' ? payment.status.toString().trim().toUpperCase() : '';
+
+    if (normalizedStatus === 'COMPLETED') {
+      throw new PaymentError('Completed payments cannot be cancelled', 'PAYMENT_ALREADY_COMPLETED');
+    }
+
+    if (normalizedStatus === 'FAILED') {
+      if (storedStatus === 'CANCELLED') {
+        return;
+      }
+
+      throw new PaymentError('Payment is already in a failed state', 'PAYMENT_ALREADY_FAILED');
+    }
+
+    const cancelledAt = new Date();
+
+    await db.transaction(async (trx) => {
+      await trx
+        .update(payments)
+        .set({
+          status: 'CANCELLED',
+          updatedAt: cancelledAt,
+        })
+        .where(
+          and(eq(payments.id, payment.id), eq(payments.tenantId, resolvedTenantId))
+        );
+
+      await trx.insert(paymentEvents).values({
+        id: crypto.randomUUID(),
+        tenantId: resolvedTenantId,
+        paymentId: payment.id,
+        provider: payment.provider as PaymentProvider,
+        type: 'checkout.user_cancelled',
+        data: {
+          previousStatus: payment.status ?? 'UNKNOWN',
+          newStatus: 'CANCELLED',
+          orderId: payment.orderId,
+          reason: params.reason ?? 'user_cancelled_checkout',
+        },
+        occurredAt: cancelledAt,
+      });
+
+      await trx
+        .update(orders)
+        .set({
+          paymentStatus: 'failed',
+          paymentFailedAt: cancelledAt,
+          updatedAt: cancelledAt,
+        })
+        .where(
+          and(
+            eq(orders.id, payment.orderId),
+            eq(orders.tenantId, resolvedTenantId),
+            sql`${orders.paymentStatus} <> 'paid'`
+          )
+        );
+    });
+  }
+
   /**
    * Create a refund with idempotency protection
    */

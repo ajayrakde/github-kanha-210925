@@ -131,6 +131,19 @@ export default function Payment() {
   };
 
   // Create payment mutation
+  const cancelPaymentMutation = useMutation({
+    mutationFn: async (input: { paymentId: string; orderId: string; reason?: string }) => {
+      await apiRequest("POST", "/api/payments/cancel", input);
+    },
+    onError: () => {
+      toast({
+        title: "Cancellation Failed",
+        description: "We couldn't record the PhonePe cancellation. Please try again.",
+        variant: "destructive"
+      });
+    },
+  });
+
   const createPaymentMutation = useMutation({
     mutationFn: async () => {
       const currentOrderData = orderData || order;
@@ -176,6 +189,14 @@ export default function Payment() {
             const status = event?.status;
 
             if (status === 'USER_CANCEL') {
+              const cancelledPaymentId = latestPaymentIdRef.current;
+              if (cancelledPaymentId && orderId) {
+                cancelPaymentMutation.mutate({
+                  paymentId: cancelledPaymentId,
+                  orderId,
+                  reason: 'USER_CANCEL',
+                });
+              }
               latestPaymentIdRef.current = null;
               setPaymentStatus('failed');
               toast({
