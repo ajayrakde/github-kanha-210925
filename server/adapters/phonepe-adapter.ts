@@ -34,6 +34,9 @@ import { resolvePhonePeHost } from "../services/phonepe-host";
 /**
  * PhonePe API Response Types
  */
+type PhonePeUpiInstrumentType = 'UPI_COLLECT' | 'UPI_QR' | 'UPI_INTENT';
+type PhonePePaymentInstrumentType = PhonePeUpiInstrumentType | 'PAY_PAGE';
+
 interface PhonePePaymentRequest {
   merchantTransactionId: string;
   merchantId: string;
@@ -50,13 +53,13 @@ interface PhonePePaymentRequest {
       paymentMode: 'UPI';
       enabled: boolean;
       paymentInstruments: Array<{
-        type: 'UPI_COLLECT' | 'UPI_QR' | 'UPI_INTENT';
+        type: PhonePeUpiInstrumentType;
         enabled: boolean;
       }>;
     }>;
   };
   paymentInstrument: {
-    type: 'UPI_COLLECT' | 'UPI_QR' | 'UPI_INTENT';
+    type: PhonePePaymentInstrumentType;
     targetApp?: string;
   };
   deviceContext?: {
@@ -129,6 +132,11 @@ export class PhonePeAdapter implements PaymentsAdapter {
   private static readonly MIN_EXPIRY_SECONDS = 300;
   private static readonly MAX_EXPIRY_SECONDS = 3600;
   private static readonly DEFAULT_EXPIRY_SECONDS = 900;
+  private static readonly UPI_INSTRUMENT_TYPES: readonly PhonePeUpiInstrumentType[] = [
+    'UPI_INTENT',
+    'UPI_COLLECT',
+    'UPI_QR',
+  ];
 
   private readonly merchantId: string;
   private readonly salt: string;
@@ -199,6 +207,10 @@ export class PhonePeAdapter implements PaymentsAdapter {
 
       const amountInPaise = Math.round(params.orderAmount);
 
+      const phonepeOptions = params.providerOptions?.phonepe;
+      const instrumentType = this.resolvePaymentInstrumentType(phonepeOptions);
+      const paymentModeConfig = this.buildPaymentModeConfig(instrumentType);
+
       const paymentRequest: PhonePePaymentRequest = {
         merchantTransactionId,
         merchantId: this.merchantId,
@@ -210,22 +222,8 @@ export class PhonePeAdapter implements PaymentsAdapter {
           type: 'PG_CHECKOUT',
         },
         expireAfter,
-        paymentModeConfig: {
-          paymentModes: [
-            {
-              paymentMode: 'UPI',
-              enabled: true,
-              paymentInstruments: [
-                { type: 'UPI_INTENT', enabled: true },
-                { type: 'UPI_COLLECT', enabled: true },
-                { type: 'UPI_QR', enabled: true },
-              ],
-            },
-          ],
-        },
-        paymentInstrument: {
-          type: 'UPI_COLLECT', // Default to UPI collect
-        },
+        paymentModeConfig,
+        paymentInstrument: this.buildPaymentInstrument(instrumentType),
       };
       
       // Encode payment request
@@ -816,6 +814,87 @@ export class PhonePeAdapter implements PaymentsAdapter {
     }
 
     return parsedBody as T;
+  }
+
+  private resolvePaymentInstrumentType(options: unknown): PhonePePaymentInstrumentType {
+    const candidateStrings: string[] = [];
+
+    if (typeof options === 'string') {
+      candidateStrings.push(options);
+    } else if (options && typeof options === 'object') {
+      const optionRecord = options as Record<string, unknown>;
+      const potentialKeys = [
+        'instrumentPreference',
+        'instrumentType',
+        'instrument',
+        'upiInstrument',
+        'upiVariant',
+        'upiFlow',
+        'flow',
+        'mode',
+        'preferredInstrument',
+        'preferredFlow',
+        'checkoutFlow',
+      ];
+
+      for (const key of potentialKeys) {
+        const value = optionRecord[key];
+        if (typeof value === 'string') {
+          candidateStrings.push(value);
+        }
+      }
+    }
+
+    for (const candidate of candidateStrings) {
+      const normalized = candidate.trim().toUpperCase().replace(/[\s-]+/g, '_');
+
+      if (normalized === 'PAY_PAGE' || normalized === 'PAYPAGE') {
+        return 'PAY_PAGE';
+      }
+
+      if (normalized === 'UPI_INTENT' || normalized === 'INTENT') {
+        return 'UPI_INTENT';
+      }
+
+      if (normalized === 'UPI_COLLECT' || normalized === 'COLLECT') {
+        return 'UPI_COLLECT';
+      }
+
+      if (normalized === 'UPI_QR' || normalized === 'QR' || normalized === 'QR_CODE') {
+        return 'UPI_QR';
+      }
+    }
+
+    return 'UPI_COLLECT';
+  }
+
+  private buildPaymentModeConfig(
+    instrumentType: PhonePePaymentInstrumentType
+  ): PhonePePaymentRequest['paymentModeConfig'] {
+    const paymentInstruments = PhonePeAdapter.UPI_INSTRUMENT_TYPES.map((type) => ({
+      type,
+      enabled: instrumentType === 'PAY_PAGE' ? true : instrumentType === type,
+    }));
+
+    return {
+      paymentModes: [
+        {
+          paymentMode: 'UPI',
+          enabled: true,
+          paymentInstruments,
+        },
+      ],
+    };
+  }
+
+  private buildPaymentInstrument(
+    instrumentType: PhonePePaymentInstrumentType
+  ): PhonePePaymentRequest['paymentInstrument'] {
+    if (instrumentType === 'PAY_PAGE') {
+      return { type: 'PAY_PAGE' };
+    }
+
+    return { type: instrumentType };
   }
 
   private clampExpireAfter(value: unknown): number {

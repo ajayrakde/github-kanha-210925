@@ -101,7 +101,17 @@ describe('PhonePeAdapter.createPayment', () => {
     return { adapter, tokenManager, fetchMock };
   };
 
-  it('serializes checkout payload with UPI-only instruments', async () => {
+  const decodeLastRequest = (fetchMock: ReturnType<typeof vi.fn>) => {
+    const [, fetchOptions] = fetchMock.mock.calls[fetchMock.mock.calls.length - 1]!;
+    const requestBody = JSON.parse(fetchOptions.body as string) as { request: string };
+    const payload = JSON.parse(
+      Buffer.from(requestBody.request, 'base64').toString('utf8')
+    );
+
+    return { payload, headers: fetchOptions.headers as Record<string, string> };
+  };
+
+  it('serializes checkout payload with default UPI collect instrument', async () => {
     const { adapter, fetchMock } = createAdapter();
 
     await adapter.createPayment({
@@ -112,45 +122,88 @@ describe('PhonePeAdapter.createPayment', () => {
     });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [, fetchOptions] = fetchMock.mock.calls[0]!;
+    const { payload } = decodeLastRequest(fetchMock);
 
-    const requestBody = JSON.parse(fetchOptions.body as string) as { request: string };
-    const decodedPayload = JSON.parse(
-      Buffer.from(requestBody.request, 'base64').toString('utf8')
-    );
+    expect(payload.amount).toBe(12345);
+    expect(payload.paymentFlow).toEqual({ type: 'PG_CHECKOUT' });
+    expect(payload.expireAfter).toBeGreaterThanOrEqual(300);
+    expect(payload.expireAfter).toBeLessThanOrEqual(3600);
 
-    expect(decodedPayload.amount).toBe(12345);
-    expect(decodedPayload.paymentFlow).toEqual({ type: 'PG_CHECKOUT' });
-    expect(decodedPayload.expireAfter).toBeGreaterThanOrEqual(300);
-    expect(decodedPayload.expireAfter).toBeLessThanOrEqual(3600);
+    expect(payload.paymentInstrument.type).toBe('UPI_COLLECT');
 
-    expect(decodedPayload.paymentModeConfig.paymentModes).toHaveLength(1);
-    const [upiMode] = decodedPayload.paymentModeConfig.paymentModes;
+    expect(payload.paymentModeConfig.paymentModes).toHaveLength(1);
+    const [upiMode] = payload.paymentModeConfig.paymentModes;
     expect(upiMode.paymentMode).toBe('UPI');
 
-    const instrumentTypes = upiMode.paymentInstruments.map((instrument: any) => instrument.type).sort();
-    expect(instrumentTypes).toEqual(['UPI_COLLECT', 'UPI_INTENT', 'UPI_QR']);
-    upiMode.paymentInstruments.forEach((instrument: any) => {
-      expect(instrument.enabled).toBe(true);
+    const enabledMap = Object.fromEntries(
+      upiMode.paymentInstruments.map((instrument: any) => [instrument.type, instrument.enabled])
+    );
+
+    expect(enabledMap).toEqual({
+      UPI_INTENT: false,
+      UPI_COLLECT: true,
+      UPI_QR: false,
     });
   });
 
-  it('sends the cached O-Bearer token in Authorization header', async () => {
-    const { adapter, tokenManager, fetchMock } = createAdapter();
+  it.each([
+    { label: 'intent', instrumentPreference: 'intent', expectedType: 'UPI_INTENT' },
+    { label: 'collect', instrumentPreference: 'collect', expectedType: 'UPI_COLLECT' },
+    { label: 'qr', instrumentPreference: 'qr', expectedType: 'UPI_QR' },
+  ])(
+    'uses the cached token and advertises the %s instrument',
+    async ({ instrumentPreference, expectedType }) => {
+      const { adapter, tokenManager, fetchMock } = createAdapter();
+
+      await adapter.createPayment({
+        orderId: `order-${instrumentPreference}`,
+        orderAmount: 5000,
+        currency: 'INR',
+        customer: {},
+        providerOptions: {
+          phonepe: {
+            instrumentPreference,
+          },
+        },
+      });
+
+      expect(tokenManager.getAccessToken).toHaveBeenCalledTimes(1);
+      expect(tokenManager.getAccessToken).toHaveBeenCalledWith(false);
+
+      const { payload, headers } = decodeLastRequest(fetchMock);
+      expect(headers['Authorization']).toBe('O-Bearer cached-token');
+
+      expect(payload.paymentInstrument.type).toBe(expectedType);
+
+      const [upiMode] = payload.paymentModeConfig.paymentModes;
+      upiMode.paymentInstruments.forEach((instrument: any) => {
+        expect(instrument.enabled).toBe(instrument.type === expectedType);
+      });
+    }
+  );
+
+  it('supports PAY_PAGE instrument preference by enabling all UPI variants', async () => {
+    const { adapter, fetchMock } = createAdapter();
 
     await adapter.createPayment({
-      orderId: 'order-2',
-      orderAmount: 5000,
+      orderId: 'order-pay-page',
+      orderAmount: 6000,
       currency: 'INR',
       customer: {},
+      providerOptions: {
+        phonepe: {
+          instrumentPreference: 'PAY_PAGE',
+        },
+      },
     });
 
-    expect(tokenManager.getAccessToken).toHaveBeenCalledTimes(1);
-    expect(tokenManager.getAccessToken).toHaveBeenCalledWith(false);
+    const { payload } = decodeLastRequest(fetchMock);
+    expect(payload.paymentInstrument.type).toBe('PAY_PAGE');
 
-    const [, fetchOptions] = fetchMock.mock.calls[0]!;
-    const headers = fetchOptions.headers as Record<string, string>;
-    expect(headers['Authorization']).toBe('O-Bearer cached-token');
+    const [upiMode] = payload.paymentModeConfig.paymentModes;
+    upiMode.paymentInstruments.forEach((instrument: any) => {
+      expect(instrument.enabled).toBe(true);
+    });
   });
 
   it('uses the activeHost override to construct API URLs', async () => {
