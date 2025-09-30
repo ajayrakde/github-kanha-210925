@@ -142,3 +142,34 @@ describe('PhonePeAdapter.createPayment', () => {
   });
 });
 
+describe('PhonePeAdapter status normalization', () => {
+  const buildAdapter = () => {
+    const tokenManager = {
+      getAccessToken: vi.fn(),
+      invalidateToken: vi.fn(),
+    };
+
+    return new PhonePeAdapter(baseConfig, {
+      tokenManager: tokenManager as any,
+    });
+  };
+
+  it('maps cancellation states to cancelled', () => {
+    const adapter = buildAdapter();
+
+    expect((adapter as any).mapPaymentStatus('cancelled')).toBe('cancelled');
+    expect((adapter as any).mapPaymentStatus('CANCELED')).toBe('cancelled');
+    expect((adapter as any).mapPaymentStatus('timedout')).toBe('cancelled');
+    expect((adapter as any).mapPaymentStatus('EXPIRED')).toBe('cancelled');
+  });
+
+  it('maps success and failure states without mislabeling cancellations', () => {
+    const adapter = buildAdapter();
+
+    expect((adapter as any).mapPaymentStatus('completed')).toBe('captured');
+    expect((adapter as any).mapPaymentStatus('pending')).toBe('processing');
+    expect((adapter as any).mapPaymentStatus('failed')).toBe('failed');
+    expect((adapter as any).mapPaymentStatus('  unknown_state  ')).toBe('processing');
+  });
+});
+

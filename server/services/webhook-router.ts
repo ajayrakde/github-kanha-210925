@@ -68,6 +68,8 @@ export class WebhookRouter {
 
       const failureReasons: string[] = [];
       let signatureRejected = false;
+      let authorizationRejected = false;
+      let authorizationError: string | undefined;
 
       for (const provider of candidates) {
         const dedupeKey = this.createDedupeKey(provider, tenantId, body, identifiers);
@@ -104,6 +106,17 @@ export class WebhookRouter {
           });
 
           if (!verifyResult.verified) {
+            if (this.isAuthorizationError(verifyResult.error?.code)) {
+              authorizationRejected = true;
+              authorizationError = verifyResult.error?.message ?? 'Invalid webhook authorization';
+              await this.logSecurityEvent(provider, tenantId, 'webhook.auth_failed', {
+                dedupeKey,
+                reason: verifyResult.error?.code,
+                ...identifiers,
+              });
+              break;
+            }
+
             signatureRejected = true;
             await this.logAuditEvent(provider, tenantId, 'webhook.signature_failed', {
               dedupeKey,
@@ -140,6 +153,14 @@ export class WebhookRouter {
             console.error('Failed to store failed webhook:', storeError);
           }
         }
+      }
+
+      if (authorizationRejected) {
+        res.status(403).json({
+          status: 'authorization_invalid',
+          message: authorizationError ?? 'Invalid webhook authorization',
+        });
+        return { processed: false, error: authorizationError ?? 'Invalid webhook authorization' };
       }
 
       if (signatureRejected) {
@@ -658,12 +679,14 @@ export class WebhookRouter {
 
   private extractIdentifiers(body: string | Buffer): {
     eventId?: string;
+    orderId?: string;
     transactionId?: string;
     utr?: string;
     referenceId?: string;
   } {
     const identifiers: {
       eventId?: string;
+      orderId?: string;
       transactionId?: string;
       utr?: string;
       referenceId?: string;
@@ -676,6 +699,7 @@ export class WebhookRouter {
       const sources = [
         parsed,
         parsed?.event,
+        parsed?.event && typeof parsed.event === 'object' ? (parsed.event as Record<string, any>).payload : undefined,
         parsed?.data,
         parsed?.payload,
         parsed?.payment,
@@ -697,6 +721,13 @@ export class WebhookRouter {
         ...sources.map((source) => source.eventId),
         ...sources.map((source) => source.event_id),
         ...sources.map((source) => source.id)
+      );
+
+      identifiers.orderId = pick(
+        ...sources.map((source) => source.orderId),
+        ...sources.map((source) => source.order_id),
+        ...sources.map((source) => source.merchantOrderId),
+        ...sources.map((source) => source.providerOrderId)
       );
 
       identifiers.transactionId = pick(
@@ -732,16 +763,21 @@ export class WebhookRouter {
     provider: string,
     tenantId: string,
     body: string | Buffer,
-    identifiers: { eventId?: string; transactionId?: string; utr?: string; referenceId?: string }
+    identifiers: { eventId?: string; orderId?: string; transactionId?: string; utr?: string; referenceId?: string }
   ): string {
     const content = typeof body === 'string' ? body : body.toString();
     const baseTokens = [tenantId, provider];
 
-    if (identifiers.eventId) {
-      baseTokens.push(`event:${identifiers.eventId}`);
-    }
-    if (identifiers.transactionId) {
+    if (identifiers.orderId && identifiers.transactionId) {
+      baseTokens.push(`order:${identifiers.orderId}`);
       baseTokens.push(`txn:${identifiers.transactionId}`);
+    } else {
+      if (identifiers.eventId) {
+        baseTokens.push(`event:${identifiers.eventId}`);
+      }
+      if (identifiers.transactionId) {
+        baseTokens.push(`txn:${identifiers.transactionId}`);
+      }
     }
     if (identifiers.utr) {
       baseTokens.push(`utr:${identifiers.utr}`);
@@ -828,6 +864,26 @@ export class WebhookRouter {
     });
   }
 
+  private async logSecurityEvent(
+    provider: PaymentProvider,
+    tenantId: string,
+    type: string,
+    details: Record<string, any>
+  ): Promise<void> {
+    const data = Object.fromEntries(
+      Object.entries(details).filter(([, value]) => value !== undefined && value !== null)
+    );
+
+    await db.insert(paymentEvents).values({
+      id: crypto.randomUUID(),
+      tenantId,
+      provider,
+      type: `security.${type}`,
+      data,
+      occurredAt: new Date(),
+    });
+  }
+
   private async logAuditEvent(
     provider: PaymentProvider,
     tenantId: string,
@@ -846,6 +902,15 @@ export class WebhookRouter {
       data,
       occurredAt: new Date(),
     });
+  }
+
+  private isAuthorizationError(code?: string): boolean {
+    if (!code) {
+      return false;
+    }
+
+    const normalized = code.toUpperCase();
+    return normalized === 'INVALID_AUTHORIZATION' || normalized === 'MISSING_AUTHORIZATION' || normalized === 'UNAUTHORIZED';
   }
   
   /**
