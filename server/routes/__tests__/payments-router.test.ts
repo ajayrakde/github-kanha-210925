@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Request, Response } from "express";
 import type { Router } from "express";
@@ -5,6 +6,8 @@ import { paymentEvents } from "../../../shared/schema";
 import { phonePeIdentifierFixture } from "../../../shared/__fixtures__/upi";
 
 process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
+
+const idempotencyCache = new Map<string, any>();
 
 const mockPaymentsService = {
   createPayment: vi.fn(),
@@ -20,16 +23,36 @@ vi.mock("../../services/payments-service", () => ({
   createPaymentsService: createPaymentsServiceMock,
 }));
 
-const executeWithIdempotencyMock = vi.fn(async (_key: string, _scope: string, operation: () => Promise<any>) => {
-  return await operation();
+const executeWithIdempotencyMock = vi.fn(async (key: string, scope: string, operation: () => Promise<any>) => {
+  const cacheKey = `${scope}:${key}`;
+  if (idempotencyCache.has(cacheKey)) {
+    return idempotencyCache.get(cacheKey);
+  }
+  const result = await operation();
+  idempotencyCache.set(cacheKey, result);
+  return result;
+});
+
+const checkKeyMock = vi.fn(async (key: string, scope: string) => {
+  const cacheKey = `${scope}:${key}`;
+  if (idempotencyCache.has(cacheKey)) {
+    return { exists: true, response: idempotencyCache.get(cacheKey) };
+  }
+  return { exists: false };
+});
+
+const invalidateKeyMock = vi.fn(async (key: string, scope: string) => {
+  const cacheKey = `${scope}:${key}`;
+  idempotencyCache.delete(cacheKey);
 });
 
 vi.mock("../../services/idempotency-service", () => ({
   idempotencyService: {
     executeWithIdempotency: executeWithIdempotencyMock,
     generateKey: vi.fn(() => "generated-key"),
-    checkKey: vi.fn(async () => ({ exists: false })),
+    checkKey: checkKeyMock,
     storeResponse: vi.fn(),
+    invalidateKey: invalidateKeyMock,
   },
 }));
 
@@ -39,6 +62,7 @@ const mockOrdersRepository = {
 
 const mockPhonePePollingStore = {
   getLatestJobForOrder: vi.fn(),
+  markExpired: vi.fn(),
 };
 
 const mockPhonePePollingWorker = {
@@ -72,7 +96,9 @@ vi.mock("../../db", () => ({
 describe("payments router", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    idempotencyCache.clear();
     mockPhonePePollingStore.getLatestJobForOrder.mockResolvedValue(null);
+    mockPhonePePollingStore.markExpired.mockResolvedValue(null);
     mockPhonePePollingWorker.registerJob.mockResolvedValue({});
   });
 
@@ -162,6 +188,162 @@ describe("payments router", () => {
           merchantTransactionId: "mtid",
         })
       );
+    });
+  });
+
+  describe("POST /api/payments/token-url", () => {
+    const computeKey = (tenant: string, orderId: string, amountMinor: number, currency: string) => {
+      const hash = createHash("sha256");
+      hash.update([tenant, orderId, amountMinor.toString(), currency].join(":"));
+      return `phonepe-token:${hash.digest("hex")}`;
+    };
+
+    const buildTokenRequest = (overrides: { body?: any; headers?: Record<string, string> } = {}) => {
+      const baseBody = {
+        orderId: "order-123",
+        amount: 10,
+        currency: "INR",
+        customer: {},
+      };
+
+      return {
+        headers: { "x-tenant-id": "tenant-a", ...(overrides.headers ?? {}) },
+        body: { ...baseBody, ...(overrides.body ?? {}) },
+      } as unknown as Request;
+    };
+
+    const buildPhonePeJob = (overrides: Record<string, any> = {}) => {
+      const now = new Date();
+      return {
+        id: "job-1",
+        tenantId: "tenant-a",
+        orderId: "order-123",
+        paymentId: "pay_1",
+        merchantTransactionId: "merchant-1",
+        status: "pending",
+        attempt: 0,
+        nextPollAt: new Date(now.getTime() + 1000),
+        expireAt: new Date(now.getTime() + 600000),
+        lastPolledAt: null,
+        lastStatus: "created",
+        lastResponseCode: null,
+        lastError: null,
+        completedAt: null,
+        createdAt: now,
+        updatedAt: now,
+        ...overrides,
+      };
+    };
+
+    const buildPaymentResult = () => ({
+      paymentId: "pay_1",
+      status: "created",
+      amount: 1000,
+      currency: "INR",
+      provider: "phonepe" as const,
+      environment: "test" as const,
+      providerPaymentId: "merchant-1",
+      redirectUrl: "https://phonepe.example/token",
+      providerData: { expireAfterSeconds: 900 },
+      createdAt: new Date(),
+    });
+
+    it("reuses the pending token URL for rapid double submissions", async () => {
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/token-url");
+
+      const paymentResult = buildPaymentResult();
+      mockPaymentsService.createPayment.mockResolvedValue(paymentResult);
+
+      mockPhonePePollingStore.getLatestJobForOrder
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(buildPhonePeJob({ createdAt: paymentResult.createdAt, expireAt: new Date(Date.now() + 600000) }));
+
+      const firstReq = buildTokenRequest();
+      const firstRes = createMockResponse();
+      await handler(firstReq, firstRes, () => {});
+
+      expect(firstRes.jsonPayload.success).toBe(true);
+      expect(mockPaymentsService.createPayment).toHaveBeenCalledTimes(1);
+      expect(mockPhonePePollingWorker.registerJob).toHaveBeenCalledTimes(1);
+
+      const secondReq = buildTokenRequest();
+      const secondRes = createMockResponse();
+      await handler(secondReq, secondRes, () => {});
+
+      expect(secondRes.jsonPayload).toEqual(firstRes.jsonPayload);
+      expect(mockPaymentsService.createPayment).toHaveBeenCalledTimes(1);
+      expect(mockPhonePePollingWorker.registerJob).toHaveBeenCalledTimes(1);
+      expect(executeWithIdempotencyMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("invalidates and recreates the token URL when the cached attempt expired", async () => {
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/token-url");
+
+      const paymentResult = buildPaymentResult();
+      mockPaymentsService.createPayment.mockResolvedValue(paymentResult);
+
+      const amountMinor = 1000;
+      const expectedKey = computeKey("tenant-a", "order-123", amountMinor, "INR");
+      const expiredPayload = {
+        success: true,
+        data: {
+          tokenUrl: "https://old.example/token",
+          paymentId: "pay_0",
+          merchantTransactionId: "merchant-0",
+          expiresAt: new Date(Date.now() - 1000).toISOString(),
+        },
+      };
+      idempotencyCache.set(`phonepe_token_url:${expectedKey}`, expiredPayload);
+
+      mockPhonePePollingStore.getLatestJobForOrder.mockResolvedValueOnce(
+        buildPhonePeJob({
+          paymentId: "pay_0",
+          merchantTransactionId: "merchant-0",
+          expireAt: new Date(Date.now() - 1000),
+          attempt: 3,
+        })
+      );
+
+      const req = buildTokenRequest();
+      const res = createMockResponse();
+      await handler(req, res, () => {});
+
+      expect(mockPhonePePollingStore.markExpired).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          lastStatus: "expired",
+          attempt: 3,
+        })
+      );
+      expect(invalidateKeyMock).toHaveBeenCalledWith(expectedKey, "phonepe_token_url");
+      expect(mockPaymentsService.createPayment).toHaveBeenCalledTimes(1);
+      expect(mockPhonePePollingWorker.registerJob).toHaveBeenCalledTimes(1);
+      expect(res.jsonPayload.success).toBe(true);
+      expect(res.jsonPayload.data.tokenUrl).toBe(paymentResult.redirectUrl);
+    });
+
+    it("derives a deterministic idempotency key from the tenant, order, and amount", async () => {
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/token-url");
+
+      const paymentResult = buildPaymentResult();
+      mockPaymentsService.createPayment.mockResolvedValue(paymentResult);
+
+      const req = buildTokenRequest({ body: { amount: 25.5 } });
+      const res = createMockResponse();
+      await handler(req, res, () => {});
+
+      const expectedAmountMinor = Math.round(25.5 * 100);
+      const expectedKey = computeKey("tenant-a", "order-123", expectedAmountMinor, "INR");
+
+      expect(mockPaymentsService.createPayment).toHaveBeenCalledWith(
+        expect.objectContaining({ idempotencyKey: expectedKey, orderAmount: expectedAmountMinor }),
+        "tenant-a",
+        "phonepe"
+      );
+      expect(res.jsonPayload.data.expiresAt).toBeTruthy();
     });
   });
 
