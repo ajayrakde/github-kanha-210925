@@ -33,6 +33,11 @@ import {
 } from "../../shared/payment-types";
 import { db } from "../db";
 import { payments, refunds, paymentEvents, orders } from "../../shared/schema";
+import {
+  maskPhonePeVirtualPaymentAddress,
+  maskPhonePeUtr,
+  normalizeUpiInstrumentVariant,
+} from "../../shared/upi";
 import { eq, and, sql, or, inArray, gt } from "drizzle-orm";
 import crypto from "crypto";
 
@@ -134,7 +139,10 @@ export class PaymentsService {
             this.config.retryAttempts || 3
           );
           
-          const providerMetadata = this.extractProviderMetadata(result.providerData);
+          const providerMetadata = this.extractProviderMetadata(
+            result.providerData,
+            adapter.provider
+          );
 
           // Store payment and log event in transaction
           await db.transaction(async (trx) => {
@@ -157,6 +165,7 @@ export class PaymentsService {
               last4: result.method?.last4,
               upiPayerHandle: providerMetadata.upiPayerHandle,
               upiUtr: providerMetadata.upiUtr,
+              upiInstrumentVariant: providerMetadata.upiInstrumentVariant,
               receiptUrl: providerMetadata.receiptUrl,
               createdAt: result.createdAt,
               updatedAt: result.updatedAt || result.createdAt,
@@ -541,12 +550,16 @@ export class PaymentsService {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  private extractProviderMetadata(providerData?: Record<string, any>): {
+  private extractProviderMetadata(
+    providerData?: Record<string, any>,
+    provider?: PaymentProvider
+  ): {
     providerTransactionId?: string;
     providerReferenceId?: string;
     upiPayerHandle?: string;
     upiUtr?: string;
     receiptUrl?: string;
+    upiInstrumentVariant?: string;
   } {
     const metadata: {
       providerTransactionId?: string;
@@ -554,6 +567,7 @@ export class PaymentsService {
       upiPayerHandle?: string;
       upiUtr?: string;
       receiptUrl?: string;
+      upiInstrumentVariant?: string;
     } = {};
 
     if (!providerData) {
@@ -575,6 +589,25 @@ export class PaymentsService {
       }
       return undefined;
     };
+
+    const instrumentResponse =
+      typeof providerData.instrumentResponse === 'object' &&
+      providerData.instrumentResponse !== null
+        ? (providerData.instrumentResponse as Record<string, any>)
+        : undefined;
+
+    const paymentInstrument =
+      typeof providerData.paymentInstrument === 'object' &&
+      providerData.paymentInstrument !== null
+        ? (providerData.paymentInstrument as Record<string, any>)
+        : undefined;
+
+    const nestedPaymentInstrument =
+      instrumentResponse &&
+      typeof instrumentResponse.paymentInstrument === 'object' &&
+      instrumentResponse.paymentInstrument !== null
+        ? (instrumentResponse.paymentInstrument as Record<string, any>)
+        : undefined;
 
     const providerTransactionId = pickString(
       ...nestedSources.map(source => source.providerTransactionId),
@@ -613,12 +646,39 @@ export class PaymentsService {
       ...nestedSources.map(source => source.receipt_path)
     );
 
+    const instrumentVariantCandidates: Array<string | undefined> = [
+      instrumentResponse?.type,
+      instrumentResponse?.instrumentType,
+      nestedPaymentInstrument?.type,
+      nestedPaymentInstrument?.instrumentType,
+      paymentInstrument?.type,
+      paymentInstrument?.instrumentType,
+    ];
+
+    let upiInstrumentVariant: string | undefined;
+    for (const candidate of instrumentVariantCandidates) {
+      const normalizedVariant = normalizeUpiInstrumentVariant(candidate);
+      if (normalizedVariant) {
+        upiInstrumentVariant = normalizedVariant;
+        break;
+      }
+    }
+
+    const shouldMaskUpi = provider === 'phonepe';
+    const maskedUpiHandle = shouldMaskUpi
+      ? maskPhonePeVirtualPaymentAddress(upiPayerHandle)
+      : upiPayerHandle ?? undefined;
+    const maskedUpiUtr = shouldMaskUpi
+      ? maskPhonePeUtr(upiUtr)
+      : upiUtr ?? undefined;
+
     return {
       providerTransactionId,
       providerReferenceId,
-      upiPayerHandle,
-      upiUtr,
+      upiPayerHandle: maskedUpiHandle,
+      upiUtr: maskedUpiUtr,
       receiptUrl,
+      upiInstrumentVariant,
     };
   }
 
@@ -653,6 +713,7 @@ export class PaymentsService {
         .select({
           orderId: payments.orderId,
           currentStatus: payments.status,
+          provider: payments.provider,
         })
         .from(payments)
         .where(
@@ -686,7 +747,12 @@ export class PaymentsService {
         updatedAt: result.updatedAt || new Date(),
       };
 
-      const providerMetadata = this.extractProviderMetadata(result.providerData);
+      const providerForMasking = (result.provider ?? event.provider ?? existingPayment?.provider) as PaymentProvider | undefined;
+
+      const providerMetadata = this.extractProviderMetadata(
+        result.providerData,
+        providerForMasking
+      );
 
       if (result.providerPaymentId) {
         updateData.providerPaymentId = result.providerPaymentId;
@@ -709,11 +775,21 @@ export class PaymentsService {
       }
 
       if (providerMetadata.upiPayerHandle) {
-        updateData.upiPayerHandle = providerMetadata.upiPayerHandle;
+        updateData.upiPayerHandle =
+          providerForMasking === 'phonepe'
+            ? maskPhonePeVirtualPaymentAddress(providerMetadata.upiPayerHandle) ?? providerMetadata.upiPayerHandle
+            : providerMetadata.upiPayerHandle;
       }
 
       if (providerMetadata.upiUtr) {
-        updateData.upiUtr = providerMetadata.upiUtr;
+        updateData.upiUtr =
+          providerForMasking === 'phonepe'
+            ? maskPhonePeUtr(providerMetadata.upiUtr) ?? providerMetadata.upiUtr
+            : providerMetadata.upiUtr;
+      }
+
+      if (providerMetadata.upiInstrumentVariant) {
+        updateData.upiInstrumentVariant = providerMetadata.upiInstrumentVariant;
       }
 
       if (providerMetadata.receiptUrl) {

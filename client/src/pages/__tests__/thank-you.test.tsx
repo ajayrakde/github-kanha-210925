@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ThankYou from "../thank-you";
+import { phonePeIdentifierFixture } from "@shared/__fixtures__/upi";
 
 const setLocationMock = vi.fn();
 
@@ -67,8 +68,10 @@ describe("Thank-you page", () => {
         status: "COMPLETED",
         merchantTransactionId: "MERCHANT_TXN_123",
         providerTransactionId: "PG_TXN_123",
-        upiUtr: "UTR1234567",
-        upiPayerHandle: "buyer@upi",
+        upiUtr: phonePeIdentifierFixture.maskedUtr,
+        upiPayerHandle: phonePeIdentifierFixture.maskedVpa,
+        upiInstrumentVariant: phonePeIdentifierFixture.variant,
+        upiInstrumentLabel: phonePeIdentifierFixture.label,
         receiptUrl: "https://phonepe.example/receipt/pay_test_123",
       },
       totalPaid: 499,
@@ -85,7 +88,8 @@ describe("Thank-you page", () => {
     expect(screen.getByTestId("badge-payment-status")).toHaveTextContent(/Paid/i);
     expect(screen.getByTestId("text-transaction-id")).toHaveTextContent("MERCHANT_TXN_123");
     expect(screen.getByTestId("text-amount-paid")).toHaveTextContent("₹499.00");
-    expect(screen.getByText("UTR1234567")).toBeInTheDocument();
-    expect(screen.getByText("buyer@upi")).toBeInTheDocument();
+    expect(screen.getByText(phonePeIdentifierFixture.maskedUtr)).toBeInTheDocument();
+    expect(screen.getByText(phonePeIdentifierFixture.maskedVpa)).toBeInTheDocument();
+    expect(screen.getByText(phonePeIdentifierFixture.label)).toBeInTheDocument();
   });
 });

@@ -25,6 +25,11 @@ import type { PaymentResult } from '../../shared/payment-types';
 import type { PaymentProvider, Environment } from '../../shared/payment-providers';
 import { db } from '../db';
 import { paymentEvents } from '../../shared/schema';
+import {
+  formatUpiInstrumentVariantLabel,
+  maskPhonePeIdentifier,
+  normalizeUpiInstrumentVariant,
+} from '../../shared/upi';
 
 export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   const router = Router();
@@ -593,6 +598,15 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
 
       const mapPayment = (payment: typeof sortedPayments[number]) => {
         const amountMinor = payment.amountCapturedMinor ?? payment.amountAuthorizedMinor ?? 0;
+        const provider = payment.provider as PaymentProvider | undefined;
+        const normalizedVariant = normalizeUpiInstrumentVariant(payment.upiInstrumentVariant);
+        const upiInstrumentLabel = formatUpiInstrumentVariantLabel(normalizedVariant);
+        const maskedUpiHandle = maskPhonePeIdentifier(provider, payment.upiPayerHandle, {
+          type: 'vpa',
+        });
+        const maskedUpiUtr = maskPhonePeIdentifier(provider, payment.upiUtr, {
+          type: 'utr',
+        });
 
         return {
           id: payment.id,
@@ -605,8 +619,10 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           providerPaymentId: payment.providerPaymentId ?? undefined,
           providerTransactionId: payment.providerTransactionId ?? undefined,
           providerReferenceId: payment.providerReferenceId ?? undefined,
-          upiPayerHandle: payment.upiPayerHandle ?? undefined,
-          upiUtr: payment.upiUtr ?? undefined,
+          upiPayerHandle: maskedUpiHandle ?? undefined,
+          upiUtr: maskedUpiUtr ?? undefined,
+          upiInstrumentVariant: normalizedVariant ?? undefined,
+          upiInstrumentLabel: upiInstrumentLabel ?? undefined,
           receiptUrl: payment.receiptUrl ?? undefined,
           createdAt: payment.createdAt instanceof Date ? payment.createdAt.toISOString() : payment.createdAt,
           updatedAt: payment.updatedAt instanceof Date ? payment.updatedAt.toISOString() : payment.updatedAt,
@@ -656,6 +672,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
               providerReferenceId: latestTransaction.providerReferenceId,
               upiPayerHandle: latestTransaction.upiPayerHandle,
               upiUtr: latestTransaction.upiUtr,
+              upiInstrumentVariant: latestTransaction.upiInstrumentVariant,
+              upiInstrumentLabel: latestTransaction.upiInstrumentLabel,
               receiptUrl: latestTransaction.receiptUrl,
             }
           : null,

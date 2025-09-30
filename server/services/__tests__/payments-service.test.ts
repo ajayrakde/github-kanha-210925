@@ -1,5 +1,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PaymentEvent, PaymentResult } from "../../../shared/payment-types";
+import { phonePeIdentifierFixture } from "../../../shared/__fixtures__/upi";
 
 process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
 
@@ -202,6 +203,44 @@ describe("PaymentsService.createPayment", () => {
     await service.createPayment(baseParams, "default");
 
     expect(paymentInserts[0]?.status).toBe("COMPLETED");
+  });
+
+  it("masks PhonePe identifiers and persists the instrument variant", async () => {
+    executeWithIdempotencyMock.mockImplementation(async (_key, _scope, operation) => {
+      return await operation();
+    });
+
+    const paymentResult: PaymentResult = {
+      paymentId: "pay_2",
+      status: "created",
+      amount: 1500,
+      currency: "INR",
+      provider: "phonepe",
+      environment: "test",
+      createdAt: new Date(),
+      providerData: {
+        payerVpa: phonePeIdentifierFixture.vpa,
+        utr: phonePeIdentifierFixture.utr,
+        instrumentResponse: {
+          type: phonePeIdentifierFixture.variant,
+          vpa: phonePeIdentifierFixture.vpa,
+          utr: phonePeIdentifierFixture.utr,
+        },
+      },
+    };
+
+    adapter.createPayment.mockResolvedValue(paymentResult);
+
+    const service = createPaymentsService({ environment: "test" });
+
+    upiQueryResults.push([]);
+    await service.createPayment(baseParams, "default");
+
+    expect(paymentInserts[0]).toMatchObject({
+      upiPayerHandle: phonePeIdentifierFixture.maskedVpa,
+      upiUtr: phonePeIdentifierFixture.maskedUtr,
+      upiInstrumentVariant: phonePeIdentifierFixture.variant,
+    });
   });
 });
 

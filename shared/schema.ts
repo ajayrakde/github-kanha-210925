@@ -211,6 +211,7 @@ export const payments = pgTable("payments", {
   last4: varchar("last4", { length: 4 }), // Last 4 digits of card
   upiPayerHandle: varchar("upi_payer_handle", { length: 255 }),
   upiUtr: varchar("upi_utr", { length: 100 }),
+  upiInstrumentVariant: varchar("upi_instrument_variant", { length: 50 }),
   receiptUrl: text("receipt_url"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

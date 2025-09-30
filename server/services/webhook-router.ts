@@ -30,6 +30,11 @@ import { db } from "../db";
 import { webhookInbox, payments, refunds, paymentEvents, orders } from "../../shared/schema";
 import { eq, and, sql, or } from "drizzle-orm";
 import crypto from "crypto";
+import {
+  maskPhonePeVirtualPaymentAddress,
+  maskPhonePeUtr,
+  normalizeUpiInstrumentVariant,
+} from "../../shared/upi";
 
 /**
  * Webhook processing service
@@ -302,7 +307,6 @@ export class WebhookRouter {
   ): Promise<boolean> {
     try {
       const normalizedStatus = this.normalizeWebhookStatus(status);
-      const providerMetadata = this.extractPaymentMetadata(data);
       const capturedAmount = this.extractCapturedAmount(data);
       type TamperedAudit = {
         provider?: PaymentProvider;
@@ -347,6 +351,11 @@ export class WebhookRouter {
           return false;
         }
 
+        const providerMetadata = this.extractPaymentMetadata(
+          data,
+          paymentRecord.provider as PaymentProvider | undefined
+        );
+
         const updateData: Record<string, any> = {
           status: this.toStorageStatus(normalizedStatus),
           updatedAt: new Date(),
@@ -366,11 +375,21 @@ export class WebhookRouter {
         }
 
         if (providerMetadata.upiPayerHandle) {
-          updateData.upiPayerHandle = providerMetadata.upiPayerHandle;
+          updateData.upiPayerHandle =
+            paymentRecord.provider === 'phonepe'
+              ? maskPhonePeVirtualPaymentAddress(providerMetadata.upiPayerHandle) ?? providerMetadata.upiPayerHandle
+              : providerMetadata.upiPayerHandle;
         }
 
         if (providerMetadata.upiUtr) {
-          updateData.upiUtr = providerMetadata.upiUtr;
+          updateData.upiUtr =
+            paymentRecord.provider === 'phonepe'
+              ? maskPhonePeUtr(providerMetadata.upiUtr) ?? providerMetadata.upiUtr
+              : providerMetadata.upiUtr;
+        }
+
+        if (providerMetadata.upiInstrumentVariant) {
+          updateData.upiInstrumentVariant = providerMetadata.upiInstrumentVariant;
         }
 
         if (providerMetadata.receiptUrl) {
@@ -566,13 +585,14 @@ export class WebhookRouter {
     return upper;
   }
 
-  private extractPaymentMetadata(payload?: Record<string, any>): {
+  private extractPaymentMetadata(payload: Record<string, any> | undefined, provider?: PaymentProvider): {
     providerPaymentId?: string;
     providerTransactionId?: string;
     providerReferenceId?: string;
     upiPayerHandle?: string;
     upiUtr?: string;
     receiptUrl?: string;
+    upiInstrumentVariant?: string;
   } {
     const metadata: {
       providerPaymentId?: string;
@@ -581,6 +601,7 @@ export class WebhookRouter {
       upiPayerHandle?: string;
       upiUtr?: string;
       receiptUrl?: string;
+      upiInstrumentVariant?: string;
     } = {};
 
     if (!payload) {
@@ -593,6 +614,23 @@ export class WebhookRouter {
       typeof payload.paymentInstrument === 'object' ? payload.paymentInstrument : undefined,
       typeof payload.instrumentResponse === 'object' ? payload.instrumentResponse : undefined,
     ].filter(Boolean) as Record<string, any>[];
+
+    const instrumentResponse =
+      typeof payload.instrumentResponse === 'object' && payload.instrumentResponse !== null
+        ? (payload.instrumentResponse as Record<string, any>)
+        : undefined;
+
+    const paymentInstrument =
+      typeof payload.paymentInstrument === 'object' && payload.paymentInstrument !== null
+        ? (payload.paymentInstrument as Record<string, any>)
+        : undefined;
+
+    const nestedPaymentInstrument =
+      instrumentResponse &&
+      typeof instrumentResponse.paymentInstrument === 'object' &&
+      instrumentResponse.paymentInstrument !== null
+        ? (instrumentResponse.paymentInstrument as Record<string, any>)
+        : undefined;
 
     const pickString = (...values: Array<unknown>): string | undefined => {
       for (const value of values) {
@@ -645,6 +683,28 @@ export class WebhookRouter {
       ...nestedSources.map(source => source.receiptPath),
       ...nestedSources.map(source => source.receipt_path)
     );
+
+    const instrumentVariantCandidates: Array<string | undefined> = [
+      instrumentResponse?.type,
+      instrumentResponse?.instrumentType,
+      nestedPaymentInstrument?.type,
+      nestedPaymentInstrument?.instrumentType,
+      paymentInstrument?.type,
+      paymentInstrument?.instrumentType,
+    ];
+
+    for (const candidate of instrumentVariantCandidates) {
+      const normalizedVariant = normalizeUpiInstrumentVariant(candidate);
+      if (normalizedVariant) {
+        metadata.upiInstrumentVariant = normalizedVariant;
+        break;
+      }
+    }
+
+    if (provider === 'phonepe') {
+      metadata.upiPayerHandle = maskPhonePeVirtualPaymentAddress(metadata.upiPayerHandle) ?? metadata.upiPayerHandle;
+      metadata.upiUtr = maskPhonePeUtr(metadata.upiUtr) ?? metadata.upiUtr;
+    }
 
     return metadata;
   }
