@@ -84,6 +84,9 @@ interface PhonePeStatusResponse {
     paymentInstrument: {
       type: string;
       utr?: string;
+      vpa?: string;
+      payerVpa?: string;
+      payerAddress?: string;
     };
   };
 }
@@ -198,6 +201,8 @@ export class PhonePeAdapter implements PaymentsAdapter {
         providerData: {
           merchantTransactionId,
           transactionId: response.data?.transactionId,
+          providerTransactionId: response.data?.transactionId,
+          providerReferenceId: merchantTransactionId,
           instrumentResponse: response.data?.instrumentResponse,
         },
         
@@ -270,6 +275,14 @@ export class PhonePeAdapter implements PaymentsAdapter {
           state: response.data?.state,
           responseCode: response.data?.responseCode,
           utr: response.data?.paymentInstrument?.utr,
+          upiPayerHandle:
+            params.providerData?.payerVpa ||
+            params.providerData?.upiPayerHandle ||
+            response.data?.paymentInstrument?.vpa ||
+            response.data?.paymentInstrument?.payerVpa ||
+            response.data?.paymentInstrument?.payerAddress,
+          providerTransactionId: response.data?.transactionId,
+          providerReferenceId: merchantTransactionId,
         },
         
         createdAt: new Date(),

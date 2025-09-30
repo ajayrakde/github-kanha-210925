@@ -180,8 +180,8 @@ export function createOrdersRouter() {
         amountMinor: Math.round(total * 100),
         offerId: appliedOffer?.id,
         paymentMethod,
-        paymentStatus: "completed" as const,
-        status: "confirmed" as const,
+        paymentStatus: "pending" as const,
+        status: "pending" as const,
         deliveryAddressId,
       };
 

@@ -25,8 +25,8 @@ import { adapterFactory } from "./adapter-factory";
 import { idempotencyService } from "./idempotency-service";
 import { PaymentError, RefundError, ConfigurationError } from "../../shared/payment-types";
 import { db } from "../db";
-import { payments, refunds, paymentEvents } from "../../shared/schema";
-import { eq, and } from "drizzle-orm";
+import { payments, refunds, paymentEvents, orders } from "../../shared/schema";
+import { eq, and, sql, or, inArray, gt } from "drizzle-orm";
 import crypto from "crypto";
 
 /**
@@ -34,6 +34,13 @@ import crypto from "crypto";
  */
 export class PaymentsService {
   private static instances = new Map<string, PaymentsService>();
+  private static readonly upiCaptureStatuses = [
+    "captured",
+    "completed",
+    "succeeded",
+    "success",
+    "paid",
+  ];
   
   private constructor(
     private config: PaymentServiceConfig
@@ -72,6 +79,18 @@ export class PaymentsService {
       'create_payment',
       async () => {
         try {
+          const existingUpiCapture = await this.findCapturedUpiPayment(
+            params.orderId,
+            resolvedTenantId
+          );
+
+          if (existingUpiCapture) {
+            throw new PaymentError(
+              "A UPI payment has already been captured for this order",
+              "UPI_PAYMENT_ALREADY_CAPTURED"
+            );
+          }
+
           // Determine provider to use
           const provider = preferredProvider || this.config.defaultProvider;
           
@@ -107,6 +126,8 @@ export class PaymentsService {
             this.config.retryAttempts || 3
           );
           
+          const providerMetadata = this.extractProviderMetadata(result.providerData);
+
           // Store payment and log event in transaction
           await db.transaction(async (trx) => {
             // Store payment
@@ -118,12 +139,17 @@ export class PaymentsService {
               environment: this.config.environment,
               providerPaymentId: result.providerPaymentId,
               providerOrderId: result.providerOrderId,
+              providerTransactionId: providerMetadata.providerTransactionId,
+              providerReferenceId: providerMetadata.providerReferenceId,
               amountAuthorizedMinor: result.amount,
               currency: result.currency,
               status: result.status,
               methodKind: result.method?.type,
               methodBrand: result.method?.brand,
               last4: result.method?.last4,
+              upiPayerHandle: providerMetadata.upiPayerHandle,
+              upiUtr: providerMetadata.upiUtr,
+              receiptUrl: providerMetadata.receiptUrl,
               createdAt: result.createdAt,
               updatedAt: result.updatedAt || result.createdAt,
             });
@@ -146,9 +172,14 @@ export class PaymentsService {
           });
           
           return result;
-          
+
         } catch (error) {
           console.error('Payment creation failed:', error);
+
+          if (error instanceof PaymentError && error.code === 'UPI_PAYMENT_ALREADY_CAPTURED') {
+            throw error;
+          }
+
           throw new PaymentError(
             'Failed to create payment',
             'PAYMENT_CREATION_FAILED',
@@ -501,7 +532,88 @@ export class PaymentsService {
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
-  
+
+  private extractProviderMetadata(providerData?: Record<string, any>): {
+    providerTransactionId?: string;
+    providerReferenceId?: string;
+    upiPayerHandle?: string;
+    upiUtr?: string;
+    receiptUrl?: string;
+  } {
+    const metadata: {
+      providerTransactionId?: string;
+      providerReferenceId?: string;
+      upiPayerHandle?: string;
+      upiUtr?: string;
+      receiptUrl?: string;
+    } = {};
+
+    if (!providerData) {
+      return metadata;
+    }
+
+    const nestedSources = [
+      providerData,
+      typeof providerData.data === 'object' ? providerData.data : undefined,
+      typeof providerData.paymentInstrument === 'object' ? providerData.paymentInstrument : undefined,
+      typeof providerData.instrumentResponse === 'object' ? providerData.instrumentResponse : undefined,
+    ].filter(Boolean) as Record<string, any>[];
+
+    const pickString = (...values: Array<unknown>): string | undefined => {
+      for (const value of values) {
+        if (typeof value === 'string' && value.trim().length > 0) {
+          return value.trim();
+        }
+      }
+      return undefined;
+    };
+
+    const providerTransactionId = pickString(
+      ...nestedSources.map(source => source.providerTransactionId),
+      ...nestedSources.map(source => source.transactionId),
+      ...nestedSources.map(source => source.pgTransactionId),
+      ...nestedSources.map(source => source.gatewayTransactionId)
+    );
+
+    const providerReferenceId = pickString(
+      ...nestedSources.map(source => source.providerReferenceId),
+      ...nestedSources.map(source => source.merchantTransactionId),
+      ...nestedSources.map(source => source.orderId),
+      ...nestedSources.map(source => source.referenceId)
+    );
+
+    const upiPayerHandle = pickString(
+      ...nestedSources.map(source => source.upiPayerHandle),
+      ...nestedSources.map(source => source.payerVpa),
+      ...nestedSources.map(source => source.payerHandle),
+      ...nestedSources.map(source => source.virtualPaymentAddress),
+      ...nestedSources.map(source => source.vpa),
+      ...nestedSources.map(source => source.payerAddress)
+    );
+
+    const upiUtr = pickString(
+      ...nestedSources.map(source => source.upiUtr),
+      ...nestedSources.map(source => source.utr),
+      ...nestedSources.map(source => source.upiTransactionId)
+    );
+
+    const receiptUrl = pickString(
+      ...nestedSources.map(source => source.receiptUrl),
+      ...nestedSources.map(source => source.receipt),
+      ...nestedSources.map(source => source.receiptLink),
+      ...nestedSources.map(source => source.receiptPath),
+      ...nestedSources.map(source => source.receipt_path)
+    );
+
+    return {
+      providerTransactionId,
+      providerReferenceId,
+      upiPayerHandle,
+      upiUtr,
+      receiptUrl,
+    };
+  }
+
   /**
    * Store payment in database
    */
@@ -529,6 +641,20 @@ export class PaymentsService {
    */
   private async updateStoredPayment(result: PaymentResult, tenantId: string, event: PaymentEvent): Promise<void> {
     await db.transaction(async (trx) => {
+      const [existingPayment] = await trx
+        .select({
+          orderId: payments.orderId,
+          currentStatus: payments.status,
+        })
+        .from(payments)
+        .where(
+          and(
+            eq(payments.id, result.paymentId),
+            eq(payments.tenantId, tenantId)
+          )
+        )
+        .limit(1);
+
       const updateData: Record<string, any> = {
         status: result.status,
         methodKind: result.method?.type,
@@ -536,6 +662,8 @@ export class PaymentsService {
         last4: result.method?.last4,
         updatedAt: result.updatedAt || new Date(),
       };
+
+      const providerMetadata = this.extractProviderMetadata(result.providerData);
 
       if (result.providerPaymentId) {
         updateData.providerPaymentId = result.providerPaymentId;
@@ -545,8 +673,28 @@ export class PaymentsService {
         updateData.providerOrderId = result.providerOrderId;
       }
 
-      if (result.status === 'captured') {
+      if (result.status === 'captured' && typeof result.amount === 'number') {
         updateData.amountCapturedMinor = result.amount;
+      }
+
+      if (providerMetadata.providerTransactionId) {
+        updateData.providerTransactionId = providerMetadata.providerTransactionId;
+      }
+
+      if (providerMetadata.providerReferenceId) {
+        updateData.providerReferenceId = providerMetadata.providerReferenceId;
+      }
+
+      if (providerMetadata.upiPayerHandle) {
+        updateData.upiPayerHandle = providerMetadata.upiPayerHandle;
+      }
+
+      if (providerMetadata.upiUtr) {
+        updateData.upiUtr = providerMetadata.upiUtr;
+      }
+
+      if (providerMetadata.receiptUrl) {
+        updateData.receiptUrl = providerMetadata.receiptUrl;
       }
 
       await trx
@@ -568,6 +716,23 @@ export class PaymentsService {
         data: event.data,
         occurredAt: event.timestamp,
       });
+
+      const paymentOrderId = existingPayment?.orderId;
+      if (paymentOrderId && result.status === 'captured') {
+        await trx
+          .update(orders)
+          .set({
+            paymentStatus: 'paid',
+            status: sql`CASE WHEN ${orders.status} = 'pending' THEN 'confirmed' ELSE ${orders.status} END`,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(orders.id, paymentOrderId),
+              sql`${orders.paymentStatus} <> 'paid'`
+            )
+          );
+      }
     });
   }
   
@@ -669,6 +834,26 @@ export class PaymentsService {
    */
   private getDefaultFailureUrl(): string {
     return `${process.env.BASE_URL || 'http://localhost:3000'}/payment-failed`;
+  }
+
+  private async findCapturedUpiPayment(orderId: string, tenantId: string) {
+    const existing = await db
+      .select({ id: payments.id })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.orderId, orderId),
+          eq(payments.tenantId, tenantId),
+          eq(payments.methodKind, 'upi'),
+          or(
+            inArray(payments.status, PaymentsService.upiCaptureStatuses),
+            gt(payments.amountCapturedMinor, 0)
+          )
+        )
+      )
+      .limit(1);
+
+    return existing[0] ?? null;
   }
 }
 

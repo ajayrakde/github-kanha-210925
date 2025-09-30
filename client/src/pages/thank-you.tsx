@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentProps } from "react";
 import { Separator } from "@/components/ui/separator";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +20,24 @@ interface OrderData {
   };
 }
 
+interface PaymentTransactionInfo {
+  id: string;
+  status: string;
+  amount: string;
+  amountMinor?: number;
+  merchantTransactionId: string;
+  providerPaymentId?: string;
+  providerTransactionId?: string;
+  providerReferenceId?: string;
+  upiPayerHandle?: string;
+  upiUtr?: string;
+  receiptUrl?: string;
+  provider?: string;
+  methodKind?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 interface PaymentStatusInfo {
   order: {
     id: string;
@@ -27,39 +45,32 @@ interface PaymentStatusInfo {
     paymentStatus: string;
     paymentMethod: string;
     total: string;
+    shippingCharge?: string;
     createdAt: string;
     updatedAt: string;
   };
-  transactions: Array<{
-    id: string;
-    status: string;
-    amount: string;
-    merchantTransactionId: string;
-    createdAt: string;
-    updatedAt: string;
-  }>;
-  latestTransaction?: {
-    id: string;
-    status: string;
-    amount: string;
-    merchantTransactionId: string;
-    createdAt: string;
-    updatedAt: string;
-  };
+  transactions: PaymentTransactionInfo[];
+  latestTransaction?: PaymentTransactionInfo;
   totalPaid: number;
   totalRefunded: number;
 }
 
 // Payment status badge component
-const PaymentStatusBadge = ({ status, className = "" }: { status: string; className?: string }) => {
+const PaymentStatusBadge = ({
+  status,
+  className = "",
+  ...badgeProps
+}: { status: string; className?: string } & ComponentProps<typeof Badge>) => {
   const getStatusInfo = (status: string) => {
     switch (status.toLowerCase()) {
       case 'paid':
       case 'completed':
         return { color: 'bg-green-100 text-green-800', icon: CheckCircle, text: 'Paid' };
+      case 'processing':
+        return { color: 'bg-yellow-100 text-yellow-800', icon: Clock, text: 'Processing' };
       case 'pending':
       case 'initiated':
-        return { color: 'bg-yellow-100 text-yellow-800', icon: Clock, text: 'Processing' };
+        return { color: 'bg-yellow-100 text-yellow-800', icon: Clock, text: 'Pending' };
       case 'failed':
         return { color: 'bg-red-100 text-red-800', icon: XCircle, text: 'Failed' };
       case 'cancelled':
@@ -73,11 +84,42 @@ const PaymentStatusBadge = ({ status, className = "" }: { status: string; classN
   const Icon = statusInfo.icon;
 
   return (
-    <Badge className={`${statusInfo.color} ${className} flex items-center gap-1`}>
+    <Badge {...badgeProps} className={`${statusInfo.color} ${className} flex items-center gap-1`}>
       <Icon className="w-3 h-3" />
       {statusInfo.text}
     </Badge>
   );
+};
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  cod: 'Cash on Delivery',
+  upi: 'UPI',
+  phonepe: 'PhonePe',
+  card: 'Card',
+  credit_card: 'Card',
+  debit_card: 'Card',
+  netbanking: 'Netbanking',
+  wallet: 'Wallet',
+  unselected: 'Not Provided',
+};
+
+const formatPaymentMethod = (method?: string | null) => {
+  if (!method) return 'Not Provided';
+  const normalized = method.toLowerCase();
+  return PAYMENT_METHOD_LABELS[normalized] ?? method;
+};
+
+const isUpiMethod = (method?: string | null) => {
+  if (!method) return false;
+  const normalized = method.toLowerCase();
+  return normalized === 'upi' || normalized === 'phonepe';
+};
+
+const normalizeStatus = (status?: string | null) => status?.toLowerCase() ?? '';
+
+const formatIdentifier = (value: string, max: number = 18) => {
+  if (!value) return '';
+  return value.length > max ? `${value.slice(0, max)}…` : value;
 };
 
 export default function ThankYou() {
@@ -120,9 +162,8 @@ export default function ThankYou() {
         return false;
       }
       // Poll for UPI/PhonePe payments that are pending
-      const isUpiPayment = orderData?.paymentMethod === 'upi' || 
-                          data?.order?.paymentMethod === 'upi' ||
-                          data?.order?.paymentMethod === 'phonepe';
+      const isUpiPayment = isUpiMethod(orderData?.paymentMethod) ||
+                          isUpiMethod(data?.order?.paymentMethod);
       return isUpiPayment ? 5000 : false;
     },
     retry: false
@@ -132,42 +173,73 @@ export default function ThankYou() {
   const currentOrderData = paymentInfo?.order || orderData;
   const currentPaymentStatus = paymentInfo?.order?.paymentStatus || 'pending';
   const currentOrderStatus = paymentInfo?.order?.status || 'pending';
+  const latestTransaction = paymentInfo?.latestTransaction;
 
   // Dynamic header info based on payment status
   const getHeaderInfo = (paymentStatus: string, orderStatus: string) => {
-    if (paymentStatus === 'paid' && orderStatus === 'confirmed') {
+    const normalizedPaymentStatus = paymentStatus.toLowerCase();
+    const normalizedOrderStatus = orderStatus.toLowerCase();
+
+    const confirmedStatuses = new Set(['confirmed', 'processing', 'shipped', 'delivered']);
+
+    if (['paid', 'completed'].includes(normalizedPaymentStatus)) {
+      if (confirmedStatuses.has(normalizedOrderStatus)) {
+        return {
+          icon: 'fas fa-check',
+          iconColor: 'bg-green-600',
+          title: 'Order Confirmed!',
+          subtitle:
+            'Thank you for your purchase. Your payment is confirmed and your order is moving to fulfillment.',
+          titleColor: 'text-gray-900'
+        };
+      }
       return {
         icon: 'fas fa-check',
         iconColor: 'bg-green-600',
-        title: 'Order Confirmed!',
-        subtitle: 'Thank you for your purchase. Your order has been successfully placed and payment confirmed.',
+        title: 'Payment Received',
+        subtitle: 'We\'ve received your payment. Your order will be confirmed shortly.',
         titleColor: 'text-gray-900'
       };
-    } else if (paymentStatus === 'pending') {
+    }
+
+    if (normalizedPaymentStatus === 'processing') {
       return {
         icon: 'fas fa-clock',
-        iconColor: 'bg-yellow-600', 
+        iconColor: 'bg-yellow-600',
         title: 'Order Placed - Payment Processing',
-        subtitle: 'Your order has been placed. We\'re processing your payment and will update you shortly.',
+        subtitle: 'Your payment is being processed. We\'ll update your order once the gateway responds.',
         titleColor: 'text-gray-900'
       };
-    } else if (paymentStatus === 'failed') {
+    }
+
+    if (normalizedPaymentStatus === 'pending' || normalizedPaymentStatus === 'initiated') {
+      return {
+        icon: 'fas fa-clock',
+        iconColor: 'bg-yellow-600',
+        title: 'Order Placed - Awaiting Payment',
+        subtitle: 'Your order has been placed. Please complete the payment to confirm your order.',
+        titleColor: 'text-gray-900'
+      };
+    }
+
+    if (normalizedPaymentStatus === 'failed') {
       return {
         icon: 'fas fa-exclamation-triangle',
         iconColor: 'bg-red-600',
         title: 'Order Placed - Payment Failed',
-        subtitle: 'Your order has been placed but payment could not be processed. You can retry payment or contact support.',
-        titleColor: 'text-gray-900'
-      };
-    } else {
-      return {
-        icon: 'fas fa-check',
-        iconColor: 'bg-blue-600',
-        title: 'Order Placed',
-        subtitle: 'Your order has been successfully placed.',
+        subtitle:
+          'Your order is saved but payment could not be processed. You can retry payment or contact support.',
         titleColor: 'text-gray-900'
       };
     }
+
+    return {
+      icon: 'fas fa-check',
+      iconColor: 'bg-blue-600',
+      title: 'Order Placed',
+      subtitle: 'Your order has been successfully placed.',
+      titleColor: 'text-gray-900'
+    };
   };
 
   if (!currentOrderData && !orderData && !isLoadingPayment) {
@@ -215,7 +287,9 @@ export default function ThankYou() {
   }
 
   const taxAmount = parseFloat(displayOrderData.subtotal) - (parseFloat(displayOrderData.subtotal) / 1.05);
-  const shippingCharge = 50;
+  const shippingCharge = paymentInfo?.order?.shippingCharge
+    ? parseFloat(paymentInfo.order.shippingCharge)
+    : 50;
   const headerInfo = getHeaderInfo(currentPaymentStatus, currentOrderStatus);
 
   return (
@@ -297,7 +371,7 @@ export default function ThankYou() {
               <i className="fas fa-credit-card text-blue-600 mr-2"></i>
               <span className="font-medium">Payment Method:</span>
             </div>
-            <span>{displayOrderData.paymentMethod === 'upi' ? 'UPI Payment' : 'Cash on Delivery'}</span>
+            <span>{formatPaymentMethod(displayOrderData.paymentMethod)}</span>
           </div>
           
           {/* Payment Status */}
@@ -321,21 +395,56 @@ export default function ThankYou() {
           </div>
 
           {/* Transaction Info for UPI payments */}
-          {displayOrderData.paymentMethod === 'upi' && paymentInfo?.latestTransaction && (
+          {isUpiMethod(displayOrderData.paymentMethod) && latestTransaction && (
             <div className="mt-3 pt-3 border-t border-gray-200">
               <div className="text-sm text-gray-600 space-y-1">
-                <div className="flex justify-between">
-                  <span>Transaction ID:</span>
-                  <span className="font-mono text-xs" data-testid="text-transaction-id">
-                    {paymentInfo.latestTransaction.merchantTransactionId.slice(0, 16)}...
-                  </span>
-                </div>
+                {latestTransaction.merchantTransactionId && (
+                  <div className="flex justify-between">
+                    <span>Merchant Txn ID:</span>
+                    <span className="font-mono text-xs" data-testid="text-transaction-id">
+                      {formatIdentifier(latestTransaction.merchantTransactionId)}
+                    </span>
+                  </div>
+                )}
+                {latestTransaction.providerTransactionId && (
+                  <div className="flex justify-between">
+                    <span>Provider Txn ID:</span>
+                    <span className="font-mono text-xs">
+                      {formatIdentifier(latestTransaction.providerTransactionId)}
+                    </span>
+                  </div>
+                )}
+                {latestTransaction.upiUtr && (
+                  <div className="flex justify-between">
+                    <span>UTR:</span>
+                    <span className="font-mono text-xs">{latestTransaction.upiUtr}</span>
+                  </div>
+                )}
+                {latestTransaction.upiPayerHandle && (
+                  <div className="flex justify-between">
+                    <span>Payer VPA:</span>
+                    <span className="font-mono text-xs break-all">{latestTransaction.upiPayerHandle}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>Amount Paid:</span>
                   <span className="font-medium text-green-600" data-testid="text-amount-paid">
                     ₹{paymentInfo.totalPaid.toFixed(2)}
                   </span>
                 </div>
+                {latestTransaction.receiptUrl && (
+                  <div className="flex justify-between items-center">
+                    <span>Receipt:</span>
+                    <a
+                      href={latestTransaction.receiptUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline"
+                    >
+                      View Receipt
+                    </a>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -350,9 +459,9 @@ export default function ThankYou() {
         </div>
 
         {/* Payment Status Messages */}
-        {displayOrderData.paymentMethod === 'upi' && paymentInfo?.order && (
+        {isUpiMethod(displayOrderData.paymentMethod) && paymentInfo?.order && (
           <div className="mb-6">
-            {paymentInfo.order.paymentStatus === 'pending' && (
+            {['pending', 'processing'].includes(normalizeStatus(paymentInfo.order.paymentStatus)) && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <div className="flex items-center">
                   <Clock className="w-5 h-5 text-yellow-600 mr-2" />

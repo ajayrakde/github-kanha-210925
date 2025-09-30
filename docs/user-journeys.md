@@ -31,10 +31,15 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - Enforce ownership checks via `userId` in session.  
    - Data stored via `usersRepository`.
 
-5. **Checkout / Place Order**  
-   - `POST /api/orders` handled by `server/routes/orders.ts`.  
-   - Enriches order with addresses, offers, and shipping rules using domain repositories.  
-   - Order placement flow, including offer validation and shipping, is unchanged.
+5. **Checkout / Place Order**
+   - `POST /api/orders` handled by `server/routes/orders.ts`.
+   - Enriches order with addresses, offers, and shipping rules using domain repositories.
+   - Orders now persist the selected `paymentMethod` while defaulting both `status` and `paymentStatus` to `pending` until the gateway confirms payment, allowing retries without losing cart context.
+   - Payment capture events atomically mark orders as confirmed/paid and store gateway identifiers (PhonePe merchant transaction ID, provider transaction ID, UTR, payer handle, and a receipt link) so post-checkout experiences surface accurate payment evidence.
+   - Incoming PhonePe callbacks/webhooks now reconcile the captured amount against the original authorization, logging and suppressing mismatched payloads while still acknowledging replays so buyers never see duplicate confirmations from tampered notifications.
+   - The payment controller now requires an `Idempotency-Key` header for `POST /api/payments/create` and `/api/payments/refunds`, caching the first successful attempt so rapid retries return the same response instead of initiating duplicate charges.
+   - Captured UPI payments are guarded both at the service layer and with a database uniqueness constraint so a second PhonePe attempt for the same order returns a clear `UPI_PAYMENT_ALREADY_CAPTURED` error instead of racing a duplicate transaction.
+   - `/api/payments/order-info/:orderId` aggregates the order totals, shipping/tax breakdown, and the latest UPI identifiers (transaction id, UTR, VPA, receipt link) so the Thank-you and order history screens stay in sync with webhook-driven updates.
 
 6. **Shipping Charges**  
    - Shipping calculation moved to `shippingRepository`.  
@@ -68,7 +73,7 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
 6. **Payment Providers**
    - Enabling a gateway now requires matching Replit secrets to be present.
    - Missing secrets cause an explicit configuration error instead of silently proceeding, ensuring admins fix misconfigurations before go-live.
-   - Webhook ingestion now auto-detects the correct provider across all enabled configs per tenant and deduplicates payloads with tenant-aware hashes, preventing cross-tenant collisions.
+   - Webhook ingestion now auto-detects the correct provider across all enabled configs per tenant, deduplicates payloads with event/transaction identifiers, and rejects invalid signatures with audit logs so replay attempts are acknowledged without mutating state.
 
 ---
 

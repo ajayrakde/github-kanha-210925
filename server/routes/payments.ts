@@ -13,6 +13,8 @@ import { createWebhookRouter } from '../services/webhook-router';
 import { configResolver } from '../services/config-resolver';
 import { adapterFactory } from '../services/adapter-factory';
 import { idempotencyService } from '../services/idempotency-service';
+import { ordersRepository } from '../storage';
+import { PaymentError } from '../../shared/payment-types';
 import type { 
   CreatePaymentParams,
   CreateRefundParams
@@ -90,8 +92,15 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
    */
   router.post('/create', async (req, res) => {
     try {
+      const idempotencyKeyHeader = req.headers['idempotency-key'];
+      if (typeof idempotencyKeyHeader !== 'string' || idempotencyKeyHeader.trim().length === 0) {
+        return res.status(400).json({
+          error: 'Idempotency-Key header is required',
+        });
+      }
+
       const validatedData = createPaymentSchema.parse(req.body);
-      
+
       const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
 
       // Convert to our payment params format
@@ -109,7 +118,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           createdVia: 'api',
           userAgent: req.headers['user-agent'],
         },
-        idempotencyKey: req.headers['idempotency-key'] as string,
+        idempotencyKey: idempotencyKeyHeader.trim(),
         tenantId,
       };
 
@@ -138,14 +147,22 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       
     } catch (error) {
       console.error('Payment creation error:', error);
-      
+
       if (error instanceof z.ZodError) {
         return res.status(400).json({
           error: 'Invalid request data',
           details: error.errors
         });
       }
-      
+
+      if (error instanceof PaymentError) {
+        const statusCode = error.code === 'UPI_PAYMENT_ALREADY_CAPTURED' ? 409 : 400;
+        return res.status(statusCode).json({
+          error: error.message,
+          code: error.code,
+        });
+      }
+
       res.status(500).json({
         error: 'Payment creation failed',
         message: error instanceof Error ? error.message : 'Unknown error'
@@ -245,6 +262,132 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     }
   });
 
+  /**
+   * Get order payment summary
+   * GET /api/payments/order-info/:orderId
+   */
+  router.get('/order-info/:orderId', async (req, res) => {
+    const { orderId } = req.params;
+
+    if (!orderId) {
+      return res.status(400).json({ error: 'Order ID is required' });
+    }
+
+    try {
+      const order = await ordersRepository.getOrderWithPayments(orderId);
+
+      if (!order) {
+        return res.status(404).json({ error: 'Order not found' });
+      }
+
+      const parseTimestamp = (value: unknown) => {
+        if (!value) return 0;
+        if (value instanceof Date) return value.getTime();
+        const parsed = new Date(value as string | number).getTime();
+        return Number.isNaN(parsed) ? 0 : parsed;
+      };
+
+      const sortedPayments = [...order.payments].sort((a, b) =>
+        parseTimestamp(b.updatedAt ?? b.createdAt) - parseTimestamp(a.updatedAt ?? a.createdAt)
+      );
+
+      const toCurrency = (amountMinor?: number | null) => {
+        if (typeof amountMinor !== 'number' || Number.isNaN(amountMinor)) {
+          return '0.00';
+        }
+        return (amountMinor / 100).toFixed(2);
+      };
+
+      const mapPayment = (payment: typeof sortedPayments[number]) => {
+        const amountMinor = payment.amountCapturedMinor ?? payment.amountAuthorizedMinor ?? 0;
+
+        return {
+          id: payment.id,
+          status: payment.status,
+          provider: payment.provider,
+          methodKind: payment.methodKind,
+          amount: toCurrency(amountMinor),
+          amountMinor,
+          merchantTransactionId: payment.providerPaymentId ?? payment.providerReferenceId ?? '',
+          providerPaymentId: payment.providerPaymentId ?? undefined,
+          providerTransactionId: payment.providerTransactionId ?? undefined,
+          providerReferenceId: payment.providerReferenceId ?? undefined,
+          upiPayerHandle: payment.upiPayerHandle ?? undefined,
+          upiUtr: payment.upiUtr ?? undefined,
+          receiptUrl: payment.receiptUrl ?? undefined,
+          createdAt: payment.createdAt instanceof Date ? payment.createdAt.toISOString() : payment.createdAt,
+          updatedAt: payment.updatedAt instanceof Date ? payment.updatedAt.toISOString() : payment.updatedAt,
+        };
+      };
+
+      const transactions = sortedPayments.map(mapPayment);
+      const upiTransactions = transactions.filter((txn) => txn.methodKind === 'upi');
+      const latestTransaction = upiTransactions[0] ?? transactions[0] ?? undefined;
+
+      const totalPaidMinor = sortedPayments.reduce((sum, payment) => sum + (payment.amountCapturedMinor ?? 0), 0);
+      const totalRefundedMinor = sortedPayments.reduce((sum, payment) => sum + (payment.amountRefundedMinor ?? 0), 0);
+
+      const parseDecimal = (value: unknown) => {
+        if (typeof value === 'number') return value;
+        if (typeof value === 'string') {
+          const parsed = Number(value);
+          return Number.isNaN(parsed) ? 0 : parsed;
+        }
+        return 0;
+      };
+
+      const subtotal = parseDecimal(order.subtotal);
+      const discount = parseDecimal(order.discountAmount);
+      const shipping = parseDecimal(order.shippingCharge);
+      const total = parseDecimal(order.total);
+      const taxableBase = subtotal - discount;
+      const tax = Math.max(total - shipping - taxableBase, 0);
+
+      res.json({
+        order: {
+          id: order.id,
+          status: order.status,
+          paymentStatus: order.paymentStatus,
+          paymentMethod: order.paymentMethod,
+          total: order.total,
+          shippingCharge: order.shippingCharge,
+          createdAt: order.createdAt instanceof Date ? order.createdAt.toISOString() : order.createdAt,
+          updatedAt: order.updatedAt instanceof Date ? order.updatedAt.toISOString() : order.updatedAt,
+        },
+        payment: latestTransaction
+          ? {
+              status: latestTransaction.status,
+              provider: latestTransaction.provider,
+              providerTransactionId: latestTransaction.providerTransactionId,
+              providerPaymentId: latestTransaction.providerPaymentId,
+              providerReferenceId: latestTransaction.providerReferenceId,
+              upiPayerHandle: latestTransaction.upiPayerHandle,
+              upiUtr: latestTransaction.upiUtr,
+              receiptUrl: latestTransaction.receiptUrl,
+            }
+          : null,
+        transactions,
+        latestTransaction,
+        totals: {
+          paidMinor: totalPaidMinor,
+          refundedMinor: totalRefundedMinor,
+        },
+        totalPaid: totalPaidMinor / 100,
+        totalRefunded: totalRefundedMinor / 100,
+        breakdown: {
+          subtotal,
+          discount,
+          tax,
+          shipping,
+          total,
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching order payment info:', error);
+      res.status(500).json({ error: 'Failed to fetch order payment details' });
+    }
+  });
+
   // ===== REFUND OPERATIONS =====
 
   /**
@@ -253,8 +396,15 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
    */
   router.post('/refunds', async (req, res) => {
     try {
+      const idempotencyKeyHeader = req.headers['idempotency-key'];
+      if (typeof idempotencyKeyHeader !== 'string' || idempotencyKeyHeader.trim().length === 0) {
+        return res.status(400).json({
+          error: 'Idempotency-Key header is required',
+        });
+      }
+
       const validatedData = createRefundSchema.parse(req.body);
-      
+
       const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
 
       const refundParams: CreateRefundParams = {
@@ -262,7 +412,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         amount: validatedData.amount ? Math.round(validatedData.amount * 100) : undefined, // Convert to minor units
         reason: validatedData.reason,
         notes: validatedData.notes,
-        idempotencyKey: req.headers['idempotency-key'] as string,
+        idempotencyKey: idempotencyKeyHeader.trim(),
       };
 
       const result = await paymentsService.createRefund(refundParams, tenantId);

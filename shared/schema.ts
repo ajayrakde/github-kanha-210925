@@ -123,6 +123,12 @@ export const orders = pgTable("orders", {
   currency: varchar("currency", { length: 3 }).notNull().default('INR'),
   amountMinor: integer("amount_minor").notNull(), // Amount in smallest currency unit (paise for INR)
   status: varchar("status", { length: 50 }).notNull().default('pending'), // pending|paid|partially_refunded|refunded|cancelled
+  paymentStatus: varchar("payment_status", { length: 50 })
+    .notNull()
+    .default('pending'), // pending|processing|paid|failed
+  paymentMethod: varchar("payment_method", { length: 50 })
+    .notNull()
+    .default('unselected'), // cod|upi|card|netbanking|wallet|unselected
   // Legacy fields for backward compatibility
   subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
   discountAmount: decimal("discount_amount", { precision: 10, scale: 2 }).default(sql`'0'`),
@@ -191,6 +197,8 @@ export const payments = pgTable("payments", {
   environment: varchar("environment", { length: 10 }).notNull(), // test|live
   providerPaymentId: varchar("provider_payment_id"),
   providerOrderId: varchar("provider_order_id"),
+  providerTransactionId: varchar("provider_transaction_id", { length: 255 }),
+  providerReferenceId: varchar("provider_reference_id", { length: 255 }),
   amountAuthorizedMinor: integer("amount_authorized_minor"),
   amountCapturedMinor: integer("amount_captured_minor").default(0),
   amountRefundedMinor: integer("amount_refunded_minor").default(0),
@@ -201,12 +209,20 @@ export const payments = pgTable("payments", {
   methodKind: varchar("method_kind", { length: 50 }), // card|upi|netbanking|wallet
   methodBrand: varchar("method_brand", { length: 50 }), // visa|mastercard|amex|etc
   last4: varchar("last4", { length: 4 }), // Last 4 digits of card
+  upiPayerHandle: varchar("upi_payer_handle", { length: 255 }),
+  upiUtr: varchar("upi_utr", { length: 100 }),
+  receiptUrl: text("receipt_url"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   uniqueProviderPayment: uniqueIndex("payments_provider_payment_unique")
     .on(table.provider, table.providerPaymentId)
     .where(sql`${table.providerPaymentId} IS NOT NULL`),
+  uniqueUpiCapturePerOrder: uniqueIndex("payments_upi_captured_order_unique")
+    .on(table.orderId)
+    .where(
+      sql`${table.methodKind} = 'upi' AND ${table.status} IN ('captured','completed','succeeded','success','paid')`
+    ),
 }));
 
 // Refunds table - tracks refund attempts

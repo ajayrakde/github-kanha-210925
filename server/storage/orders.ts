@@ -12,6 +12,7 @@ import {
   type Offer,
   type User,
   type UserAddress,
+  type Payment,
 } from "@shared/schema";
 import type { AbandonedCart } from "@/lib/types";
 import { db } from "../db";
@@ -70,6 +71,7 @@ export class OrdersRepository {
     items: (OrderItem & { product: Product })[];
     offer?: Offer;
     deliveryAddress: UserAddress;
+    payments: Payment[];
   }) | undefined> {
     const orderData = await db.query.orders.findFirst({
       where: eq(orders.id, id),
@@ -82,6 +84,7 @@ export class OrdersRepository {
         },
         offer: true,
         deliveryAddress: true,
+        payments: true,
       },
     });
 
@@ -89,8 +92,33 @@ export class OrdersRepository {
       ? {
           ...orderData,
           offer: orderData.offer || undefined,
+          payments: orderData.payments ?? [],
         }
       : undefined;
+  }
+
+  async getOrderWithPayments(id: string): Promise<(Order & {
+    user: User;
+    deliveryAddress: UserAddress;
+    payments: Payment[];
+  }) | null> {
+    const orderData = await db.query.orders.findFirst({
+      where: eq(orders.id, id),
+      with: {
+        user: true,
+        deliveryAddress: true,
+        payments: true,
+      },
+    });
+
+    if (!orderData) {
+      return null;
+    }
+
+    return {
+      ...orderData,
+      payments: orderData.payments ?? [],
+    };
   }
 
   async createOrder(order: InsertOrder): Promise<Order> {
@@ -115,6 +143,7 @@ export class OrdersRepository {
     items: (OrderItem & { product: Product })[];
     offer?: Offer;
     deliveryAddress: UserAddress;
+    payments: Payment[];
   })[]> {
     const ordersData = await db.query.orders.findMany({
       where: eq(orders.userId, userId),
@@ -126,6 +155,7 @@ export class OrdersRepository {
         },
         offer: true,
         deliveryAddress: true,
+        payments: true,
       },
       orderBy: desc(orders.createdAt),
     });
@@ -133,6 +163,7 @@ export class OrdersRepository {
     return ordersData.map(order => ({
       ...order,
       offer: order.offer || undefined,
+      payments: order.payments ?? [],
     }));
   }
 
