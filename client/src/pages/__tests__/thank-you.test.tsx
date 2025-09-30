@@ -92,4 +92,54 @@ describe("Thank-you page", () => {
     expect(screen.getByText(phonePeIdentifierFixture.maskedVpa)).toBeInTheDocument();
     expect(screen.getByText(phonePeIdentifierFixture.label)).toBeInTheDocument();
   });
+
+  it("renders failure state with retry action when the latest attempt failed", async () => {
+    const queryClient = new QueryClient();
+    const failedData = {
+      order: {
+        id: "order-1",
+        status: "pending",
+        paymentStatus: "failed",
+        paymentFailedAt: new Date("2024-01-01T10:00:00Z").toISOString(),
+        paymentMethod: "upi",
+        total: "499.00",
+        shippingCharge: "50.00",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      payment: null,
+      transactions: [],
+      latestTransaction: {
+        id: "txn-failed",
+        status: "failed",
+        merchantTransactionId: "MERCHANT_FAIL_123",
+      },
+      latestTransactionFailed: true,
+      latestTransactionFailureAt: new Date("2024-01-01T10:00:00Z").toISOString(),
+      totalPaid: 0,
+      totalRefunded: 0,
+    };
+
+    queryClient.setQueryData(["/api/payments/order-info", "order-1"], failedData);
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ThankYou />
+      </QueryClientProvider>
+    );
+
+    const statusBadges = await screen.findAllByTestId("badge-payment-status");
+    expect(statusBadges.some((badge) => /Failed/i.test(badge.textContent ?? ""))).toBe(true);
+    expect(screen.getByText(/Your payment could not be processed/i)).toBeInTheDocument();
+    expect(screen.getByText(/Last failed attempt recorded/i)).toBeInTheDocument();
+
+    const retryButton = screen.getByTestId("button-retry-payment");
+    expect(retryButton).toBeInTheDocument();
+
+    await act(async () => {
+      retryButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(setLocationMock).toHaveBeenCalledWith("/payment?orderId=order-1");
+  });
 });

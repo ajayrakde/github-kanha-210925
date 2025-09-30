@@ -432,4 +432,66 @@ describe("WebhookRouter.updatePaymentStatus lifecycle", () => {
     expect(result).toBe(false);
     expect(updateSpy).not.toHaveBeenCalled();
   });
+
+  it("marks PhonePe orders as failed and logs audit metadata", async () => {
+    const router = buildRouter();
+    const selectSpy = vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => ({
+          limit: vi.fn(async () => [
+            {
+              id: "pay_1",
+              orderId: "ord_1",
+              provider: "phonepe",
+              currentStatus: "PROCESSING",
+              amountAuthorizedMinor: 1000,
+              amountCapturedMinor: 0,
+            },
+          ]),
+        })),
+      })),
+    }));
+    const updateCalls: any[] = [];
+    const updateSpy = vi.fn(() => ({
+      set: vi.fn((data) => {
+        updateCalls.push(data);
+        return { where: vi.fn() };
+      }),
+    }));
+
+    transactionMock.mockImplementation(async (callback) => {
+      return await callback({
+        select: selectSpy,
+        update: updateSpy,
+        insert: vi.fn(),
+      });
+    });
+
+    const auditSpy = vi.spyOn(router as any, "logAuditEvent").mockResolvedValue();
+
+    const result = await (router as any).updatePaymentStatus(
+      "pay_1",
+      "failed",
+      { code: "PAYMENT_FAILED", message: "Declined" },
+      "default",
+      { verified: true }
+    );
+
+    expect(result).toBe(true);
+    expect(updateSpy).toHaveBeenCalledTimes(2);
+    const orderUpdate = updateCalls.find((call) => call.paymentStatus === "failed");
+    expect(orderUpdate).toBeDefined();
+    expect(orderUpdate.paymentFailedAt).toBeInstanceOf(Date);
+    expect(auditSpy).toHaveBeenCalledWith(
+      "phonepe",
+      "default",
+      "webhook.payment_failed",
+      expect.objectContaining({
+        paymentId: "pay_1",
+        orderId: "ord_1",
+        status: "failed",
+        failureCode: "PAYMENT_FAILED",
+      })
+    );
+  });
 });

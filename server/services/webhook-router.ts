@@ -36,6 +36,16 @@ import {
   normalizeUpiInstrumentVariant,
 } from "../../shared/upi";
 
+type FailureAuditRecord = {
+  provider: PaymentProvider;
+  paymentId: string;
+  orderId: string | null;
+  status: string;
+  failureCode?: string;
+  failureMessage?: string;
+  failedAt: Date;
+};
+
 /**
  * Webhook processing service
  */
@@ -316,6 +326,7 @@ export class WebhookRouter {
         orderId?: string | null;
       };
       let tamperedAudit: TamperedAudit | null = null;
+      let failureAudit: FailureAuditRecord | null = null;
 
       const updated = await db.transaction(async (trx) => {
         const [paymentRecord] = await trx
@@ -361,6 +372,16 @@ export class WebhookRouter {
           updatedAt: new Date(),
         };
         let skipOrderPromotion = false;
+
+        const failureDetails = this.extractFailureDetails(data);
+        if (nextLifecycle === 'FAILED') {
+          if (failureDetails.code) {
+            updateData.failureCode = failureDetails.code;
+          }
+          if (failureDetails.message) {
+            updateData.failureMessage = failureDetails.message;
+          }
+        }
 
         if (providerMetadata.providerPaymentId) {
           updateData.providerPaymentId = providerMetadata.providerPaymentId;
@@ -425,6 +446,38 @@ export class WebhookRouter {
           .set(updateData)
           .where(eq(payments.id, paymentRecord.id));
 
+        const shouldMarkOrderFailed =
+          paymentRecord.provider === 'phonepe' &&
+          nextLifecycle === 'FAILED' &&
+          transitionAllowed;
+
+        if (shouldMarkOrderFailed) {
+          const failedAt = new Date();
+          await trx
+            .update(orders)
+            .set({
+              paymentStatus: 'failed',
+              paymentFailedAt: failedAt,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(orders.id, paymentRecord.orderId),
+                sql`${orders.paymentStatus} <> 'paid'`
+              )
+            );
+
+          failureAudit = {
+            provider: paymentRecord.provider as PaymentProvider,
+            paymentId: paymentRecord.id,
+            orderId: paymentRecord.orderId,
+            status: normalizedStatus,
+            failureCode: failureDetails.code,
+            failureMessage: failureDetails.message,
+            failedAt,
+          };
+        }
+
         const shouldPromoteOrder =
           options?.verified === true &&
           nextLifecycle === 'COMPLETED' &&
@@ -461,11 +514,60 @@ export class WebhookRouter {
         });
       }
 
+      if (failureAudit) {
+        const auditToLog = failureAudit as FailureAuditRecord;
+        await this.logAuditEvent(auditToLog.provider, tenantId, 'webhook.payment_failed', {
+          paymentId: auditToLog.paymentId,
+          orderId: auditToLog.orderId,
+          status: auditToLog.status,
+          failureCode: auditToLog.failureCode,
+          failureMessage: auditToLog.failureMessage,
+          failedAt: auditToLog.failedAt.toISOString(),
+        });
+      }
+
       return updated;
     } catch (error) {
       console.error(`Failed to update payment ${paymentId} status:`, error);
       return false;
     }
+  }
+
+  private extractFailureDetails(payload: Record<string, any> | undefined): {
+    code?: string;
+    message?: string;
+  } {
+    if (!payload || typeof payload !== 'object') {
+      return {};
+    }
+
+    const values = [payload, payload.data].filter(
+      (candidate): candidate is Record<string, any> => typeof candidate === 'object' && candidate !== null
+    );
+
+    const pickString = (...candidates: Array<unknown>): string | undefined => {
+      for (const candidate of candidates) {
+        if (typeof candidate === 'string' && candidate.trim().length > 0) {
+          return candidate.trim();
+        }
+      }
+      return undefined;
+    };
+
+    const code = pickString(
+      ...values.map((candidate) => candidate.code),
+      ...values.map((candidate) => candidate.state),
+      ...values.map((candidate) => candidate.subCode)
+    );
+
+    const message = pickString(
+      ...values.map((candidate) => candidate.message),
+      ...values.map((candidate) => candidate.failureMessage),
+      ...values.map((candidate) => candidate.reason),
+      ...values.map((candidate) => candidate.description)
+    );
+
+    return { code, message };
   }
   
   /**
