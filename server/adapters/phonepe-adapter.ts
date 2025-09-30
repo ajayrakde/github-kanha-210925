@@ -133,6 +133,7 @@ export class PhonePeAdapter implements PaymentsAdapter {
   private readonly salt: string;
   private readonly saltIndex: number;
   private readonly webhookSecret?: string;
+  private readonly webhookAuth: PhonePeConfig["webhookAuth"];
   private readonly baseUrl: string;
   private readonly phonepeConfig: PhonePeConfig;
   private readonly defaultRedirectUrl: string;
@@ -157,6 +158,7 @@ export class PhonePeAdapter implements PaymentsAdapter {
     this.salt = config.secrets.salt || '';
     this.saltIndex = config.saltIndex || 1;
     this.webhookSecret = config.secrets.webhookSecret;
+    this.webhookAuth = this.phonepeConfig.webhookAuth;
 
     this.clientId = this.phonepeConfig.client_id;
     this.clientVersion = this.phonepeConfig.client_version;
@@ -528,25 +530,107 @@ export class PhonePeAdapter implements PaymentsAdapter {
       if (!signature) {
         return { verified: false, error: { code: 'MISSING_SIGNATURE', message: 'Missing PhonePe signature header' } };
       }
-      
+
+      const authorizationHeader = params.headers['authorization'];
+      const providedAuthHash = this.extractAuthorizationHash(authorizationHeader);
+      if (!providedAuthHash) {
+        return {
+          verified: false,
+          error: { code: 'MISSING_AUTHORIZATION', message: 'Missing webhook authorization header' },
+        };
+      }
+
+      const expectedAuthHash = this.computeWebhookAuthHash();
+      const providedBuffer = this.safeBufferFromHex(providedAuthHash);
+      const expectedBuffer = this.safeBufferFromHex(expectedAuthHash);
+
+      if (!providedBuffer || !expectedBuffer || providedBuffer.length !== expectedBuffer.length) {
+        return {
+          verified: false,
+          error: { code: 'INVALID_AUTHORIZATION', message: 'Invalid webhook authorization hash' },
+        };
+      }
+
+      let authorizationMatches = false;
+      try {
+        authorizationMatches = crypto.timingSafeEqual(providedBuffer, expectedBuffer);
+      } catch {
+        authorizationMatches = false;
+      }
+
+      if (!authorizationMatches) {
+        return {
+          verified: false,
+          error: { code: 'INVALID_AUTHORIZATION', message: 'Invalid webhook authorization hash' },
+        };
+      }
+
       // PhonePe webhook verification
       const payload = params.body.toString();
       const isValid = this.verifyWebhookSignature(payload, signature);
-      
+
       if (!isValid) {
         return { verified: false, error: { code: 'INVALID_SIGNATURE', message: 'Invalid webhook signature' } };
       }
-      
+
       // Parse webhook payload
       const webhookData = JSON.parse(payload);
-      
+
+      const eventEnvelope = typeof webhookData.event === 'object' && webhookData.event
+        ? webhookData.event
+        : undefined;
+      const eventPayload =
+        (eventEnvelope && typeof eventEnvelope.payload === 'object' && eventEnvelope.payload)
+          ? eventEnvelope.payload
+          : typeof webhookData.payload === 'object' && webhookData.payload
+            ? webhookData.payload
+            : typeof webhookData.data === 'object' && webhookData.data
+              ? webhookData.data
+              : webhookData;
+
+      const pickString = (...values: Array<unknown>): string | undefined => {
+        for (const value of values) {
+          if (typeof value === 'string' && value.trim().length > 0) {
+            return value.trim();
+          }
+        }
+        return undefined;
+      };
+
+      const eventId = pickString(eventEnvelope?.id, webhookData.eventId, webhookData.id);
+      const orderId = pickString(eventEnvelope?.orderId, (eventPayload as any)?.orderId, webhookData.orderId);
+      const transactionId = pickString(
+        eventEnvelope?.transactionId,
+        (eventPayload as any)?.transactionId,
+        (eventPayload as any)?.providerTransactionId,
+        (eventPayload as any)?.merchantTransactionId,
+        webhookData.transactionId,
+        webhookData.merchantTransactionId
+      );
+      const paymentId = pickString(
+        (eventPayload as any)?.merchantTransactionId,
+        (eventPayload as any)?.paymentId,
+        (eventPayload as any)?.providerPaymentId,
+        orderId,
+        transactionId
+      );
+      const state = pickString((eventPayload as any)?.state, eventEnvelope?.state, webhookData.state);
+
+      const normalizedStatus = state ? this.mapPaymentStatus(state.toUpperCase()) : undefined;
+      const dataPayload = typeof eventPayload === 'object' && eventPayload !== null ? eventPayload : {};
+
       return {
         verified: true,
         event: {
-          type: 'payment_status_update',
-          paymentId: webhookData.merchantTransactionId,
-          status: webhookData.data?.state,
-          data: webhookData,
+          type: pickString(eventEnvelope?.type) ?? 'payment_status_update',
+          paymentId,
+          status: normalizedStatus,
+          data: {
+            ...dataPayload,
+            eventId,
+            orderId,
+            transactionId,
+          },
         },
         providerData: webhookData,
       };
@@ -783,6 +867,41 @@ export class PhonePeAdapter implements PaymentsAdapter {
       return crypto.timingSafeEqual(Buffer.from(signatureHash, 'hex'), Buffer.from(expected, 'hex'));
     } catch {
       return false;
+    }
+  }
+
+  private computeWebhookAuthHash(): string {
+    const { username, password } = this.webhookAuth;
+    return crypto.createHash('sha256').update(`${username}:${password}`).digest('hex');
+  }
+
+  private extractAuthorizationHash(header?: string): string | null {
+    if (!header) {
+      return null;
+    }
+
+    const trimmed = header.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    const bearerMatch = trimmed.match(/^(?:Bearer|Basic)\s+(.+)$/i);
+    if (bearerMatch) {
+      return bearerMatch[1].trim();
+    }
+
+    return trimmed;
+  }
+
+  private safeBufferFromHex(value: string): Buffer | null {
+    if (!/^[0-9a-fA-F]+$/.test(value) || value.length % 2 !== 0) {
+      return null;
+    }
+
+    try {
+      return Buffer.from(value, 'hex');
+    } catch {
+      return null;
     }
   }
   

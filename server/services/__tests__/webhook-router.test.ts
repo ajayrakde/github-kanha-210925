@@ -67,16 +67,21 @@ describe("WebhookRouter.processWebhook", () => {
 
     const storeSpy = vi.spyOn(router as any, "storeWebhook").mockResolvedValue();
     const auditSpy = vi.spyOn(router as any, "logAuditEvent").mockResolvedValue();
+    const securitySpy = vi.spyOn(router as any, "logSecurityEvent").mockResolvedValue();
     vi.spyOn(router as any, "getExistingWebhook").mockResolvedValue(null);
 
     const res = createMockResponse();
     const req = {
       headers: {},
       body: {
-        eventId: "evt_1",
-        data: {
+        event: {
+          id: "evt_1",
+          orderId: "ord_1",
           transactionId: "txn_1",
-          utr: "utr_1",
+          payload: {
+            state: "PENDING",
+            utr: "utr_1",
+          },
         },
       },
     } as unknown as Request;
@@ -88,9 +93,105 @@ describe("WebhookRouter.processWebhook", () => {
       "phonepe",
       "default",
       "webhook.signature_failed",
-      expect.objectContaining({ eventId: "evt_1", transactionId: "txn_1", utr: "utr_1" })
+      expect.objectContaining({ eventId: "evt_1", orderId: "ord_1", transactionId: "txn_1", utr: "utr_1" })
     );
     expect(storeSpy).toHaveBeenCalled();
+    expect(securitySpy).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 and logs security data when authorization hash mismatches", async () => {
+    const router = buildRouter();
+    getEnabledProvidersMock.mockResolvedValue([{ provider: "phonepe" }]);
+    verifyWebhookMock.mockResolvedValue({
+      verified: false,
+      event: null,
+      error: { code: "INVALID_AUTHORIZATION", message: "bad hash" },
+    });
+
+    const storeSpy = vi.spyOn(router as any, "storeWebhook").mockResolvedValue();
+    const auditSpy = vi.spyOn(router as any, "logAuditEvent").mockResolvedValue();
+    const securitySpy = vi.spyOn(router as any, "logSecurityEvent").mockResolvedValue();
+    vi.spyOn(router as any, "getExistingWebhook").mockResolvedValue(null);
+
+    const res = createMockResponse();
+    const req = {
+      headers: { authorization: "Bearer deadbeef" },
+      body: {
+        event: {
+          id: "evt_auth",
+          orderId: "ord_auth",
+          transactionId: "txn_auth",
+          payload: { state: "FAILED" },
+        },
+      },
+    } as unknown as Request;
+
+    await router.processWebhook("phonepe", req, res);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.jsonPayload).toEqual({
+      status: "authorization_invalid",
+      message: "bad hash",
+    });
+    expect(securitySpy).toHaveBeenCalledWith(
+      "phonepe",
+      "default",
+      "webhook.auth_failed",
+      expect.objectContaining({ dedupeKey: expect.any(String), reason: "INVALID_AUTHORIZATION", orderId: "ord_auth", transactionId: "txn_auth" })
+    );
+    expect(auditSpy).not.toHaveBeenCalled();
+    expect(storeSpy).toHaveBeenCalled();
+  });
+
+  it("processes webhook successfully when authorization and signature are valid", async () => {
+    const router = buildRouter();
+    getEnabledProvidersMock.mockResolvedValue([{ provider: "phonepe" }]);
+    verifyWebhookMock.mockResolvedValue({
+      verified: true,
+      event: {
+        type: "payment_status_update",
+        paymentId: "pay_123",
+        status: "captured",
+        data: { foo: "bar" },
+      },
+    });
+
+    vi.spyOn(router as any, "getExistingWebhook").mockResolvedValue(null);
+    const storeSpy = vi.spyOn(router as any, "storeWebhook").mockResolvedValue();
+    const logEventSpy = vi.spyOn(router as any, "logWebhookEvent").mockResolvedValue();
+    const markSpy = vi.spyOn(router as any, "markWebhookProcessed").mockResolvedValue();
+    const updatePaymentSpy = vi.spyOn(router as any, "updatePaymentStatus").mockResolvedValue(true);
+    const securitySpy = vi.spyOn(router as any, "logSecurityEvent").mockResolvedValue();
+
+    const res = createMockResponse();
+    const req = {
+      headers: { authorization: "Bearer goodhash" },
+      body: {
+        event: {
+          id: "evt_success",
+          orderId: "ord_success",
+          transactionId: "txn_success",
+          payload: { state: "COMPLETED" },
+        },
+      },
+    } as unknown as Request;
+
+    const result = await router.processWebhook("phonepe", req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.jsonPayload?.status).toBe("processed");
+    expect(result.processed).toBe(true);
+    expect(storeSpy).toHaveBeenCalledWith(
+      "phonepe",
+      expect.any(String),
+      true,
+      "default",
+      expect.objectContaining({ headers: expect.any(Object) })
+    );
+    expect(logEventSpy).toHaveBeenCalled();
+    expect(markSpy).toHaveBeenCalled();
+    expect(updatePaymentSpy).toHaveBeenCalledWith("pay_123", "captured", expect.any(Object), "default");
+    expect(securitySpy).not.toHaveBeenCalled();
   });
 
   it("acknowledges replayed events without invoking the adapter", async () => {
@@ -103,8 +204,12 @@ describe("WebhookRouter.processWebhook", () => {
     const req = {
       headers: {},
       body: {
-        eventId: "evt_2",
-        data: { transactionId: "txn_2" },
+        event: {
+          id: "evt_2",
+          orderId: "ord_2",
+          transactionId: "txn_2",
+          payload: { state: "PENDING" },
+        },
       },
     } as unknown as Request;
 
@@ -117,7 +222,7 @@ describe("WebhookRouter.processWebhook", () => {
       "phonepe",
       "default",
       "webhook.replayed",
-      expect.objectContaining({ eventId: "evt_2", transactionId: "txn_2" })
+      expect.objectContaining({ eventId: "evt_2", orderId: "ord_2", transactionId: "txn_2" })
     );
     expect(verifyWebhookMock).not.toHaveBeenCalled();
   });
