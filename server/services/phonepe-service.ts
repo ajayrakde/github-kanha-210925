@@ -1,10 +1,15 @@
 import crypto from 'crypto';
+import type { Environment, PhonePeConfig } from '../../shared/payment-providers';
 
 export interface PhonePeCredentials {
-  merchantId: string;
   saltKey: string;
   saltIndex: number;
-  apiHost: string; // sandbox or production URL
+}
+
+export interface PhonePeServiceOptions {
+  config: PhonePeConfig;
+  credentials: PhonePeCredentials;
+  environment: Environment;
 }
 
 export interface PaymentRequest {
@@ -57,10 +62,18 @@ export interface PaymentStatusResponse {
 }
 
 export class PhonePeService {
-  private credentials: PhonePeCredentials;
+  private readonly config: PhonePeConfig;
+  private readonly credentials: PhonePeCredentials;
+  private readonly environment: Environment;
+  private readonly apiHost: string;
 
-  constructor(credentials: PhonePeCredentials) {
-    this.credentials = credentials;
+  constructor(options: PhonePeServiceOptions) {
+    this.config = options.config;
+    this.credentials = options.credentials;
+    this.environment = options.environment;
+    this.apiHost = this.environment === 'live'
+      ? this.config.hosts.prod
+      : this.config.hosts.uat;
   }
 
   /**
@@ -83,11 +96,11 @@ export class PhonePeService {
   async createPayment(paymentData: PaymentRequest): Promise<PaymentResponse> {
     try {
       const requestPayload = {
-        merchantId: this.credentials.merchantId,
+        merchantId: this.config.merchantId,
         merchantTransactionId: paymentData.merchantTransactionId,
         merchantUserId: paymentData.merchantUserId,
         amount: paymentData.amount,
-        redirectUrl: paymentData.redirectUrl,
+        redirectUrl: paymentData.redirectUrl || this.config.redirectUrl,
         redirectMode: paymentData.redirectMode,
         callbackUrl: paymentData.callbackUrl,
         mobileNumber: paymentData.mobileNumber,
@@ -103,7 +116,7 @@ export class PhonePeService {
       const endpoint = '/pg/v1/pay';
       const xVerifyHeader = this.generateXVerifyHeader(base64Payload, endpoint);
 
-      const response = await fetch(`${this.credentials.apiHost}${endpoint}`, {
+      const response = await fetch(`${this.apiHost}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -135,14 +148,14 @@ export class PhonePeService {
    */
   async checkPaymentStatus(merchantTransactionId: string): Promise<PaymentStatusResponse> {
     try {
-      const endpoint = `/pg/v1/status/${this.credentials.merchantId}/${merchantTransactionId}`;
+      const endpoint = `/pg/v1/status/${this.config.merchantId}/${merchantTransactionId}`;
       
       // For status check, we need to hash the endpoint + salt key (no payload)
       const stringToHash = endpoint + this.credentials.saltKey;
       const sha256Hash = crypto.createHash('sha256').update(stringToHash).digest('hex');
       const xVerifyHeader = `${sha256Hash}###${this.credentials.saltIndex}`;
 
-      const response = await fetch(`${this.credentials.apiHost}${endpoint}`, {
+      const response = await fetch(`${this.apiHost}${endpoint}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

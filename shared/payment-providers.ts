@@ -18,6 +18,22 @@ export type PaymentProvider = z.infer<typeof PaymentProviderEnum>;
 export const EnvironmentEnum = z.enum(['test', 'live']);
 export type Environment = z.infer<typeof EnvironmentEnum>;
 
+export interface PhonePeConfig {
+  client_id: string;
+  client_secret: string;
+  client_version: string;
+  merchantId: string;
+  webhookAuth: {
+    username: string;
+    password: string;
+  };
+  redirectUrl: string;
+  hosts: {
+    uat: string;
+    prod: string;
+  };
+}
+
 // Capability matrix interface
 export interface ProviderCapabilities {
   cards: boolean;
@@ -165,8 +181,30 @@ export const providerSecretKeys: Record<PaymentProvider, {
     live: ['PAYAPP_LIVE_BILLDESK_CHECKSUM_KEY'],
   },
   phonepe: {
-    test: ['PAYAPP_TEST_PHONEPE_SALT', 'PAYAPP_TEST_PHONEPE_WEBHOOK_SECRET'],
-    live: ['PAYAPP_LIVE_PHONEPE_SALT', 'PAYAPP_LIVE_PHONEPE_WEBHOOK_SECRET'],
+    test: [
+      'PAYAPP_TEST_PHONEPE_SALT',
+      'PAYAPP_TEST_PHONEPE_WEBHOOK_SECRET',
+      'PAYAPP_TEST_PHONEPE_CLIENT_ID',
+      'PAYAPP_TEST_PHONEPE_CLIENT_SECRET',
+      'PAYAPP_TEST_PHONEPE_CLIENT_VERSION',
+      'PAYAPP_TEST_PHONEPE_WEBHOOK_USERNAME',
+      'PAYAPP_TEST_PHONEPE_WEBHOOK_PASSWORD',
+      'PAYAPP_TEST_PHONEPE_HOST_UAT',
+      'PAYAPP_TEST_PHONEPE_HOST_PROD',
+      'PAYAPP_TEST_PHONEPE_REDIRECT_URL',
+    ],
+    live: [
+      'PAYAPP_LIVE_PHONEPE_SALT',
+      'PAYAPP_LIVE_PHONEPE_WEBHOOK_SECRET',
+      'PAYAPP_LIVE_PHONEPE_CLIENT_ID',
+      'PAYAPP_LIVE_PHONEPE_CLIENT_SECRET',
+      'PAYAPP_LIVE_PHONEPE_CLIENT_VERSION',
+      'PAYAPP_LIVE_PHONEPE_WEBHOOK_USERNAME',
+      'PAYAPP_LIVE_PHONEPE_WEBHOOK_PASSWORD',
+      'PAYAPP_LIVE_PHONEPE_HOST_UAT',
+      'PAYAPP_LIVE_PHONEPE_HOST_PROD',
+      'PAYAPP_LIVE_PHONEPE_REDIRECT_URL',
+    ],
   },
   stripe: {
     test: ['PAYAPP_TEST_STRIPE_SECRET_KEY', 'PAYAPP_TEST_STRIPE_WEBHOOK_SECRET'],

@@ -5,7 +5,7 @@
  * to provide complete provider configuration for payment adapters.
  */
 
-import type { PaymentProvider, Environment } from "../../shared/payment-providers";
+import type { PaymentProvider, Environment, PhonePeConfig } from "../../shared/payment-providers";
 import type { GatewayConfig } from "../../shared/payment-types";
 import { ConfigurationError } from "../../shared/payment-types";
 import { secretsResolver, ProviderSecrets } from "../utils/secrets-resolver";
@@ -42,6 +42,9 @@ export interface ResolvedConfig {
   // Capabilities and metadata
   capabilities: Record<string, boolean>;
   metadata: Record<string, any>;
+
+  // Provider specific configs
+  phonepeConfig?: PhonePeConfig;
   
   // Validation status
   isValid: boolean;
@@ -108,6 +111,10 @@ export class ConfigResolver {
     }
 
     const validation = secretsResolver.validateSecrets(provider, environment);
+    const phonepeConfig =
+      provider === 'phonepe' && isEnabled
+        ? this.buildPhonePeConfig(environment, dbConfig, secrets)
+        : undefined;
 
     // Combine configuration
     const resolvedConfig: ResolvedConfig = {
@@ -136,10 +143,13 @@ export class ConfigResolver {
       // Capabilities and metadata
       capabilities: (dbConfig?.capabilities as Record<string, boolean> | null) ?? {},
       metadata: (dbConfig?.metadata as Record<string, any> | null) ?? {},
-      
+
       // Validation
       isValid: validation.isValid && (dbConfig?.isEnabled ?? false),
       missingSecrets: validation.missingSecrets,
+
+      // Provider specific configs
+      phonepeConfig,
     };
     
     // Cache the resolved config
@@ -177,7 +187,7 @@ export class ConfigResolver {
    */
   public async getEnabledProviders(environment: Environment, tenantId: string = "default"): Promise<ResolvedConfig[]> {
     const allProviders: PaymentProvider[] = [
-      'razorpay', 'payu', 'ccavenue', 'cashfree', 
+      'razorpay', 'payu', 'ccavenue', 'cashfree',
       'paytm', 'billdesk', 'phonepe', 'stripe'
     ];
     
@@ -221,6 +231,85 @@ export class ConfigResolver {
     }
 
     return enabledProviders;
+  }
+
+  private buildPhonePeConfig(
+    environment: Environment,
+    dbConfig: Awaited<ReturnType<ConfigResolver["getDbConfig"]>>,
+    secrets: ProviderSecrets
+  ): PhonePeConfig {
+    const phonepeSecrets = secrets.phonepe;
+
+    if (!phonepeSecrets) {
+      throw new ConfigurationError(
+        'PhonePe secrets bundle is missing required configuration',
+        'phonepe'
+      );
+    }
+
+    const merchantId = this.pickPhonePeValue(
+      'merchantId',
+      [
+        { source: 'database' as const, value: dbConfig?.merchantId },
+        { source: 'environment' as const, value: phonepeSecrets.merchantId },
+      ],
+      [
+        'payment_provider_config.merchantId',
+        `PAYAPP_${environment.toUpperCase()}_PHONEPE_MERCHANT_ID`,
+      ]
+    );
+
+    const redirectUrl = this.pickPhonePeValue(
+      'redirectUrl',
+      [
+        { source: 'database' as const, value: dbConfig?.successUrl },
+        { source: 'environment' as const, value: phonepeSecrets.redirectUrl },
+      ],
+      [
+        'payment_provider_config.successUrl',
+        `PAYAPP_${environment.toUpperCase()}_PHONEPE_REDIRECT_URL`,
+      ]
+    );
+
+    return {
+      client_id: phonepeSecrets.client_id,
+      client_secret: phonepeSecrets.client_secret,
+      client_version: phonepeSecrets.client_version,
+      merchantId,
+      webhookAuth: phonepeSecrets.webhookAuth,
+      redirectUrl,
+      hosts: phonepeSecrets.hosts,
+    };
+  }
+
+  private pickPhonePeValue(
+    field: keyof Pick<PhonePeConfig, 'merchantId' | 'redirectUrl'>,
+    sources: Array<{ source: 'database' | 'environment'; value?: string | null }>,
+    missingKeys: string[]
+  ): string {
+    const available = sources
+      .map(({ source, value }) => ({
+        source,
+        value: typeof value === 'string' ? value.trim() : undefined,
+      }))
+      .filter((entry): entry is { source: 'database' | 'environment'; value: string } => !!entry.value);
+
+    if (available.length === 0) {
+      throw new ConfigurationError(
+        `Missing PhonePe ${field}. Configure it via ${missingKeys.join(' or ')}.`,
+        'phonepe',
+        missingKeys
+      );
+    }
+
+    if (available.length > 1) {
+      throw new ConfigurationError(
+        `PhonePe ${field} is defined in multiple sources (${available.map(({ source }) => source).join(', ')}).`,
+        'phonepe'
+      );
+    }
+
+    return available[0].value;
   }
   
   /**
