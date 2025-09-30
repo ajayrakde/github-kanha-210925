@@ -1,4 +1,5 @@
 import type { Environment, PhonePeConfig } from '../../shared/payment-providers';
+import { resolvePhonePeHost } from './phonepe-host';
 
 interface PhonePeAuthorizationResponse {
   accessToken: string;
@@ -146,9 +147,7 @@ export class PhonePeTokenManager {
   }
 
   private buildAuthorizationUrl(): string {
-    const baseUrl = this.environment === 'live'
-      ? this.config.hosts.prod
-      : this.config.hosts.uat;
+    const baseUrl = resolvePhonePeHost(this.config, this.environment);
 
     return `${baseUrl.replace(/\/$/, '')}/v3/authorization/oauth/token`;
   }

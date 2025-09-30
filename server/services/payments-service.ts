@@ -767,11 +767,24 @@ export class PaymentsService {
       });
 
       const paymentOrderId = existingPayment?.orderId;
-      if (
+      let shouldPromoteOrder =
         paymentOrderId &&
         nextLifecycle === 'completed' &&
-        event.type === 'payment_verified'
-      ) {
+        event.type === 'payment_verified';
+
+      if (shouldPromoteOrder) {
+        const [orderRecord] = await trx
+          .select({ paymentStatus: orders.paymentStatus })
+          .from(orders)
+          .where(eq(orders.id, paymentOrderId))
+          .limit(1);
+
+        if (orderRecord?.paymentStatus === 'paid') {
+          shouldPromoteOrder = false;
+        }
+      }
+
+      if (shouldPromoteOrder) {
         await trx
           .update(orders)
           .set({

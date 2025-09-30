@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import type { Environment, PhonePeConfig } from '../../shared/payment-providers';
 import { PhonePeTokenManager } from './phonepe-token-manager';
+import { resolvePhonePeHost } from './phonepe-host';
 
 export interface PhonePeCredentials {
   saltKey: string;
@@ -75,9 +76,7 @@ export class PhonePeService {
     this.credentials = options.credentials;
     this.environment = options.environment;
     this.tokenManager = options.tokenManager;
-    this.apiHost = this.environment === 'live'
-      ? this.config.hosts.prod
-      : this.config.hosts.uat;
+    this.apiHost = resolvePhonePeHost(this.config, this.environment);
   }
 
   /**

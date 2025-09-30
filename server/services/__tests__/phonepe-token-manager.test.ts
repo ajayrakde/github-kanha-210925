@@ -16,6 +16,7 @@ const baseConfig: PhonePeConfig = {
     uat: 'https://uat.phonepe.example',
     prod: 'https://prod.phonepe.example',
   },
+  activeHost: undefined,
 };
 
 describe('PhonePeTokenManager', () => {
@@ -49,6 +50,29 @@ describe('PhonePeTokenManager', () => {
     expect(firstToken).toBe('token-1');
     expect(secondToken).toBe('token-1');
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('honors activeHost overrides when selecting the authorization endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ accessToken: 'token-override', expiresIn: 600 }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+
+    const customHost = 'https://sandbox-overrides.phonepe.example/base/';
+    const manager = new PhonePeTokenManager({
+      config: { ...baseConfig, activeHost: customHost },
+      environment: 'live',
+      fetchFn: fetchMock,
+    });
+
+    await manager.getAccessToken(true);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://sandbox-overrides.phonepe.example/base/v3/authorization/oauth/token',
+      expect.objectContaining({ method: 'POST' })
+    );
   });
 
   it('refreshes the token within the pre-expiry window', async () => {

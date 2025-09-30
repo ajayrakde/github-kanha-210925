@@ -250,12 +250,17 @@ describe("PaymentsService.updateStoredPayment lifecycle", () => {
   it("promotes the order only when a verified completed result is processed", async () => {
     const updateSpy = vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) }));
     const eventInsertSpy = vi.fn();
+    let selectCall = 0;
     const selectSpy = vi.fn(() => ({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
-          limit: vi.fn(async () => [
-            { orderId: "ord_1", currentStatus: "processing" },
-          ]),
+          limit: vi.fn(async () => {
+            selectCall += 1;
+            if (selectCall === 1) {
+              return [{ orderId: "ord_1", currentStatus: "processing" }];
+            }
+            return [{ paymentStatus: "pending" }];
+          }),
         })),
       })),
     }));
@@ -283,12 +288,17 @@ describe("PaymentsService.updateStoredPayment lifecycle", () => {
   it("allows verified completion replays to promote the order", async () => {
     const updateSpy = vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) }));
     const eventInsertSpy = vi.fn();
+    let selectCall = 0;
     const selectSpy = vi.fn(() => ({
       from: vi.fn(() => ({
         where: vi.fn(() => ({
-          limit: vi.fn(async () => [
-            { orderId: "ord_1", currentStatus: "captured" },
-          ]),
+          limit: vi.fn(async () => {
+            selectCall += 1;
+            if (selectCall === 1) {
+              return [{ orderId: "ord_1", currentStatus: "captured" }];
+            }
+            return [{ paymentStatus: "pending" }];
+          }),
         })),
       })),
     }));
