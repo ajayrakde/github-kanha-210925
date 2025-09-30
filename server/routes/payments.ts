@@ -5,6 +5,7 @@
  * provider adapters, and unified interfaces for all 8 providers.
  */
 
+import { randomUUID } from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import type { SessionRequest, RequireAdminMiddleware } from './types';
@@ -52,6 +53,21 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     failureUrl: z.string().url().optional(),
     description: z.string().optional(),
     metadata: z.record(z.any()).default({}),
+  });
+
+  const tokenUrlSchema = z.object({
+    orderId: z.string().min(1, 'Order ID is required'),
+    amount: z.number().min(1, 'Amount must be greater than 0'),
+    currency: z.enum(['INR', 'USD', 'EUR', 'GBP']).default('INR'),
+    customer: z.object({
+      name: z.string().optional(),
+      email: z.string().email().optional(),
+      phone: z.string().optional(),
+    }).default({}),
+    mobileNumber: z.string().optional(),
+    redirectUrl: z.string().url().optional(),
+    callbackUrl: z.string().url().optional(),
+    metadata: z.record(z.any()).optional(),
   });
 
   const verifyPaymentSchema = z.object({
@@ -166,6 +182,84 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       res.status(500).json({
         error: 'Payment creation failed',
         message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  /**
+   * Create a PhonePe checkout token URL for iframe-based flows
+   * POST /api/payments/token-url
+   */
+  router.post('/token-url', async (req, res) => {
+    try {
+      const validatedData = tokenUrlSchema.parse(req.body);
+
+      const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+      const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+
+      const successUrl = validatedData.redirectUrl || `${baseUrl}/payment/success`;
+      const failureUrl = validatedData.redirectUrl || `${baseUrl}/payment/failed`;
+      const cancelUrl = validatedData.redirectUrl || `${baseUrl}/payment/failed`;
+
+      const paymentParams: CreatePaymentParams = {
+        orderId: validatedData.orderId,
+        orderAmount: Math.round(validatedData.amount * 100),
+        currency: validatedData.currency,
+        customer: {
+          ...validatedData.customer,
+          phone: validatedData.mobileNumber || validatedData.customer.phone,
+        },
+        successUrl,
+        failureUrl,
+        cancelUrl,
+        metadata: {
+          ...validatedData.metadata,
+          phonepeCallbackUrl: validatedData.callbackUrl,
+          createdVia: 'token-url',
+        },
+        idempotencyKey: randomUUID(),
+      };
+
+      const result = await paymentsService.createPayment(
+        paymentParams,
+        tenantId,
+        'phonepe'
+      );
+
+      if (!result.redirectUrl) {
+        return res.status(502).json({
+          error: 'PhonePe token URL not available from provider response',
+        });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          tokenUrl: result.redirectUrl,
+          paymentId: result.paymentId,
+          merchantTransactionId: result.providerPaymentId || result.providerOrderId || '',
+        },
+      });
+    } catch (error) {
+      console.error('PhonePe token URL error:', error);
+
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          error: 'Invalid request data',
+          details: error.errors,
+        });
+      }
+
+      if (error instanceof PaymentError) {
+        return res.status(400).json({
+          error: error.message,
+          code: error.code,
+        });
+      }
+
+      res.status(500).json({
+        error: 'Failed to create PhonePe token URL',
+        message: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   });

@@ -39,6 +39,7 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - Incoming PhonePe callbacks/webhooks now reconcile the captured amount against the original authorization, logging and suppressing mismatched payloads while still acknowledging replays so buyers never see duplicate confirmations from tampered notifications.
    - The payment controller now requires an `Idempotency-Key` header for `POST /api/payments/create` and `/api/payments/refunds`, caching the first successful attempt so rapid retries return the same response instead of initiating duplicate charges.
    - Captured UPI payments are guarded both at the service layer and with a database uniqueness constraint so a second PhonePe attempt for the same order returns a clear `UPI_PAYMENT_ALREADY_CAPTURED` error instead of racing a duplicate transaction.
+   - PhonePe iframe checkouts now call `/api/payments/token-url`, which wraps the generic create-payment service to return the provider's PayPage URL and merchant transaction ID for the embedded `PhonePeCheckout.transact` flow.
    - `/api/payments/order-info/:orderId` aggregates the order totals, shipping/tax breakdown, and the latest UPI identifiers (transaction id, UTR, VPA, receipt link) so the Thank-you and order history screens stay in sync with webhook-driven updates.
 
 6. **Shipping Charges**  
