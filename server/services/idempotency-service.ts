@@ -75,7 +75,7 @@ export class IdempotencyServiceImpl implements IdempotencyService {
       const requestHash = crypto.createHash('sha256')
         .update(JSON.stringify({ key, scope, response }))
         .digest('hex');
-      
+
       await db.insert(idempotencyKeys).values({
         key,
         scope,
@@ -83,19 +83,37 @@ export class IdempotencyServiceImpl implements IdempotencyService {
         response,
         createdAt: new Date(),
       });
-      
+
     } catch (error) {
       // If key already exists (race condition), ignore the error
       if (error instanceof Error && error.message.includes('duplicate key')) {
         console.log(`Idempotency key ${key} already exists, ignoring duplicate`);
         return;
       }
-      
+
       console.error('Error storing idempotency key:', error);
       throw error;
     }
   }
-  
+
+  /**
+   * Invalidate a stored idempotency key so future attempts can re-run safely
+   */
+  public async invalidateKey(key: string, scope: string): Promise<void> {
+    try {
+      await db
+        .delete(idempotencyKeys)
+        .where(
+          and(
+            eq(idempotencyKeys.key, key),
+            eq(idempotencyKeys.scope, scope)
+          )
+        );
+    } catch (error) {
+      console.error('Error invalidating idempotency key:', error);
+    }
+  }
+
   /**
    * Execute operation with idempotency protection
    */
