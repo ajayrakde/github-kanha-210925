@@ -126,6 +126,9 @@ export default function ThankYou() {
   const [, setLocation] = useLocation();
   const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [orderId, setOrderId] = useState<string>("");
+  const [shouldStartPolling, setShouldStartPolling] = useState(false);
+  const [reconciliationStatus, setReconciliationStatus] = useState<'idle' | 'processing' | 'complete'>('idle');
+  const [reconciliationMessage, setReconciliationMessage] = useState<string | null>(null);
   const [orderDate] = useState(new Date().toLocaleDateString('en-IN', {
     year: 'numeric',
     month: 'long',
@@ -149,15 +152,86 @@ export default function ThankYou() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!orderId || shouldStartPolling) {
+      return;
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasPhonePeIndicators = ['merchantTransactionId', 'providerReferenceId', 'state', 'code', 'checksum', 'amount']
+      .some((key) => Boolean(urlParams.get(key)));
+    const shouldProbeReturn = isUpiMethod(orderData?.paymentMethod) || hasPhonePeIndicators;
+
+    if (!shouldProbeReturn) {
+      setReconciliationStatus('complete');
+      setShouldStartPolling(true);
+      return;
+    }
+
+    let cancelled = false;
+    const probe = async () => {
+      try {
+        setReconciliationStatus('processing');
+        const query = new URLSearchParams({ orderId });
+        ['merchantTransactionId', 'providerReferenceId', 'state', 'code', 'checksum', 'amount'].forEach((key) => {
+          const value = urlParams.get(key);
+          if (value) {
+            query.set(key, value);
+          }
+        });
+
+        const response = await fetch(`/api/payments/phonepe/return?${query.toString()}`, {
+          headers: { Accept: 'application/json' },
+        });
+
+        if (!response.ok) {
+          throw new Error(`Return probe failed with status ${response.status}`);
+        }
+
+        const payload = await response.json();
+        if (cancelled) {
+          return;
+        }
+
+        if (payload?.status === 'processing') {
+          setReconciliationStatus('processing');
+          setReconciliationMessage(
+            payload?.message ??
+              'We are waiting for PhonePe to confirm your payment. This usually takes a few moments.'
+          );
+        } else {
+          setReconciliationStatus('complete');
+          setReconciliationMessage(null);
+        }
+      } catch (error) {
+        console.error('Failed to record PhonePe return:', error);
+        if (!cancelled) {
+          setReconciliationStatus('processing');
+          setReconciliationMessage('We are waiting for PhonePe to confirm your payment. This usually takes a few moments.');
+        }
+      } finally {
+        if (!cancelled) {
+          setShouldStartPolling(true);
+        }
+      }
+    };
+
+    probe();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [orderId, orderData?.paymentMethod, shouldStartPolling]);
+
   // Fetch real-time payment status information
   const { data: paymentInfo, isLoading: isLoadingPayment } = useQuery<PaymentStatusInfo>({
     queryKey: ["/api/payments/order-info", orderId],
-    enabled: Boolean(orderId),
+    enabled: Boolean(orderId) && shouldStartPolling,
     refetchInterval: (queryData) => {
       // Stop polling on terminal states
       const data = queryData?.state?.data as PaymentStatusInfo | undefined;
-      if (data?.latestTransaction?.status === 'completed' || 
-          data?.latestTransaction?.status === 'failed' || 
+      if (data?.latestTransaction?.status === 'completed' ||
+          data?.latestTransaction?.status === 'failed' ||
           data?.order?.paymentStatus === 'paid') {
         return false;
       }
@@ -169,9 +243,27 @@ export default function ThankYou() {
     retry: false
   });
 
+  useEffect(() => {
+    const normalized = normalizeStatus(paymentInfo?.order?.paymentStatus);
+    if (['paid', 'completed', 'failed'].includes(normalized)) {
+      setReconciliationStatus('complete');
+      setReconciliationMessage(null);
+    }
+  }, [paymentInfo]);
+
   // Get the current order data - prioritize paymentInfo data over sessionStorage
   const currentOrderData = paymentInfo?.order || orderData;
-  const currentPaymentStatus = paymentInfo?.order?.paymentStatus || 'pending';
+  const paymentStatusFromOrder = paymentInfo?.order?.paymentStatus;
+  const normalizedPaymentStatus = normalizeStatus(paymentStatusFromOrder);
+  const currentPaymentStatus = (() => {
+    if (paymentStatusFromOrder && normalizedPaymentStatus && normalizedPaymentStatus !== 'pending') {
+      return paymentStatusFromOrder;
+    }
+    if (reconciliationStatus === 'processing') {
+      return 'processing';
+    }
+    return paymentStatusFromOrder || 'pending';
+  })();
   const currentOrderStatus = paymentInfo?.order?.status || 'pending';
   const latestTransaction = paymentInfo?.latestTransaction;
 
@@ -381,18 +473,21 @@ export default function ThankYou() {
               <span className="font-medium">Payment Status:</span>
             </div>
             <div className="flex items-center gap-2">
-              {isLoadingPayment ? (
+              {isLoadingPayment && shouldStartPolling ? (
                 <div className="flex items-center gap-1">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span className="text-sm">Checking...</span>
                 </div>
-              ) : paymentInfo?.order ? (
-                <PaymentStatusBadge status={paymentInfo.order.paymentStatus} data-testid="badge-payment-status" />
               ) : (
-                <PaymentStatusBadge status="pending" data-testid="badge-payment-status" />
+                <PaymentStatusBadge status={currentPaymentStatus} data-testid="badge-payment-status" />
               )}
             </div>
           </div>
+          {reconciliationStatus === 'processing' && reconciliationMessage && (
+            <p className="text-xs text-gray-500 text-right mt-1" data-testid="text-reconciliation-message">
+              {reconciliationMessage}
+            </p>
+          )}
 
           {/* Transaction Info for UPI payments */}
           {isUpiMethod(displayOrderData.paymentMethod) && latestTransaction && (

@@ -16,11 +16,13 @@ import { adapterFactory } from '../services/adapter-factory';
 import { idempotencyService } from '../services/idempotency-service';
 import { ordersRepository } from '../storage';
 import { PaymentError } from '../../shared/payment-types';
-import type { 
+import type {
   CreatePaymentParams,
   CreateRefundParams
 } from '../../shared/payment-types';
 import type { PaymentProvider, Environment } from '../../shared/payment-providers';
+import { db } from '../db';
+import { paymentEvents } from '../../shared/schema';
 
 export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   const router = Router();
@@ -80,6 +82,16 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     amount: z.number().positive().optional(),
     reason: z.string().optional(),
     notes: z.string().optional(),
+  });
+
+  const phonePeReturnSchema = z.object({
+    orderId: z.string().min(1, 'Order ID is required'),
+    merchantTransactionId: z.string().min(1).optional(),
+    providerReferenceId: z.string().min(1).optional(),
+    amount: z.coerce.number().nonnegative().optional(),
+    state: z.string().optional(),
+    code: z.string().optional(),
+    checksum: z.string().optional(),
   });
 
   const providerConfigSchema = z.object({
@@ -265,10 +277,78 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   });
 
   /**
+   * PhonePe redirect return handler
+   * GET /api/payments/phonepe/return
+   */
+  router.get('/phonepe/return', async (req, res) => {
+    const parsed = phonePeReturnSchema.safeParse(req.query);
+
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Invalid PhonePe return payload',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const {
+      orderId,
+      merchantTransactionId,
+      providerReferenceId,
+      amount,
+      state,
+      code,
+      checksum,
+    } = parsed.data;
+
+    const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+    const eventId = randomUUID();
+    const occurredAt = new Date();
+
+    try {
+      const normalizedState = typeof state === 'string' ? state.toUpperCase() : undefined;
+      const eventDataEntries = Object.entries({
+        orderId,
+        merchantTransactionId,
+        providerReferenceId,
+        amount,
+        state: normalizedState,
+        code,
+        checksum,
+        status: 'processing',
+        reason: 'awaiting_webhook',
+      }).filter(([, value]) => value !== undefined && value !== null);
+
+      await db.insert(paymentEvents).values({
+        id: eventId,
+        tenantId,
+        paymentId: null,
+        provider: 'phonepe',
+        type: 'phonepe.return.processing',
+        data: Object.fromEntries(eventDataEntries),
+        occurredAt,
+      });
+
+      res.json({
+        status: 'processing',
+        orderId,
+        reconciliation: {
+          shouldPoll: true,
+          reason: 'PENDING_WEBHOOK',
+          eventId,
+        },
+        message: 'PhonePe is processing the payment. We will confirm once their webhook arrives.',
+      });
+    } catch (error) {
+      console.error('PhonePe return handling error:', error);
+      res.status(500).json({ error: 'Failed to record PhonePe return' });
+    }
+  });
+
+  /**
    * Verify a payment
    * POST /api/payments/verify
    */
-    router.post('/verify', async (req, res) => {
+  router.post('/verify', async (req, res) => {
       try {
         const validatedData = verifyPaymentSchema.parse(req.body);
 
