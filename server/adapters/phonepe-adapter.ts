@@ -40,6 +40,20 @@ interface PhonePePaymentRequest {
   redirectUrl: string;
   redirectMode: string;
   callbackUrl?: string;
+  paymentFlow: {
+    type: 'PG_CHECKOUT';
+  };
+  expireAfter: number;
+  paymentModeConfig: {
+    paymentModes: Array<{
+      paymentMode: 'UPI';
+      enabled: boolean;
+      paymentInstruments: Array<{
+        type: 'UPI_COLLECT' | 'UPI_QR' | 'UPI_INTENT';
+        enabled: boolean;
+      }>;
+    }>;
+  };
   paymentInstrument: {
     type: 'UPI_COLLECT' | 'UPI_QR' | 'UPI_INTENT';
     targetApp?: string;
@@ -110,7 +124,11 @@ interface PhonePeRefundResponse {
 export class PhonePeAdapter implements PaymentsAdapter {
   public readonly provider: PaymentProvider = 'phonepe';
   public readonly environment: Environment;
-  
+
+  private static readonly MIN_EXPIRY_SECONDS = 300;
+  private static readonly MAX_EXPIRY_SECONDS = 3600;
+  private static readonly DEFAULT_EXPIRY_SECONDS = 900;
+
   private readonly merchantId: string;
   private readonly salt: string;
   private readonly saltIndex: number;
@@ -173,14 +191,37 @@ export class PhonePeAdapter implements PaymentsAdapter {
   public async createPayment(params: CreatePaymentParams): Promise<PaymentResult> {
     try {
       const merchantTransactionId = `TXN_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
+
+      const requestedExpiry = params.providerOptions?.phonepe?.expireAfter
+        ?? params.providerOptions?.phonepe?.expireAfterSeconds;
+      const expireAfter = this.clampExpireAfter(requestedExpiry);
+
+      const amountInPaise = Math.round(params.orderAmount);
+
       const paymentRequest: PhonePePaymentRequest = {
         merchantTransactionId,
         merchantId: this.merchantId,
-        amount: params.orderAmount, // Amount in paise
+        amount: amountInPaise, // Amount in paise
         redirectUrl: params.successUrl || this.defaultRedirectUrl,
         redirectMode: 'POST',
         callbackUrl: params.successUrl || this.defaultRedirectUrl,
+        paymentFlow: {
+          type: 'PG_CHECKOUT',
+        },
+        expireAfter,
+        paymentModeConfig: {
+          paymentModes: [
+            {
+              paymentMode: 'UPI',
+              enabled: true,
+              paymentInstruments: [
+                { type: 'UPI_INTENT', enabled: true },
+                { type: 'UPI_COLLECT', enabled: true },
+                { type: 'UPI_QR', enabled: true },
+              ],
+            },
+          ],
+        },
         paymentInstrument: {
           type: 'UPI_COLLECT', // Default to UPI collect
         },
@@ -692,7 +733,28 @@ export class PhonePeAdapter implements PaymentsAdapter {
 
     return parsedBody as T;
   }
-  
+
+  private clampExpireAfter(value: unknown): number {
+    const numeric = typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+        ? Number(value)
+        : undefined;
+
+    if (numeric === undefined || !Number.isFinite(numeric)) {
+      return PhonePeAdapter.DEFAULT_EXPIRY_SECONDS;
+    }
+
+    const rounded = Math.floor(numeric);
+    if (rounded < PhonePeAdapter.MIN_EXPIRY_SECONDS) {
+      return PhonePeAdapter.MIN_EXPIRY_SECONDS;
+    }
+    if (rounded > PhonePeAdapter.MAX_EXPIRY_SECONDS) {
+      return PhonePeAdapter.MAX_EXPIRY_SECONDS;
+    }
+    return rounded;
+  }
+
   /**
    * Generate PhonePe checksum
    */
