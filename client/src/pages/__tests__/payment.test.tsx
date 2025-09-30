@@ -8,6 +8,7 @@ import { apiRequest } from "@/lib/queryClient";
 
 const setLocationMock = vi.fn();
 const originalLocation = window.location;
+const originalCheckout = window.PhonePeCheckout;
 
 vi.mock("wouter", () => ({
   useLocation: () => ["", setLocationMock],
@@ -25,6 +26,7 @@ describe("Payment page", () => {
     apiRequestMock.mockReset();
     sessionStorage.clear();
     global.fetch = vi.fn();
+    window.PhonePeCheckout = { transact: vi.fn() } as any;
     const locationStub = {
       href: "/payment?orderId=order-1",
       assign: vi.fn(),
@@ -71,12 +73,13 @@ describe("Payment page", () => {
       value: originalLocation,
       writable: true,
     });
+    window.PhonePeCheckout = originalCheckout;
   });
 
   it("moves from pending to processing when a PhonePe payment is initiated", async () => {
     const queryClient = new QueryClient();
     apiRequestMock.mockResolvedValue({
-      json: async () => ({ data: { redirectUrl: "https://phonepe.example/pay" } }),
+      json: async () => ({ data: { tokenUrl: "https://phonepe.example/pay", merchantTransactionId: "merchant-1" } }),
     } as any);
 
     const user = userEvent.setup();
@@ -95,8 +98,15 @@ describe("Payment page", () => {
 
     expect(apiRequestMock).toHaveBeenCalledWith(
       "POST",
-      "/api/payments/create",
+      "/api/payments/token-url",
       expect.objectContaining({ orderId: "order-1" })
+    );
+
+    expect(window.PhonePeCheckout?.transact).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tokenUrl: "https://phonepe.example/pay",
+        type: 'IFRAME',
+      })
     );
   });
 });
