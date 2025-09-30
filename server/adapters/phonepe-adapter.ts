@@ -909,11 +909,44 @@ export class PhonePeAdapter implements PaymentsAdapter {
    * Map PhonePe payment status to our status
    */
   private mapPaymentStatus(state: string): PaymentStatus {
-    switch (state) {
-      case 'PENDING': return 'processing';
-      case 'COMPLETED': return 'captured';
-      case 'FAILED': return 'failed';
-      default: return 'failed';
+    const normalized = state.trim().toUpperCase();
+
+    switch (normalized) {
+      case 'PENDING':
+      case 'INITIATED':
+      case 'IN_PROGRESS':
+      case 'AWAITING_PAYMENT':
+        return 'processing';
+      case 'AUTHORIZED':
+      case 'AUTHORISED':
+        return 'authorized';
+      case 'COMPLETED':
+      case 'CAPTURED':
+      case 'SUCCESS':
+      case 'SUCCEEDED':
+        return 'captured';
+      case 'FAILED':
+      case 'DECLINED':
+      case 'REJECTED':
+      case 'ERROR':
+        return 'failed';
+      case 'CANCELLED':
+      case 'CANCELED':
+      case 'TIMEDOUT':
+      case 'TIMED_OUT':
+      case 'TIMEOUT':
+      case 'EXPIRED':
+      case 'ABORTED':
+      case 'USER_CANCELLED':
+        return 'cancelled';
+      case 'REFUNDED':
+        return 'refunded';
+      case 'PARTIALLY_REFUNDED':
+        return 'partially_refunded';
+      case 'CREATED':
+        return 'created';
+      default:
+        return 'processing';
     }
   }
   
