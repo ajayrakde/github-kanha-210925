@@ -57,7 +57,11 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - UPI evidence returned from `/api/payments/order-info/:orderId` now masks the payer VPA/UTR for PhonePe transactions and includes the normalized instrument variant label (Collect, Intent, QR) so downstream UIs show readable context without exposing raw identifiers.
    - A PhonePe polling worker persists mandated status-check intervals in the database, surfaces the next scheduled probe through `/api/payments/order-info/:orderId`, and stops automatically once the gateway returns a terminal state or the `expireAfter` deadline passes. The cadence now follows the required sequence (20 s, 25 s, 3 s × 10, 6 s × 10, 10 s × 6, 30 s × 2, then 60 s until expiry), keeping reconciliation idempotent across restarts and letting the thank-you page show real-time progress messages.
 
-6. **Shipping Charges**  
+6. **Resume Checkout / Order Recovery**
+   - `GET /api/orders/:id` remains available to admins and now permits authenticated buyers to reload their own orders, restoring totals if the payment screen refreshes mid-flow.
+   - Influencers can call the same endpoint for orders where their coupon was applied, supporting campaign follow-up without exposing unrelated buyer data.
+
+7. **Shipping Charges**
    - Shipping calculation moved to `shippingRepository`.  
    - Buyers can preview with `GET /api/shipping/calculate` in `server/routes/shipping.ts`.  
    - Logic for matching rules and computing costs unchanged.
@@ -78,9 +82,10 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - `/api/admin/shipping-rules` in `server/routes/shipping.ts`, validated via Zod.  
    - Backed by `shippingRepository`.
 
-4. **Orders & Analytics**  
-   - `/api/admin/orders` in `server/routes/admin.ts`, backed by `ordersRepository`.  
-   - `/api/analytics` in `server/routes/analytics.ts`.  
+4. **Orders & Analytics**
+   - `/api/admin/orders` in `server/routes/admin.ts`, backed by `ordersRepository`.
+   - `/api/orders` listings still require an admin session, while influencers automatically receive only orders that used their coupons and buyers can retrieve individual orders they own for checkout recovery.
+   - `/api/analytics` in `server/routes/analytics.ts`.
    - Returned datasets and dashboards unchanged.
 
 5. **Settings**
@@ -108,9 +113,12 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
 2. **Lifecycle Management**  
    - Admin creates/deactivates influencers using the same routes, now backed by `usersRepository`.
 
-3. **Coupon & Analytics**  
-   - Coupon redemption logic moved to `offersRepository`.  
+3. **Coupon & Analytics**
+   - Coupon redemption logic moved to `offersRepository`.
    - Analytics under `/api/analytics` reference influencer coupons and conversions.
+4. **Order Visibility**
+   - `/api/orders` returns only the orders attributed to the influencer's coupons when accessed with their authenticated session.
+   - `/api/orders/:id` exposes full details for those same orders so influencers can confirm successful redemptions without viewing unrelated buyers.
 
 ---
 
