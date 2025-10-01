@@ -4,6 +4,7 @@ import type { Request, Response } from "express";
 import type { Router } from "express";
 import { orders, paymentEvents } from "../../../shared/schema";
 import { phonePeIdentifierFixture } from "../../../shared/__fixtures__/upi";
+import type { RequireAdminMiddleware } from "../types";
 
 process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
 
@@ -147,9 +148,13 @@ describe("payments router", () => {
     mockPhonePePollingWorker.registerJob.mockResolvedValue({});
   });
 
-  const buildRouter = async () => {
+  const defaultRequireAdmin: RequireAdminMiddleware = (_req, _res, next) => {
+    next();
+  };
+
+  const buildRouter = async (requireAdminOverride?: RequireAdminMiddleware) => {
     const module = await import("../payments");
-    return module.createPaymentsRouter(() => {});
+    return module.createPaymentsRouter(requireAdminOverride ?? defaultRequireAdmin);
   };
 
   const getRouteHandler = (router: Router, method: "get" | "post", path: string) => {
@@ -162,6 +167,16 @@ describe("payments router", () => {
     const handles = layer.route.stack;
     const target = handles[handles.length - 1];
     return target.handle as (req: Request, res: Response, next: () => void) => Promise<void> | void;
+  };
+
+  const getRouteLayer = (router: Router, method: "get" | "post", path: string) => {
+    const layer = router.stack.find(
+      (entry: any) => entry.route?.path === path && entry.route?.methods?.[method]
+    );
+    if (!layer) {
+      throw new Error(`Route ${method.toUpperCase()} ${path} not found`);
+    }
+    return layer;
   };
 
   const buildResponse = (overrides: Record<string, any> = {}) => {
@@ -1099,8 +1114,8 @@ describe("payments router", () => {
         providerPaymentId: "merchant-1",
         providerReferenceId: "merchant-1",
         providerTransactionId: "pg-1",
-        upiPayerHandle: "payer@upi",
-        upiUtr: "UTR-MASKED",
+        upiPayerHandle: phonePeIdentifierFixture.vpa,
+        upiUtr: phonePeIdentifierFixture.utr,
         amountAuthorizedMinor: 1000,
         amountCapturedMinor: 0,
         createdAt: new Date("2024-01-01T00:00:00Z"),
@@ -1123,13 +1138,13 @@ describe("payments router", () => {
         providerData: {
           state: "COMPLETED",
           responseCode: "SUCCESS",
-          utr: "UTR123456",
-          upiPayerHandle: "payer@upi",
+          utr: phonePeIdentifierFixture.utr,
+          upiPayerHandle: phonePeIdentifierFixture.vpa,
           paymentInstrument: {
-            type: "UPI_COLLECT",
-            utr: "UTR123456",
-            payerVpa: "payer@upi",
-            payerAddress: "payer@upi",
+            type: phonePeIdentifierFixture.variant,
+            utr: phonePeIdentifierFixture.utr,
+            payerVpa: phonePeIdentifierFixture.vpa,
+            payerAddress: phonePeIdentifierFixture.vpa,
           },
         },
         createdAt: new Date("2024-01-01T00:02:00Z"),
@@ -1160,9 +1175,25 @@ describe("payments router", () => {
       const payload = res.jsonPayload;
       expect(payload.success).toBe(true);
       expect(payload.data.merchantTransactionId).toBe("merchant-1");
-      expect(payload.data.instrument.utr).toBe("UTR123456");
-      expect(payload.data.instrument.payerHandle).toBe("payer@upi");
-      expect(payload.data.reconciliation.status).toBe("pending");
+      expect(payload.data.paymentId).toBe("pay_1");
+      expect(payload.data.tenantId).toBe("tenant-a");
+      expect(payload.data.instrument.utr).toBe(phonePeIdentifierFixture.utr);
+      expect(payload.data.instrument.utrMasked).toBe(phonePeIdentifierFixture.maskedUtr);
+      expect(payload.data.instrument.payerHandle).toBe(phonePeIdentifierFixture.vpa);
+      expect(payload.data.instrument.payerHandleMasked).toBe(phonePeIdentifierFixture.maskedVpa);
+      expect(payload.data.instrument.variant).toBe(phonePeIdentifierFixture.variant);
+      expect(payload.data.instrument.variantLabel).toBe(phonePeIdentifierFixture.label);
+      expect(payload.data.recordedPayment.upiPayerHandle).toBe(phonePeIdentifierFixture.maskedVpa);
+      expect(payload.data.recordedPayment.upiUtr).toBe(phonePeIdentifierFixture.maskedUtr);
+      expect(payload.data.reconciliation?.status).toBe("pending");
+      expect(payload.data.reconciliation?.attempt).toBe(2);
+      expect(payload.data.reconciliation?.lastStatus).toBe("PENDING");
+      expect(payload.data.reconciliation?.lastResponseCode).toBe("PAYMENT_PENDING");
+      expect(payload.data.reconciliation?.nextPollAt).toBe(reconciliationJob.nextPollAt.toISOString());
+      expect(payload.data.reconciliation?.expiresAt).toBe(reconciliationJob.expireAt.toISOString());
+      expect(payload.data.reconciliation?.completedAt).toBeUndefined();
+      expect(payload.data.reconciliation?.lastPolledAt).toBeUndefined();
+      expect(payload.data.verifiedAt).toBe("2024-01-01T00:02:30.000Z");
       expect(mockPaymentsService.verifyPayment).toHaveBeenCalledWith(
         expect.objectContaining({
           paymentId: "pay_1",
@@ -1171,6 +1202,7 @@ describe("payments router", () => {
         }),
         "tenant-a",
       );
+      expect(mockPhonePePollingStore.getLatestJobForOrder).toHaveBeenCalledWith("order-123", "tenant-a");
     });
 
     it("responds with 404 when no PhonePe attempts exist for the order", async () => {
@@ -1204,6 +1236,36 @@ describe("payments router", () => {
 
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith({ error: "PhonePe payment not found for order" });
+      expect(mockPaymentsService.verifyPayment).not.toHaveBeenCalled();
+    });
+
+    it("enforces admin authentication before processing the lookup", async () => {
+      const requireAdminMock = vi.fn<Parameters<RequireAdminMiddleware>, void>((_req, res) => {
+        res.status(403).json({ error: "Forbidden" });
+      });
+
+      const router = await buildRouter(requireAdminMock);
+      const layer = getRouteLayer(router, "get", "/admin/phonepe/orders/:orderId");
+
+      const [adminMiddleware] = layer.route.stack;
+      expect(adminMiddleware.handle).toBe(requireAdminMock);
+
+      const req = {
+        params: { orderId: "order-unauthorized" },
+        headers: {},
+        session: {},
+      } as unknown as Request;
+
+      const res = createMockResponse();
+      const next = vi.fn();
+
+      await Promise.resolve(adminMiddleware.handle(req, res, next));
+
+      expect(requireAdminMock).toHaveBeenCalledTimes(1);
+      expect(next).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ error: "Forbidden" });
+      expect(mockOrdersRepository.getOrderWithPayments).not.toHaveBeenCalled();
       expect(mockPaymentsService.verifyPayment).not.toHaveBeenCalled();
     });
   });
