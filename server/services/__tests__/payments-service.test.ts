@@ -7,6 +7,7 @@ process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
 
 const upiQueryResults: any[][] = [];
 const paymentInserts: any[] = [];
+const auditEventInserts: Array<{ table: any; values: any }> = [];
 
 const selectMock = vi.fn(() => ({
   from: vi.fn(() => ({
@@ -23,6 +24,12 @@ const insertValuesMock = vi.fn(async (values: any) => {
   paymentInserts.push(values);
 });
 
+const directInsertMock = vi.fn((table: any) => ({
+  values: vi.fn(async (values: any) => {
+    auditEventInserts.push({ table, values });
+  }),
+}));
+
 const defaultTransactionImplementation = async (callback: (trx: any) => Promise<void>) => {
   await callback({
     insert: vi.fn(() => ({ values: insertValuesMock })),
@@ -36,6 +43,7 @@ vi.mock("../../db", () => ({
   db: {
     transaction: transactionMock,
     select: selectMock,
+    insert: directInsertMock,
   },
 }));
 
@@ -81,10 +89,12 @@ describe("PaymentsService.createPayment", () => {
   beforeEach(() => {
     upiQueryResults.length = 0;
     paymentInserts.length = 0;
+    auditEventInserts.length = 0;
     insertValuesMock.mockClear();
     transactionMock.mockClear();
     transactionMock.mockImplementation(defaultTransactionImplementation);
     selectMock.mockClear();
+    directInsertMock.mockClear();
     adapter.createPayment.mockReset();
     adapter.createRefund.mockReset();
     executeWithIdempotencyMock.mockReset();
@@ -519,10 +529,19 @@ describe("PaymentsService.createRefund", () => {
   };
 
   beforeEach(() => {
+    upiQueryResults.length = 0;
+    paymentInserts.length = 0;
     executeWithIdempotencyMock.mockImplementation(async (_key, _scope, operation) => {
       return await operation();
     });
     createAdapterMock.mockResolvedValue(adapter);
+    directInsertMock.mockClear();
+    auditEventInserts.length = 0;
+    insertValuesMock.mockClear();
+    transactionMock.mockClear();
+    transactionMock.mockImplementation(defaultTransactionImplementation);
+    selectMock.mockClear();
+    adapter.createRefund.mockReset();
   });
 
   it("rejects refunds that would exceed the captured amount", async () => {
@@ -536,6 +555,17 @@ describe("PaymentsService.createRefund", () => {
     ).rejects.toMatchObject({ code: "REFUND_EXCEEDS_CAPTURED_AMOUNT" });
 
     expect(adapter.createRefund).not.toHaveBeenCalled();
+    expect(auditEventInserts).toHaveLength(1);
+    expect(auditEventInserts[0]).toMatchObject({
+      table: paymentEvents,
+      values: expect.objectContaining({
+        type: "refund_attempt_failed",
+        data: expect.objectContaining({
+          reason: "REFUND_EXCEEDS_CAPTURED_AMOUNT",
+          requestedAmountMinor: 300,
+        }),
+      }),
+    });
   });
 
   it("stores successful refunds, masks identifiers, and updates totals", async () => {
@@ -599,6 +629,128 @@ describe("PaymentsService.createRefund", () => {
     expect(updateSetSpy).toHaveBeenCalledWith(
       expect.objectContaining({ amountRefundedMinor: 500 })
     );
+    expect(auditEventInserts).toHaveLength(0);
+  });
+
+  it("supports partial refunds and short-circuits duplicate merchantRefundId requests", async () => {
+    const service = createPaymentsService({ environment: "test" });
+
+    const firstCreatedAt = new Date("2024-03-01T00:00:00Z");
+    const secondCreatedAt = new Date("2024-03-02T00:00:00Z");
+
+    upiQueryResults.push([{ ...basePayment }]);
+    upiQueryResults.push([]);
+    upiQueryResults.push([{ totalNonFailed: 0, totalSucceeded: 0 }]);
+
+    adapter.createRefund.mockResolvedValueOnce({
+      refundId: "refund_1",
+      paymentId: "pay_1",
+      providerRefundId: "provider_refund_1",
+      merchantRefundId: "refund-1",
+      originalMerchantOrderId: "merchant_order_1",
+      amount: 400,
+      status: "completed",
+      provider: "phonepe",
+      environment: "test",
+      upiUtr: phonePeIdentifierFixture.utr,
+      providerData: {
+        paymentInstrument: {
+          utr: phonePeIdentifierFixture.utr,
+        },
+      },
+      createdAt: firstCreatedAt,
+    });
+
+    const first = await service.createRefund(
+      { paymentId: "pay_1", amount: 400, merchantRefundId: "refund-1", idempotencyKey: "id-1" },
+      "default"
+    );
+
+    expect(first.merchantRefundId).toBe("refund-1");
+    expect(adapter.createRefund).toHaveBeenCalledTimes(1);
+
+    upiQueryResults.push([{ ...basePayment, amountRefundedMinor: 400 }]);
+    upiQueryResults.push([]);
+    upiQueryResults.push([{ totalNonFailed: 400, totalSucceeded: 400 }]);
+
+    adapter.createRefund.mockResolvedValueOnce({
+      refundId: "refund_2",
+      paymentId: "pay_1",
+      providerRefundId: "provider_refund_2",
+      merchantRefundId: "refund-2",
+      originalMerchantOrderId: "merchant_order_1",
+      amount: 300,
+      status: "completed",
+      provider: "phonepe",
+      environment: "test",
+      upiUtr: phonePeIdentifierFixture.utr,
+      providerData: {
+        paymentInstrument: {
+          utr: phonePeIdentifierFixture.utr,
+        },
+      },
+      createdAt: secondCreatedAt,
+    });
+
+    const second = await service.createRefund(
+      { paymentId: "pay_1", amount: 300, merchantRefundId: "refund-2", idempotencyKey: "id-2" },
+      "default"
+    );
+
+    expect(second.merchantRefundId).toBe("refund-2");
+    expect(adapter.createRefund).toHaveBeenCalledTimes(2);
+
+    upiQueryResults.push([{ ...basePayment, amountRefundedMinor: 700 }]);
+    upiQueryResults.push([]);
+    upiQueryResults.push([{ totalNonFailed: 700, totalSucceeded: 700 }]);
+
+    await expect(
+      service.createRefund(
+        { paymentId: "pay_1", amount: 400, merchantRefundId: "refund-3", idempotencyKey: "id-3" },
+        "default"
+      )
+    ).rejects.toMatchObject({ code: "REFUND_EXCEEDS_CAPTURED_AMOUNT" });
+
+    expect(adapter.createRefund).toHaveBeenCalledTimes(2);
+    expect(auditEventInserts.length).toBeGreaterThan(0);
+    expect(auditEventInserts.at(-1)).toMatchObject({
+      table: paymentEvents,
+      values: expect.objectContaining({
+        data: expect.objectContaining({
+          merchantRefundId: "refund-3",
+          requestedAmountMinor: 400,
+        }),
+      }),
+    });
+
+    const storedRefund = {
+      id: "refund_2",
+      paymentId: "pay_1",
+      provider: "phonepe",
+      providerRefundId: "provider_refund_2",
+      merchantRefundId: "refund-2",
+      originalMerchantOrderId: "merchant_order_1",
+      amountMinor: 300,
+      status: "completed",
+      reason: "partial",
+      upiUtr: phonePeIdentifierFixture.maskedUtr,
+      createdAt: secondCreatedAt,
+      updatedAt: secondCreatedAt,
+    };
+
+    upiQueryResults.push([{ ...basePayment, amountRefundedMinor: 700 }]);
+    upiQueryResults.push([storedRefund]);
+
+    const duplicate = await service.createRefund(
+      { paymentId: "pay_1", amount: 300, merchantRefundId: "refund-2", idempotencyKey: "dup" },
+      "default"
+    );
+
+    expect(duplicate.refundId).toBe("refund_2");
+    expect(duplicate.amount).toBe(300);
+    expect(duplicate.merchantRefundId).toBe("refund-2");
+    expect(duplicate.upiUtr).toBe(phonePeIdentifierFixture.maskedUtr);
+    expect(adapter.createRefund).toHaveBeenCalledTimes(2);
   });
 });
 
