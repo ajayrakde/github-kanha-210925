@@ -1510,33 +1510,241 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     try {
       const provider = req.params.provider as PaymentProvider;
       const environment = (req.query.environment as Environment) || 'test';
-      
+
       if (!provider) {
         return res.status(400).json({
           error: 'Provider is required'
         });
       }
-      
+
       const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
 
       // Create adapter for health check
       const adapter = await adapterFactory.createAdapter(provider, environment, tenantId);
       const result = await adapter.healthCheck();
-      
+
       res.json({
         success: true,
         data: result
       });
-      
+
     } catch (error) {
       console.error(`Health check error for ${req.params.provider}:`, error);
-      
+
       res.status(500).json({
         error: 'Health check failed',
         message: error instanceof Error ? error.message : 'Unknown error',
         provider: req.params.provider,
         healthy: false
       });
+    }
+  });
+
+  router.get('/admin/phonepe/orders/:orderId', requireAdmin, async (req: SessionRequest, res) => {
+    const { orderId } = req.params;
+
+    if (!orderId) {
+      return res.status(400).json({ error: 'Order ID is required' });
+    }
+
+    const fallbackTenantId = (req.headers['x-tenant-id'] as string) || 'default';
+
+    const toIsoString = (value: unknown): string | undefined => {
+      if (!value) {
+        return undefined;
+      }
+
+      if (value instanceof Date) {
+        return value.toISOString();
+      }
+
+      if (typeof value === 'string') {
+        const parsed = new Date(value);
+        if (!Number.isNaN(parsed.getTime())) {
+          return parsed.toISOString();
+        }
+      }
+
+      return undefined;
+    };
+
+    const coerceString = (value: unknown): string | null => {
+      if (typeof value !== 'string') {
+        return null;
+      }
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    };
+
+    const parseTimestamp = (value: unknown): number => {
+      if (!value) {
+        return 0;
+      }
+      if (value instanceof Date) {
+        return value.getTime();
+      }
+      if (typeof value === 'string' || typeof value === 'number') {
+        const parsed = new Date(value);
+        if (!Number.isNaN(parsed.getTime())) {
+          return parsed.getTime();
+        }
+      }
+      return 0;
+    };
+
+    try {
+      const order = await ordersRepository.getOrderWithPayments(orderId);
+
+      if (!order) {
+        return res.status(404).json({ error: 'Order not found' });
+      }
+
+      const tenantIdCandidate = coerceString(order.tenantId);
+      const tenantId = tenantIdCandidate ?? fallbackTenantId;
+
+      const phonePePayments = (order.payments ?? []).filter((payment) =>
+        typeof payment?.provider === 'string' && payment.provider.toLowerCase() === 'phonepe'
+      );
+
+      if (phonePePayments.length === 0) {
+        return res.status(404).json({ error: 'PhonePe payment not found for order' });
+      }
+
+      const latestPayment = phonePePayments.reduce((latest, current) => {
+        if (!latest) {
+          return current;
+        }
+
+        const latestTimestamp = parseTimestamp(latest.updatedAt ?? latest.createdAt);
+        const currentTimestamp = parseTimestamp(current.updatedAt ?? current.createdAt);
+
+        return currentTimestamp > latestTimestamp ? current : latest;
+      }, phonePePayments[0]);
+
+      const merchantTransactionIdCandidate = [
+        coerceString(latestPayment.providerPaymentId),
+        coerceString(latestPayment.providerReferenceId),
+        coerceString(latestPayment.providerTransactionId),
+        coerceString(latestPayment.id),
+      ].find((candidate) => candidate !== null) ?? latestPayment.id;
+
+      const providerPaymentId = coerceString(latestPayment.providerPaymentId) ?? undefined;
+
+      const [verification, reconciliationJob] = await Promise.all([
+        paymentsService.verifyPayment({
+          paymentId: latestPayment.id,
+          providerPaymentId,
+          providerData: {
+            merchantTransactionId: merchantTransactionIdCandidate ?? latestPayment.id,
+            providerReferenceId: coerceString(latestPayment.providerReferenceId) ?? undefined,
+          },
+        }, tenantId),
+        phonePePollingStore.getLatestJobForOrder(orderId, tenantId),
+      ]);
+
+      const providerData = (verification.providerData ?? {}) as Record<string, unknown>;
+      const rawInstrumentCandidate = providerData['paymentInstrument'];
+      const instrumentData = (typeof rawInstrumentCandidate === 'object' && rawInstrumentCandidate !== null)
+        ? rawInstrumentCandidate as Record<string, unknown>
+        : null;
+
+      const resolveInstrumentString = (...values: unknown[]): string | null => {
+        for (const value of values) {
+          const resolved = coerceString(value);
+          if (resolved) {
+            return resolved;
+          }
+        }
+        return null;
+      };
+
+      const instrumentType = resolveInstrumentString(
+        instrumentData?.['type'],
+        providerData['instrumentType'],
+        providerData['paymentInstrumentType'],
+      );
+
+      const instrumentVariant = normalizeUpiInstrumentVariant(
+        instrumentType ?? resolveInstrumentString(instrumentData?.['variant'])
+      );
+      const instrumentVariantLabel = formatUpiInstrumentVariantLabel(instrumentVariant);
+
+      const utr = resolveInstrumentString(
+        instrumentData?.['utr'],
+        providerData['utr'],
+        providerData['upiUtr'],
+      );
+      const utrMasked = maskPhonePeIdentifier('phonepe', utr, { type: 'utr' }) ?? undefined;
+
+      const payerHandle = resolveInstrumentString(
+        instrumentData?.['payerVpa'],
+        instrumentData?.['payerHandle'],
+        providerData['upiPayerHandle'],
+      );
+      const payerHandleMasked = maskPhonePeIdentifier('phonepe', payerHandle, { type: 'vpa' }) ?? undefined;
+
+      const payerVpa = resolveInstrumentString(instrumentData?.['payerVpa'], providerData['upiPayerHandle']);
+      const payerAddress = resolveInstrumentString(instrumentData?.['payerAddress']);
+
+      const recordedPaymentHandle = maskPhonePeIdentifier('phonepe', latestPayment.upiPayerHandle, { type: 'vpa' }) ?? undefined;
+      const recordedPaymentUtr = maskPhonePeIdentifier('phonepe', latestPayment.upiUtr, { type: 'utr' }) ?? undefined;
+
+      const reconciliation = reconciliationJob
+        ? {
+            status: reconciliationJob.status,
+            attempt: reconciliationJob.attempt ?? 0,
+            nextPollAt: toIsoString(reconciliationJob.nextPollAt),
+            expiresAt: toIsoString(reconciliationJob.expireAt),
+            lastStatus: reconciliationJob.lastStatus ?? undefined,
+            lastResponseCode: reconciliationJob.lastResponseCode ?? undefined,
+            lastError: reconciliationJob.lastError ?? undefined,
+            completedAt: toIsoString(reconciliationJob.completedAt),
+            lastPolledAt: toIsoString(reconciliationJob.lastPolledAt),
+          }
+        : null;
+
+      const responsePayload = {
+        success: true,
+        data: {
+          orderId: order.id,
+          tenantId,
+          paymentId: verification.paymentId,
+          merchantTransactionId: merchantTransactionIdCandidate ?? verification.providerPaymentId ?? latestPayment.id,
+          providerStatus: verification.status,
+          phonePeState: coerceString(providerData['state']),
+          responseCode: coerceString(providerData['responseCode']),
+          amountMinor: verification.amount,
+          amount: verification.amount / 100,
+          currency: verification.currency,
+          verifiedAt: toIsoString(verification.updatedAt ?? verification.createdAt ?? new Date()),
+          instrument: {
+            type: instrumentType,
+            utr,
+            utrMasked: utrMasked ?? recordedPaymentUtr ?? null,
+            payerHandle,
+            payerHandleMasked: payerHandleMasked ?? recordedPaymentHandle ?? null,
+            payerVpa,
+            payerAddress,
+            variant: instrumentVariant ?? null,
+            variantLabel: instrumentVariantLabel ?? null,
+          },
+          rawInstrument: instrumentData,
+          recordedPayment: {
+            status: latestPayment.status,
+            providerPaymentId: providerPaymentId ?? undefined,
+            providerReferenceId: coerceString(latestPayment.providerReferenceId) ?? undefined,
+            upiPayerHandle: recordedPaymentHandle,
+            upiUtr: recordedPaymentUtr,
+            updatedAt: toIsoString(latestPayment.updatedAt ?? latestPayment.createdAt) ?? null,
+          },
+          reconciliation,
+        },
+      } as const;
+
+      return res.json(responsePayload);
+    } catch (error) {
+      console.error('Failed to verify PhonePe order for admin lookup:', error);
+      return res.status(500).json({ error: 'Failed to retrieve PhonePe status for order' });
     }
   });
 

@@ -1172,6 +1172,40 @@ describe("payments router", () => {
         "tenant-a",
       );
     });
+
+    it("responds with 404 when no PhonePe attempts exist for the order", async () => {
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "get", "/admin/phonepe/orders/:orderId");
+
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValue(
+        buildOrderRecord({
+          payments: [
+            {
+              id: "pay_other",
+              provider: "stripe",
+              status: "succeeded",
+              amountAuthorizedMinor: 1000,
+              amountCapturedMinor: 1000,
+              createdAt: new Date("2024-01-01T00:00:00Z"),
+              updatedAt: new Date("2024-01-01T00:01:00Z"),
+            },
+          ],
+        })
+      );
+
+      const req = {
+        params: { orderId: "order-456" },
+        headers: {},
+        session: { adminId: "admin-1", userRole: "admin" },
+      } as unknown as Request;
+
+      const res = createMockResponse();
+      await handler(req, res, () => {});
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: "PhonePe payment not found for order" });
+      expect(mockPaymentsService.verifyPayment).not.toHaveBeenCalled();
+    });
   });
 
   describe("GET /api/payments/phonepe/return", () => {
