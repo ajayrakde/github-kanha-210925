@@ -31,6 +31,34 @@ declare global {
 
 const PHONEPE_CHECKOUT_SRC = "https://checkout.phonepe.com/v3/checkout.js";
 
+type PhonePeInstrumentPreference = "UPI_INTENT" | "UPI_COLLECT" | "UPI_QR";
+
+const PHONEPE_INSTRUMENT_OPTIONS: Array<{
+  value: PhonePeInstrumentPreference;
+  label: string;
+  description: string;
+  testId: string;
+}> = [
+  {
+    value: "UPI_INTENT",
+    label: "UPI Intent",
+    description: "Launches your preferred UPI app to approve the payment",
+    testId: "button-select-upi_intent",
+  },
+  {
+    value: "UPI_COLLECT",
+    label: "UPI Collect",
+    description: "We send a collect request to your UPI app for approval",
+    testId: "button-select-upi_collect",
+  },
+  {
+    value: "UPI_QR",
+    label: "UPI QR",
+    description: "Scan a QR code from any UPI app to complete payment",
+    testId: "button-select-upi_qr",
+  },
+];
+
 interface PhonePeTokenResponse {
   tokenUrl?: string;
   merchantTransactionId?: string;
@@ -56,15 +84,23 @@ export default function Payment() {
   const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [orderId, setOrderId] = useState<string>("");
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'processing' | 'completed' | 'failed'>('pending');
+  const [instrumentPreference, setInstrumentPreference] = useState<PhonePeInstrumentPreference>("UPI_INTENT");
   const { toast } = useToast();
   const checkoutLoaderRef = useRef<Promise<PhonePeCheckoutInstance> | null>(null);
   const latestPaymentIdRef = useRef<string | null>(null);
+  const pollTimeoutRef = useRef<number | null>(null);
+  const clearStatusPolling = () => {
+    if (pollTimeoutRef.current !== null) {
+      window.clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+  };
 
   // Extract orderId from URL parameters
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const orderIdParam = urlParams.get('orderId');
-    
+
     if (orderIdParam) {
       setOrderId(orderIdParam);
       
@@ -78,6 +114,12 @@ export default function Payment() {
       }
     }
   }, [location]);
+
+  useEffect(() => {
+    return () => {
+      clearStatusPolling();
+    };
+  }, []);
 
   // Fetch order details from API if not in session storage
   const { data: order, isLoading: isLoadingOrder } = useQuery<OrderData>({
@@ -161,6 +203,8 @@ export default function Payment() {
         redirectUrl: `${window.location.origin}/payment/success?orderId=${orderId}`,
         callbackUrl: `${window.location.origin}/api/payments/webhook/phonepe`,
         mobileNumber: currentOrderData.userInfo.phone,
+        instrumentPreference,
+        payPageType: 'IFRAME',
       });
 
       const payload = await response.json();
@@ -198,6 +242,7 @@ export default function Payment() {
                 });
               }
               latestPaymentIdRef.current = null;
+              clearStatusPolling();
               setPaymentStatus('failed');
               toast({
                 title: "Payment Cancelled",
@@ -243,27 +288,60 @@ export default function Payment() {
       const response = await apiRequest("GET", `/api/payments/status/${paymentId}`);
       return response.json();
     },
-    onSuccess: (data) => {
-      if (data.data && data.data.statusResponse && data.data.statusResponse.data) {
-        const status = data.data.statusResponse.data.state;
-        if (status === 'COMPLETED') {
-          setPaymentStatus('completed');
-          toast({
-            title: "Payment Successful",
-            description: "Your payment has been completed successfully!",
-          });
-          setTimeout(() => {
-            setLocation("/thank-you");
-          }, 2000);
-        } else if (status === 'FAILED') {
-          setPaymentStatus('failed');
-          toast({
-            title: "Payment Failed",
-            description: "Your payment could not be processed. Please try again.",
-            variant: "destructive"
-          });
-        }
+    onSuccess: (data, paymentId) => {
+      const status = data?.data?.status as string | undefined;
+      const errorInfo = data?.data?.error as { message?: string } | undefined;
+
+      if (status === 'COMPLETED') {
+        clearStatusPolling();
+        latestPaymentIdRef.current = null;
+        setPaymentStatus('completed');
+        toast({
+          title: "Payment Successful",
+          description: "Your payment has been completed successfully!",
+        });
+        const thankYouPath = orderId ? `/thank-you?orderId=${orderId}` : '/thank-you';
+        setLocation(thankYouPath);
+        return;
       }
+
+      if (status === 'FAILED') {
+        clearStatusPolling();
+        latestPaymentIdRef.current = null;
+        setPaymentStatus('failed');
+        toast({
+          title: "Payment Failed",
+          description: errorInfo?.message || "Your payment could not be processed. Please try again.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (status === 'PENDING' && paymentId) {
+        setPaymentStatus('processing');
+        clearStatusPolling();
+        pollTimeoutRef.current = window.setTimeout(() => {
+          checkPaymentStatusMutation.mutate(paymentId);
+        }, 3000);
+        return;
+      }
+
+      if (errorInfo?.message) {
+        toast({
+          title: "Payment Status",
+          description: errorInfo.message,
+        });
+      }
+    },
+    onError: () => {
+      clearStatusPolling();
+      latestPaymentIdRef.current = null;
+      setPaymentStatus('failed');
+      toast({
+        title: "Status Check Failed",
+        description: "We couldn't verify the payment status. Please try again.",
+        variant: "destructive"
+      });
     }
   });
 
@@ -279,6 +357,7 @@ export default function Payment() {
   const handleRetryPayment = () => {
     setPaymentStatus('pending');
     latestPaymentIdRef.current = null;
+    clearStatusPolling();
     createPaymentMutation.mutate();
   };
 
@@ -286,6 +365,7 @@ export default function Payment() {
   const handleInitiatePayment = () => {
     if (currentOrderData) {
       latestPaymentIdRef.current = null;
+      clearStatusPolling();
       createPaymentMutation.mutate();
     }
   };
@@ -409,7 +489,28 @@ export default function Payment() {
                   The PhonePe checkout will open in a secure iframe to complete your payment.
                 </p>
               </div>
-              <Button 
+              <div className="space-y-3 mb-6">
+                <p className="text-sm font-medium text-gray-900">Choose how you want to pay with UPI</p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {PHONEPE_INSTRUMENT_OPTIONS.map((option) => (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      variant={instrumentPreference === option.value ? "default" : "outline"}
+                      className="h-auto w-full flex-col items-start justify-start gap-1 py-3"
+                      onClick={() => setInstrumentPreference(option.value)}
+                      data-testid={option.testId}
+                      aria-pressed={instrumentPreference === option.value}
+                    >
+                      <span className="text-sm font-semibold text-gray-900">{option.label}</span>
+                      <span className="text-xs text-gray-500 text-left">
+                        {option.description}
+                      </span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <Button
                 onClick={handleInitiatePayment}
                 disabled={isLoading}
                 size="lg"

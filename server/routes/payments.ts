@@ -201,6 +201,15 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     metadata: z.record(z.any()).default({}),
   });
 
+  const phonePeInstrumentPreferenceSchema = z.enum([
+    'UPI_INTENT',
+    'UPI_COLLECT',
+    'UPI_QR',
+    'PAY_PAGE',
+  ]);
+
+  const phonePePayPageTypeSchema = z.enum(['IFRAME', 'REDIRECT', 'POPUP']).default('IFRAME');
+
   const tokenUrlSchema = z.object({
     orderId: z.string().min(1, 'Order ID is required'),
     amount: z.number().min(1, 'Amount must be greater than 0'),
@@ -214,19 +223,99 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     redirectUrl: z.string().url().optional(),
     callbackUrl: z.string().url().optional(),
     metadata: z.record(z.any()).optional(),
+    instrumentPreference: phonePeInstrumentPreferenceSchema.default('UPI_COLLECT'),
+    payPageType: phonePePayPageTypeSchema,
   });
 
   const TOKEN_URL_SCOPE = 'phonepe_token_url';
+
+  type PhonePeEffectiveInstrument = 'UPI_INTENT' | 'UPI_COLLECT' | 'UPI_QR' | 'PAY_PAGE';
+
+  const normalizePhonePeInstrumentToken = (value: unknown): string | undefined => {
+    if (typeof value !== 'string') {
+      return undefined;
+    }
+
+    const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, '_');
+    return normalized.length > 0 ? normalized : undefined;
+  };
+
+  const resolveEffectivePhonePeInstrument = (value: unknown): PhonePeEffectiveInstrument => {
+    const candidates: string[] = [];
+
+    if (typeof value === 'string') {
+      candidates.push(value);
+    } else if (value && typeof value === 'object') {
+      for (const potentialKey of [
+        'instrumentPreference',
+        'instrumentType',
+        'instrument',
+        'upiInstrument',
+        'upiVariant',
+        'upiFlow',
+        'flow',
+        'mode',
+        'preferredInstrument',
+        'preferredFlow',
+        'checkoutFlow',
+      ]) {
+        const candidate = (value as Record<string, unknown>)[potentialKey];
+        if (typeof candidate === 'string') {
+          candidates.push(candidate);
+        }
+      }
+    }
+
+    for (const candidate of candidates) {
+      const normalized = candidate.trim().toUpperCase().replace(/[\s-]+/g, '_');
+
+      if (normalized === 'PAY_PAGE' || normalized === 'PAYPAGE') {
+        return 'PAY_PAGE';
+      }
+
+      if (normalized === 'UPI_INTENT' || normalized === 'INTENT') {
+        return 'UPI_INTENT';
+      }
+
+      if (normalized === 'UPI_QR' || normalized === 'QR' || normalized === 'QR_CODE') {
+        return 'UPI_QR';
+      }
+
+      if (normalized === 'UPI_COLLECT' || normalized === 'COLLECT') {
+        return 'UPI_COLLECT';
+      }
+    }
+
+    return 'UPI_COLLECT';
+  };
 
   const derivePhonePeIdempotencyKey = (
     prefix: 'phonepe-token' | 'phonepe-payment',
     tenant: string,
     orderId: string,
     amountMinor: number,
-    currency: string
+    currency: string,
+    instrument: PhonePeEffectiveInstrument,
+    payPageType: string,
+    rawInstrument?: string,
   ): string => {
     const hash = createHash('sha256');
-    hash.update([tenant, orderId, amountMinor.toString(), currency].join(':'));
+    const normalizedRawInstrument = normalizePhonePeInstrumentToken(rawInstrument);
+    const normalizedPayPageType = payPageType.toUpperCase();
+    const hashComponents = [
+      tenant,
+      orderId,
+      amountMinor.toString(),
+      currency,
+      instrument,
+      normalizedPayPageType,
+    ];
+
+    if (normalizedRawInstrument && normalizedRawInstrument !== instrument) {
+      hashComponents.push(normalizedRawInstrument);
+    }
+
+    hash.update(hashComponents.join(':'));
     return `${prefix}:${hash.digest('hex')}`;
   };
 
@@ -234,15 +323,39 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     tenant: string,
     orderId: string,
     amountMinor: number,
-    currency: string
-  ): string => derivePhonePeIdempotencyKey('phonepe-token', tenant, orderId, amountMinor, currency);
+    currency: string,
+    instrument: PhonePeEffectiveInstrument,
+    payPageType: string,
+    rawInstrument?: string,
+  ): string => derivePhonePeIdempotencyKey(
+    'phonepe-token',
+    tenant,
+    orderId,
+    amountMinor,
+    currency,
+    instrument,
+    payPageType,
+    rawInstrument,
+  );
 
   const derivePaymentCreationIdempotencyKey = (
     tenant: string,
     orderId: string,
     amountMinor: number,
-    currency: string
-  ): string => derivePhonePeIdempotencyKey('phonepe-payment', tenant, orderId, amountMinor, currency);
+    currency: string,
+    instrument: PhonePeEffectiveInstrument,
+    payPageType: string,
+    rawInstrument?: string,
+  ): string => derivePhonePeIdempotencyKey(
+    'phonepe-payment',
+    tenant,
+    orderId,
+    amountMinor,
+    currency,
+    instrument,
+    payPageType,
+    rawInstrument,
+  );
 
   const cancelPaymentSchema = z.object({
     paymentId: z.string().min(1, 'Payment ID is required'),
@@ -257,11 +370,10 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
 
   const createRefundSchema = z.object({
     paymentId: z.string().min(1),
-    amount: z.number().positive().optional(),
+    amount: z.number().positive(),
+    merchantRefundId: z.string().min(1, 'merchantRefundId is required'),
     reason: z.string().optional(),
     notes: z.string().optional(),
-    merchantRefundId: z.string().min(1).optional(),
-    originalMerchantOrderId: z.string().min(1).optional(),
   });
 
   const phonePeReturnSchema = z.object({
@@ -445,17 +557,28 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       const successUrl = validatedData.redirectUrl || `${baseUrl}/payment/success`;
       const failureUrl = validatedData.redirectUrl || `${baseUrl}/payment/failed`;
       const cancelUrl = validatedData.redirectUrl || `${baseUrl}/payment/failed`;
+      const rawInstrumentPreference = validatedData.instrumentPreference;
+      const normalizedRequestedInstrument = normalizePhonePeInstrumentToken(rawInstrumentPreference);
+      const effectiveInstrument = resolveEffectivePhonePeInstrument(rawInstrumentPreference);
+      const requestedInstrumentToken = normalizedRequestedInstrument ?? effectiveInstrument;
+      const payPageType = validatedData.payPageType;
       const tokenUrlIdempotencyKey = deriveTokenUrlIdempotencyKey(
         tenantId,
         validatedData.orderId,
         orderAmountMinor,
-        orderCurrency
+        orderCurrency,
+        effectiveInstrument,
+        payPageType,
+        rawInstrumentPreference,
       );
       const originalPaymentCreationIdempotencyKey = derivePaymentCreationIdempotencyKey(
         tenantId,
         validatedData.orderId,
         orderAmountMinor,
-        orderCurrency
+        orderCurrency,
+        effectiveInstrument,
+        payPageType,
+        rawInstrumentPreference,
       );
       let paymentCreationIdempotencyKey = originalPaymentCreationIdempotencyKey;
       let refreshedPaymentIdempotencyKey: string | undefined;
@@ -469,12 +592,42 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       let shouldInvalidateKey = false;
 
       if (cachedResult.exists) {
-        const expiresAtValue = cachedResult.response?.data?.expiresAt;
+        const responsePayload = cachedResult.response;
+        const expiresAtValue = responsePayload?.data?.expiresAt;
         const expiresAt = typeof expiresAtValue === 'string' ? new Date(expiresAtValue) : undefined;
+        const metadata = (responsePayload && typeof responsePayload === 'object'
+          ? (responsePayload as Record<string, unknown>).metadata
+          : undefined) as Record<string, unknown> | undefined;
+        const cachedInstrument = typeof metadata?.effectiveInstrument === 'string'
+          ? metadata?.effectiveInstrument.toUpperCase()
+          : undefined;
+        const cachedRequestedInstrument = typeof metadata?.requestedInstrument === 'string'
+          ? metadata?.requestedInstrument.toUpperCase()
+          : undefined;
+        const cachedPayPageTypeValue = typeof metadata?.payPage === 'string'
+          ? metadata?.payPage
+          : typeof metadata?.payPageType === 'string'
+            ? metadata?.payPageType
+            : undefined;
+        const cachedPayPageType = cachedPayPageTypeValue
+          ? cachedPayPageTypeValue.toUpperCase()
+          : undefined;
+        const cacheExpiresAtValue = typeof metadata?.cacheExpiresAt === 'string'
+          ? metadata?.cacheExpiresAt
+          : undefined;
+        const cacheExpiresAt = cacheExpiresAtValue ? new Date(cacheExpiresAtValue) : undefined;
 
-        if (expiresAt && !Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() > now.getTime()) {
-          return res.json(cachedResult.response);
+        const instrumentMatches = !cachedInstrument || cachedInstrument === effectiveInstrument;
+        const requestedInstrumentMatches = !cachedRequestedInstrument
+          || cachedRequestedInstrument === requestedInstrumentToken;
+        const payPageMatches = !cachedPayPageType || cachedPayPageType === payPageType;
+        const tokenExpired = !!(expiresAt && !Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() <= now.getTime());
+        const ttlExpired = !!(cacheExpiresAt && !Number.isNaN(cacheExpiresAt.getTime()) && cacheExpiresAt.getTime() <= now.getTime());
+
+        if (instrumentMatches && payPageMatches && requestedInstrumentMatches && !tokenExpired && !ttlExpired) {
+          return res.json(responsePayload);
         }
+
         shouldInvalidateKey = true;
       }
 
@@ -523,6 +676,14 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
               ...validatedData.metadata,
               phonepeCallbackUrl: validatedData.callbackUrl,
               createdVia: 'token-url',
+              payPage: payPageType,
+            },
+            providerOptions: {
+              phonepe: {
+                instrumentPreference: effectiveInstrument,
+                payPageType,
+                payPage: payPageType,
+              },
             },
             idempotencyKey: paymentCreationIdempotencyKey,
           };
@@ -554,6 +715,13 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
               paymentId: result.paymentId,
               merchantTransactionId,
               expiresAt: expiresAt.toISOString(),
+            },
+            metadata: {
+              effectiveInstrument,
+              requestedInstrument: requestedInstrumentToken,
+              payPageType,
+              payPage: payPageType,
+              cacheExpiresAt: new Date(expiresAt.getTime() + 60_000).toISOString(),
             },
           };
         }
@@ -988,33 +1156,6 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         return (amountMinor / 100).toFixed(2);
       };
 
-      const mapRefund = (refund: any, paymentProvider?: PaymentProvider) => {
-        const maskedRefundUtr = maskPhonePeIdentifier(paymentProvider, refund.upiUtr, {
-          type: 'utr',
-        });
-
-        return {
-          id: refund.id,
-          paymentId: refund.paymentId,
-          status: refund.status,
-          amountMinor: refund.amountMinor ?? 0,
-          amount: toCurrency(refund.amountMinor ?? 0),
-          reason: refund.reason ?? undefined,
-          providerRefundId: refund.providerRefundId ?? undefined,
-          merchantRefundId: refund.merchantRefundId ?? undefined,
-          originalMerchantOrderId: refund.originalMerchantOrderId ?? undefined,
-          upiUtr: maskedRefundUtr ?? undefined,
-          createdAt:
-            refund.createdAt instanceof Date
-              ? refund.createdAt.toISOString()
-              : refund.createdAt ?? undefined,
-          updatedAt:
-            refund.updatedAt instanceof Date
-              ? refund.updatedAt.toISOString()
-              : refund.updatedAt ?? undefined,
-        };
-      };
-
       const mapPayment = (payment: typeof sortedPayments[number]) => {
         const amountMinor = payment.amountCapturedMinor ?? payment.amountAuthorizedMinor ?? 0;
         const provider = payment.provider as PaymentProvider | undefined;
@@ -1026,9 +1167,6 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         const maskedUpiUtr = maskPhonePeIdentifier(provider, payment.upiUtr, {
           type: 'utr',
         });
-        const paymentRefunds = Array.isArray((payment as any).refunds)
-          ? (payment as any).refunds
-          : [];
 
         return {
           id: payment.id,
@@ -1046,7 +1184,6 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           upiInstrumentVariant: normalizedVariant ?? undefined,
           upiInstrumentLabel: upiInstrumentLabel ?? undefined,
           receiptUrl: payment.receiptUrl ?? undefined,
-          refunds: paymentRefunds.map((refund: any) => mapRefund(refund, provider)),
           createdAt: payment.createdAt instanceof Date ? payment.createdAt.toISOString() : payment.createdAt,
           updatedAt: payment.updatedAt instanceof Date ? payment.updatedAt.toISOString() : payment.updatedAt,
         };
@@ -1103,15 +1240,6 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       const taxableBase = subtotal - discount;
       const tax = Math.max(total - shipping - taxableBase, 0);
 
-      const refundsData = sortedPayments.flatMap((payment) => {
-        const paymentRefunds = Array.isArray((payment as any).refunds)
-          ? (payment as any).refunds
-          : [];
-        return paymentRefunds.map((refund: any) =>
-          mapRefund(refund, payment.provider as PaymentProvider | undefined)
-        );
-      });
-
       res.json({
         order: {
           id: order.id,
@@ -1151,7 +1279,6 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         },
         totalPaid: totalPaidMinor / 100,
         totalRefunded: totalRefundedMinor / 100,
-        refunds: refundsData,
         breakdown: {
           subtotal,
           discount,
@@ -1204,16 +1331,15 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
 
       const refundParams: CreateRefundParams = {
         paymentId: validatedData.paymentId,
-        amount: validatedData.amount ? Math.round(validatedData.amount * 100) : undefined, // Convert to minor units
+        amount: Math.round(validatedData.amount * 100), // Convert to minor units
+        merchantRefundId: validatedData.merchantRefundId,
         reason: validatedData.reason,
         notes: validatedData.notes,
         idempotencyKey: idempotencyKeyHeader.trim(),
-        merchantRefundId: validatedData.merchantRefundId,
-        originalMerchantOrderId: validatedData.originalMerchantOrderId,
       };
 
       const result = await paymentsService.createRefund(refundParams, tenantId);
-
+      
       res.json({
         success: true,
         data: {
@@ -1223,9 +1349,6 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           status: result.status,
           reason: result.reason,
           provider: result.provider,
-          merchantRefundId: result.merchantRefundId,
-          originalMerchantOrderId: result.originalMerchantOrderId,
-          upiUtr: result.upiUtr,
           createdAt: result.createdAt,
         }
       });
@@ -1446,174 +1569,6 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       });
     }
   });
-
-  router.get(
-    '/admin/phonepe/orders/:orderId',
-    requireAdmin,
-    async (req: SessionRequest, res) => {
-      const { orderId } = req.params;
-
-      if (!orderId || orderId.trim().length === 0) {
-        return res.status(400).json({ error: 'Order ID is required' });
-      }
-
-      try {
-        const order = await ordersRepository.getOrderWithPayments(orderId);
-
-        if (!order) {
-          return res.status(404).json({ error: 'Order not found' });
-        }
-
-        const phonePePayments = Array.isArray(order.payments)
-          ? order.payments.filter((payment) => payment.provider === 'phonepe')
-          : [];
-
-        if (phonePePayments.length === 0) {
-          return res.status(404).json({ error: 'No PhonePe payments recorded for this order' });
-        }
-
-        const toTimestamp = (value: unknown): number => {
-          if (value instanceof Date) {
-            return value.getTime();
-          }
-          if (typeof value === 'string' || typeof value === 'number') {
-            const parsed = new Date(value).getTime();
-            return Number.isNaN(parsed) ? 0 : parsed;
-          }
-          return 0;
-        };
-
-        const latestPayment = [...phonePePayments].sort(
-          (a, b) =>
-            toTimestamp(b.updatedAt ?? b.createdAt) - toTimestamp(a.updatedAt ?? a.createdAt)
-        )[0];
-
-        const merchantTransactionId = [
-          latestPayment.providerPaymentId,
-          latestPayment.providerReferenceId,
-          latestPayment.providerTransactionId,
-        ].find((candidate) => typeof candidate === 'string' && candidate.trim().length > 0);
-
-        if (!merchantTransactionId) {
-          return res.status(400).json({
-            error: 'Unable to determine PhonePe merchant transaction ID for this order',
-          });
-        }
-
-        const tenantId = order.tenantId || 'default';
-
-        const verificationResult = await paymentsService.verifyPayment(
-          {
-            paymentId: latestPayment.id,
-            providerPaymentId: latestPayment.providerPaymentId ?? undefined,
-            providerData: {
-              merchantTransactionId,
-              upiPayerHandle: latestPayment.upiPayerHandle ?? undefined,
-              payerVpa: latestPayment.upiPayerHandle ?? undefined,
-            },
-          },
-          tenantId,
-        );
-
-        const reconciliationJob = await phonePePollingStore.getLatestJobForOrder(orderId, tenantId);
-
-        const paymentInstrument = verificationResult.providerData?.paymentInstrument ?? null;
-        const resolvedUtr =
-          paymentInstrument?.utr || verificationResult.providerData?.utr || null;
-        const resolvedPayerHandle =
-          verificationResult.providerData?.upiPayerHandle ||
-          paymentInstrument?.vpa ||
-          paymentInstrument?.payerVpa ||
-          paymentInstrument?.payerAddress ||
-          null;
-
-        const normalizedVariant = normalizeUpiInstrumentVariant(
-          (paymentInstrument as any)?.instrumentType || paymentInstrument?.type
-        );
-        const variantLabel = formatUpiInstrumentVariantLabel(normalizedVariant);
-
-        const maskedUtr = maskPhonePeIdentifier('phonepe', resolvedUtr, { type: 'utr' });
-        const maskedHandle = maskPhonePeIdentifier('phonepe', resolvedPayerHandle, { type: 'vpa' });
-
-        const toIsoString = (value: unknown) => {
-          if (!value) {
-            return undefined;
-          }
-          if (value instanceof Date) {
-            return value.toISOString();
-          }
-          if (typeof value === 'string') {
-            const parsed = new Date(value);
-            return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
-          }
-          if (typeof value === 'number') {
-            return new Date(value).toISOString();
-          }
-          return undefined;
-        };
-
-        const amountMinor = typeof verificationResult.amount === 'number'
-          ? verificationResult.amount
-          : latestPayment.amountCapturedMinor ?? latestPayment.amountAuthorizedMinor ?? 0;
-
-        res.json({
-          success: true,
-          data: {
-            orderId: order.id,
-            tenantId,
-            paymentId: latestPayment.id,
-            merchantTransactionId,
-            providerStatus: verificationResult.status,
-            phonePeState: verificationResult.providerData?.state ?? null,
-            responseCode: verificationResult.providerData?.responseCode ?? null,
-            amountMinor,
-            amount: amountMinor / 100,
-            currency: verificationResult.currency,
-            verifiedAt: toIsoString(verificationResult.updatedAt ?? new Date()),
-            instrument: {
-              type: paymentInstrument?.type ?? null,
-              utr: resolvedUtr,
-              utrMasked: maskedUtr ?? null,
-              payerHandle: resolvedPayerHandle,
-              payerHandleMasked: maskedHandle ?? null,
-              payerVpa: paymentInstrument?.payerVpa ?? null,
-              payerAddress: paymentInstrument?.payerAddress ?? null,
-              variant: normalizedVariant ?? null,
-              variantLabel: variantLabel ?? null,
-            },
-            rawInstrument: paymentInstrument,
-            recordedPayment: {
-              status: latestPayment.status,
-              providerPaymentId: latestPayment.providerPaymentId ?? undefined,
-              providerReferenceId: latestPayment.providerReferenceId ?? undefined,
-              upiPayerHandle: latestPayment.upiPayerHandle ?? undefined,
-              upiUtr: latestPayment.upiUtr ?? undefined,
-              updatedAt: toIsoString(latestPayment.updatedAt ?? latestPayment.createdAt) ?? null,
-            },
-            reconciliation: reconciliationJob
-              ? {
-                  status: reconciliationJob.status,
-                  attempt: reconciliationJob.attempt,
-                  nextPollAt: toIsoString(reconciliationJob.nextPollAt),
-                  expiresAt: toIsoString(reconciliationJob.expireAt),
-                  lastStatus: reconciliationJob.lastStatus ?? null,
-                  lastResponseCode: reconciliationJob.lastResponseCode ?? null,
-                  lastError: reconciliationJob.lastError ?? null,
-                  completedAt: toIsoString(reconciliationJob.completedAt),
-                  lastPolledAt: toIsoString(reconciliationJob.lastPolledAt),
-                }
-              : null,
-          },
-        });
-      } catch (error) {
-        console.error('PhonePe admin order status fetch failed:', error);
-        res.status(500).json({
-          error: 'Failed to fetch PhonePe order status',
-          message: error instanceof Error ? error.message : 'Unknown error',
-        });
-      }
-    }
-  );
 
   // ===== UTILITY ENDPOINTS =====
 

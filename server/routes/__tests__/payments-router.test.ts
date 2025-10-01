@@ -252,10 +252,30 @@ describe("payments router", () => {
       tenant: string,
       orderId: string,
       amountMinor: number,
-      currency: string
+      currency: string,
+      instrument: string,
+      payPageType: string,
+      rawInstrument?: string,
     ) => {
       const hash = createHash("sha256");
-      hash.update([tenant, orderId, amountMinor.toString(), currency].join(":"));
+      const normalizedRawInstrument = typeof rawInstrument === "string"
+        ? rawInstrument.trim().toUpperCase().replace(/[\s-]+/g, "_")
+        : undefined;
+      const normalizedPayPageType = payPageType.toUpperCase();
+      const components = [
+        tenant,
+        orderId,
+        amountMinor.toString(),
+        currency,
+        instrument,
+        normalizedPayPageType,
+      ];
+
+      if (normalizedRawInstrument && normalizedRawInstrument !== instrument) {
+        components.push(normalizedRawInstrument);
+      }
+
+      hash.update(components.join(":"));
       return `${prefix}:${hash.digest("hex")}`;
     };
 
@@ -265,6 +285,8 @@ describe("payments router", () => {
         amount: 10,
         currency: "INR",
         customer: {},
+        instrumentPreference: "UPI_INTENT",
+        payPageType: "IFRAME",
       };
 
       return {
@@ -305,6 +327,21 @@ describe("payments router", () => {
       expect(firstRes.jsonPayload.success).toBe(true);
       expect(mockPaymentsService.createPayment).toHaveBeenCalledTimes(1);
       expect(mockPhonePePollingWorker.registerJob).toHaveBeenCalledTimes(1);
+      const expectedKey = computeKey(
+        "phonepe-token",
+        "tenant-a",
+        "order-123",
+        1000,
+        "INR",
+        "UPI_INTENT",
+        "IFRAME",
+        "UPI_INTENT",
+      );
+      expect(executeWithIdempotencyMock).toHaveBeenCalledWith(
+        expectedKey,
+        "phonepe_token_url",
+        expect.any(Function)
+      );
 
       const secondReq = buildTokenRequest();
       const secondRes = createMockResponse();
@@ -325,7 +362,16 @@ describe("payments router", () => {
       mockPaymentsService.createPayment.mockResolvedValue(paymentResult);
 
       const amountMinor = 1000;
-      const expectedKey = computeKey("phonepe-token", "tenant-a", "order-123", amountMinor, "INR");
+      const expectedKey = computeKey(
+        "phonepe-token",
+        "tenant-a",
+        "order-123",
+        amountMinor,
+        "INR",
+        "UPI_INTENT",
+        "IFRAME",
+        "UPI_INTENT",
+      );
       const expiredPayload = {
         success: true,
         data: {
@@ -333,6 +379,13 @@ describe("payments router", () => {
           paymentId: "pay_0",
           merchantTransactionId: "merchant-0",
           expiresAt: new Date(Date.now() - 1000).toISOString(),
+        },
+        metadata: {
+          effectiveInstrument: "UPI_INTENT",
+          requestedInstrument: "UPI_INTENT",
+          payPageType: "IFRAME",
+          payPage: "IFRAME",
+          cacheExpiresAt: new Date(Date.now() - 1000).toISOString(),
         },
       };
       idempotencyCache.set(`phonepe_token_url:${expectedKey}`, expiredPayload);
@@ -358,7 +411,20 @@ describe("payments router", () => {
         })
       );
       expect(invalidateKeyMock).toHaveBeenNthCalledWith(1, expectedKey, "phonepe_token_url");
-      expect(invalidateKeyMock).toHaveBeenNthCalledWith(2, computeKey("phonepe-payment", "tenant-a", "order-123", amountMinor, "INR"), "create_payment");
+      expect(invalidateKeyMock).toHaveBeenNthCalledWith(
+        2,
+        computeKey(
+          "phonepe-payment",
+          "tenant-a",
+          "order-123",
+          amountMinor,
+          "INR",
+          "UPI_INTENT",
+          "IFRAME",
+          "UPI_INTENT",
+        ),
+        "create_payment"
+      );
       expect(mockPaymentsService.createPayment).toHaveBeenCalledWith(
         expect.objectContaining({ idempotencyKey: "generated-key" }),
         "tenant-a",
@@ -396,11 +462,36 @@ describe("payments router", () => {
 
       expect(firstResponse.jsonPayload.data.tokenUrl).toBe("https://phonepe.example/initial");
       const amountMinor = 1000;
-      const expectedTokenKey = computeKey("phonepe-token", "tenant-a", "order-123", amountMinor, "INR");
-      const expectedPaymentKey = computeKey("phonepe-payment", "tenant-a", "order-123", amountMinor, "INR");
+      const expectedTokenKey = computeKey(
+        "phonepe-token",
+        "tenant-a",
+        "order-123",
+        amountMinor,
+        "INR",
+        "UPI_INTENT",
+        "IFRAME",
+        "UPI_INTENT",
+      );
+      const expectedPaymentKey = computeKey(
+        "phonepe-payment",
+        "tenant-a",
+        "order-123",
+        amountMinor,
+        "INR",
+        "UPI_INTENT",
+        "IFRAME",
+        "UPI_INTENT",
+      );
 
       const cachedPayload = idempotencyCache.get(`phonepe_token_url:${expectedTokenKey}`);
       cachedPayload.data.expiresAt = new Date(Date.now() - 1).toISOString();
+      cachedPayload.metadata = {
+        effectiveInstrument: "UPI_INTENT",
+        requestedInstrument: "UPI_INTENT",
+        payPageType: "IFRAME",
+        payPage: "IFRAME",
+        cacheExpiresAt: new Date(Date.now() - 1).toISOString(),
+      };
       idempotencyCache.set(`phonepe_token_url:${expectedTokenKey}`, cachedPayload);
       idempotencyCache.set(`create_payment:${expectedPaymentKey}`, { success: true });
 
@@ -414,6 +505,68 @@ describe("payments router", () => {
       expect(secondResponse.jsonPayload.data.paymentId).toBe("pay_refreshed");
       expect(secondResponse.jsonPayload.data.tokenUrl).toBe("https://phonepe.example/refreshed");
       expect(invalidateKeyMock).toHaveBeenCalledWith(expectedPaymentKey, "create_payment");
+    });
+
+    it("generates a new idempotency key when the instrument preference changes", async () => {
+      mockOrdersRepository.getOrderWithPayments
+        .mockResolvedValueOnce(buildOrderRecord())
+        .mockResolvedValueOnce(buildOrderRecord());
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/token-url");
+
+      const firstResult = { ...buildPaymentResult(), paymentId: "pay_intent" };
+      const secondResult = { ...buildPaymentResult(), paymentId: "pay_qr", redirectUrl: "https://phonepe.example/qr" };
+
+      mockPaymentsService.createPayment
+        .mockResolvedValueOnce(firstResult)
+        .mockResolvedValueOnce(secondResult);
+
+      const intentResponse = createMockResponse();
+      await handler(buildTokenRequest({ body: { instrumentPreference: "UPI_INTENT" } }), intentResponse, () => {});
+
+      const qrResponse = createMockResponse();
+      await handler(buildTokenRequest({ body: { instrumentPreference: "UPI_QR" } }), qrResponse, () => {});
+
+      expect(mockPaymentsService.createPayment).toHaveBeenCalledTimes(2);
+      expect(intentResponse.jsonPayload.data.paymentId).toBe("pay_intent");
+      expect(qrResponse.jsonPayload.data.paymentId).toBe("pay_qr");
+
+      const firstKey = executeWithIdempotencyMock.mock.calls[0]?.[0];
+      const secondKey = executeWithIdempotencyMock.mock.calls[1]?.[0];
+
+      expect(firstKey).toBeDefined();
+      expect(secondKey).toBeDefined();
+      expect(secondKey).not.toEqual(firstKey);
+    });
+
+    it("produces a different idempotency key when the amount changes", async () => {
+      mockOrdersRepository.getOrderWithPayments
+        .mockResolvedValueOnce(buildOrderRecord())
+        .mockResolvedValueOnce(buildOrderRecord({ amountMinor: 1500, total: "15.00" }));
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/token-url");
+
+      const firstResult = { ...buildPaymentResult(), paymentId: "pay_1000" };
+      const secondResult = { ...buildPaymentResult(), paymentId: "pay_1500", redirectUrl: "https://phonepe.example/15" };
+
+      mockPaymentsService.createPayment
+        .mockResolvedValueOnce(firstResult)
+        .mockResolvedValueOnce(secondResult);
+
+      const firstRes = createMockResponse();
+      await handler(buildTokenRequest(), firstRes, () => {});
+
+      const secondRes = createMockResponse();
+      await handler(buildTokenRequest({ body: { amount: 15 } }), secondRes, () => {});
+
+      const firstKey = executeWithIdempotencyMock.mock.calls[0]?.[0];
+      const secondKey = executeWithIdempotencyMock.mock.calls[1]?.[0];
+
+      expect(firstKey).toBeDefined();
+      expect(secondKey).toBeDefined();
+      expect(secondKey).not.toEqual(firstKey);
+      expect(secondRes.jsonPayload.data.paymentId).toBe("pay_1500");
+      expect(secondRes.jsonPayload.data.tokenUrl).toBe("https://phonepe.example/15");
     });
 
     it("derives a deterministic idempotency key from the tenant, order, and amount", async () => {
@@ -431,8 +584,26 @@ describe("payments router", () => {
       await handler(req, res, () => {});
 
       const expectedAmountMinor = 2599;
-      const expectedTokenKey = computeKey("phonepe-token", "tenant-a", "order-123", expectedAmountMinor, "USD");
-      const expectedPaymentKey = computeKey("phonepe-payment", "tenant-a", "order-123", expectedAmountMinor, "USD");
+      const expectedTokenKey = computeKey(
+        "phonepe-token",
+        "tenant-a",
+        "order-123",
+        expectedAmountMinor,
+        "USD",
+        "UPI_INTENT",
+        "IFRAME",
+        "UPI_INTENT",
+      );
+      const expectedPaymentKey = computeKey(
+        "phonepe-payment",
+        "tenant-a",
+        "order-123",
+        expectedAmountMinor,
+        "USD",
+        "UPI_INTENT",
+        "IFRAME",
+        "UPI_INTENT",
+      );
 
       expect(mockPaymentsService.createPayment).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -510,6 +681,26 @@ describe("payments router", () => {
           }),
         })
       );
+    });
+
+    it("threads the requested PhonePe instrument into the provider options", async () => {
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValue(buildOrderRecord());
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/token-url");
+
+      const paymentResult = buildPaymentResult();
+      mockPaymentsService.createPayment.mockResolvedValue(paymentResult);
+
+      const req = buildTokenRequest({ body: { instrumentPreference: "UPI_QR" } });
+      const res = createMockResponse();
+      await handler(req, res, () => {});
+
+      const [params] = mockPaymentsService.createPayment.mock.calls.at(-1) ?? [];
+      expect(params?.providerOptions?.phonepe?.instrumentPreference).toBe("UPI_QR");
+      expect(params?.providerOptions?.phonepe?.payPageType).toBe("IFRAME");
+      expect(params?.providerOptions?.phonepe?.payPage).toBe("IFRAME");
+      expect(params?.metadata?.payPage).toBe("IFRAME");
+      expect(res.jsonPayload.success).toBe(true);
     });
   });
 

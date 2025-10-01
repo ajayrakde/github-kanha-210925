@@ -1,18 +1,26 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PaymentEvent, PaymentResult } from "../../../shared/payment-types";
-import { payments, orders, paymentEvents } from "../../../shared/schema";
+import type { PaymentEvent, PaymentResult, RefundResult } from "../../../shared/payment-types";
+import { payments, orders, paymentEvents, refunds } from "../../../shared/schema";
 import { phonePeIdentifierFixture } from "../../../shared/__fixtures__/upi";
 
 process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
 
-const upiQueryResults: any[][] = [];
+const selectResults: any[][] = [];
 const paymentInserts: any[] = [];
 const auditEventInserts: Array<{ table: any; values: any }> = [];
 
+/** Incoming branch used this queue name in many tests */
+const upiQueryResults: any[][] = [];
+
+/** Some tests enqueue custom transaction behaviors */
+const transactionQueue: Array<(callback: (trx: any) => Promise<any>) => Promise<any>> = [];
+
+/** Unified select mock: supports both incoming (upiQueryResults) and legacy (selectResults) queues */
 const selectMock = vi.fn(() => ({
   from: vi.fn(() => ({
     where: vi.fn(() => {
-      const values = upiQueryResults.shift() ?? [];
+      const queue = upiQueryResults.length ? upiQueryResults : selectResults;
+      const values = queue.shift() ?? [];
       const promise: any = Promise.resolve(values);
       promise.limit = vi.fn(async () => values);
       return promise;
@@ -20,16 +28,21 @@ const selectMock = vi.fn(() => ({
   })),
 }));
 
-const insertValuesMock = vi.fn(async (values: any) => {
+const insertValuesMock = vi.fn((values: any) => {
   paymentInserts.push(values);
+  return {
+    returning: vi.fn(async () => []),
+  };
 });
 
+/** Top-level db.insert(...).values(...) for audit events etc. */
 const directInsertMock = vi.fn((table: any) => ({
   values: vi.fn(async (values: any) => {
     auditEventInserts.push({ table, values });
   }),
 }));
 
+/** Default trx impl used when a test didn’t push a custom impl into transactionQueue */
 const defaultTransactionImplementation = async (callback: (trx: any) => Promise<void>) => {
   await callback({
     insert: vi.fn(() => ({ values: insertValuesMock })),
@@ -37,12 +50,21 @@ const defaultTransactionImplementation = async (callback: (trx: any) => Promise<
   });
 };
 
-const transactionMock = vi.fn(defaultTransactionImplementation);
+const transactionImplementationWithQueue = async (callback: (trx: any) => Promise<any>) => {
+  const impl = transactionQueue.shift();
+  if (impl) {
+    return await impl(callback);
+  }
+  return await defaultTransactionImplementation(callback);
+};
+
+const transactionMock = vi.fn(transactionImplementationWithQueue);
 
 vi.mock("../../db", () => ({
   db: {
     transaction: transactionMock,
     select: selectMock,
+    update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
     insert: directInsertMock,
   },
 }));
@@ -50,7 +72,7 @@ vi.mock("../../db", () => ({
 const adapter = {
   provider: "phonepe" as const,
   createPayment: vi.fn<[], Promise<PaymentResult>>(),
-  createRefund: vi.fn(),
+  createRefund: vi.fn<[], Promise<RefundResult>>(),
 };
 
 const getAdapterWithFallbackMock = vi.fn(async () => adapter);
@@ -87,20 +109,28 @@ beforeAll(async () => {
 
 describe("PaymentsService.createPayment", () => {
   beforeEach(() => {
+    selectResults.length = 0;
     upiQueryResults.length = 0;
+    transactionQueue.length = 0;
     paymentInserts.length = 0;
     auditEventInserts.length = 0;
+
     insertValuesMock.mockClear();
     transactionMock.mockClear();
-    transactionMock.mockImplementation(defaultTransactionImplementation);
+    transactionMock.mockImplementation(transactionImplementationWithQueue);
     selectMock.mockClear();
     directInsertMock.mockClear();
+
     adapter.createPayment.mockReset();
     adapter.createRefund.mockReset();
+
     executeWithIdempotencyMock.mockReset();
     generateKeyMock.mockReset();
     generateKeyMock.mockReturnValue("generated-key");
+
     createAdapterMock.mockReset();
+    createAdapterMock.mockResolvedValue(adapter);
+
     (PaymentsServiceClass as unknown as { instances: Map<string, any> }).instances = new Map();
   });
 
@@ -112,7 +142,7 @@ describe("PaymentsService.createPayment", () => {
   };
 
   it("throws when a captured UPI payment already exists", async () => {
-    upiQueryResults.push([{ id: "existing" }]);
+    selectResults.push([{ id: "existing" }]);
     executeWithIdempotencyMock.mockImplementation(async (_key, _scope, operation) => {
       return await operation();
     });
@@ -126,7 +156,7 @@ describe("PaymentsService.createPayment", () => {
   });
 
   it("returns cached response for repeated idempotent requests", async () => {
-    upiQueryResults.push([]);
+    selectResults.push([]);
 
     const cachedResponses = new Map<string, any>();
     executeWithIdempotencyMock.mockImplementation(async (key: string, _scope: string, operation: () => Promise<any>) => {
@@ -186,10 +216,10 @@ describe("PaymentsService.createPayment", () => {
 
     const service = createPaymentsService({ environment: "test" });
 
-    upiQueryResults.push([]);
+    selectResults.push([]);
     await service.createPayment({ ...baseParams, idempotencyKey: "key-1" }, "default");
 
-    upiQueryResults.push([{ id: "existing" }]);
+    selectResults.push([{ id: "existing" }]);
     await expect(
       service.createPayment({ ...baseParams, idempotencyKey: "key-2" }, "default")
     ).rejects.toMatchObject({ code: "UPI_PAYMENT_ALREADY_CAPTURED" });
@@ -217,7 +247,7 @@ describe("PaymentsService.createPayment", () => {
 
     const service = createPaymentsService({ environment: "test" });
 
-    upiQueryResults.push([]);
+    selectResults.push([]);
     await service.createPayment(baseParams, "default");
 
     expect(paymentInserts[0]?.status).toBe("COMPLETED");
@@ -243,7 +273,7 @@ describe("PaymentsService.createPayment", () => {
 
     const service = createPaymentsService({ environment: "test" });
 
-    upiQueryResults.push([]);
+    selectResults.push([]);
 
     await service.createPayment(baseParams, "default", undefined, { idempotencyKeyOverride: "override-key" });
 
@@ -285,7 +315,7 @@ describe("PaymentsService.createPayment", () => {
 
     const service = createPaymentsService({ environment: "test" });
 
-    upiQueryResults.push([]);
+    selectResults.push([]);
     await service.createPayment(baseParams, "default");
 
     expect(paymentInserts[0]).toMatchObject({
@@ -322,12 +352,12 @@ describe("PaymentsService.updateStoredPayment lifecycle", () => {
 
   beforeEach(() => {
     transactionMock.mockClear();
-    transactionMock.mockImplementation(defaultTransactionImplementation);
+    transactionMock.mockImplementation(transactionImplementationWithQueue);
     (PaymentsServiceClass as unknown as { instances: Map<string, any> }).instances = new Map();
   });
 
   afterEach(() => {
-    transactionMock.mockImplementation(defaultTransactionImplementation);
+    transactionMock.mockImplementation(transactionImplementationWithQueue);
   });
 
   it("skips updates when the lifecycle would move backwards", async () => {
@@ -756,16 +786,20 @@ describe("PaymentsService.createRefund", () => {
 
 describe("PaymentsService.cancelPayment", () => {
   beforeEach(() => {
-    upiQueryResults.length = 0;
+    selectResults.length = 0;
+    transactionQueue.length = 0;
     paymentInserts.length = 0;
     insertValuesMock.mockClear();
     transactionMock.mockClear();
-    transactionMock.mockImplementation(defaultTransactionImplementation);
+    transactionMock.mockImplementation(transactionImplementationWithQueue);
     selectMock.mockClear();
     executeWithIdempotencyMock.mockReset();
     generateKeyMock.mockReset();
     generateKeyMock.mockReturnValue("generated-key");
     adapter.createPayment.mockReset();
+    adapter.createRefund.mockReset();
+    createAdapterMock.mockReset();
+    createAdapterMock.mockResolvedValue(adapter);
     (PaymentsServiceClass as unknown as { instances: Map<string, any> }).instances = new Map();
   });
 
@@ -778,7 +812,7 @@ describe("PaymentsService.cancelPayment", () => {
       status: "CREATED",
     };
 
-    upiQueryResults.push([paymentRecord]);
+    selectResults.push([paymentRecord]);
 
     const paymentUpdates: any[] = [];
     const orderUpdates: any[] = [];
@@ -844,14 +878,14 @@ describe("PaymentsService.cancelPayment", () => {
       paymentId: "pay_1",
     });
 
-    transactionMock.mockImplementation(defaultTransactionImplementation);
+    transactionMock.mockImplementation(transactionImplementationWithQueue);
 
     const createdAt = new Date();
     executeWithIdempotencyMock.mockImplementation(async (_key, _scope, operation) => {
       return await operation();
     });
 
-    upiQueryResults.push([]);
+    selectResults.push([]);
 
     adapter.createPayment.mockResolvedValue({
       paymentId: "pay_retry",
@@ -863,7 +897,7 @@ describe("PaymentsService.cancelPayment", () => {
       currency: "INR",
       method: { type: "upi" },
       providerData: {},
-      createdAt,
+      createdA,
     });
 
     await service.createPayment(
