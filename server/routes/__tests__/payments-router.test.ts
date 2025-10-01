@@ -86,6 +86,7 @@ const updateMock = vi.fn(() => ({
     where: vi.fn(async () => ({ rowCount: 0 })),
   })),
 }));
+const findPaymentMock = vi.fn();
 
 const buildOrderRecord = (overrides: Record<string, any> = {}) => ({
   id: "order-123",
@@ -136,6 +137,11 @@ vi.mock("../../db", () => ({
   db: {
     insert: insertMock,
     update: updateMock,
+    query: {
+      payments: {
+        findFirst: findPaymentMock,
+      },
+    },
   },
 }));
 
@@ -146,6 +152,8 @@ describe("payments router", () => {
     mockPhonePePollingStore.getLatestJobForOrder.mockResolvedValue(null);
     mockPhonePePollingStore.markExpired.mockResolvedValue(null);
     mockPhonePePollingWorker.registerJob.mockResolvedValue({});
+    findPaymentMock.mockReset();
+    findPaymentMock.mockResolvedValue(null);
   });
 
   const defaultRequireAdmin: RequireAdminMiddleware = (_req, _res, next) => {
@@ -779,11 +787,52 @@ describe("payments router", () => {
     });
   });
 
+  describe("POST /api/payments/cancel", () => {
+    it("requires authentication", async () => {
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/cancel");
+      const req = {
+        body: { paymentId: "pay_1", orderId: "order-123" },
+        headers: { 'x-tenant-id': 'tenant-a' },
+        session: {} as any,
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await handler(req, res, () => {});
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ message: "Authentication required" });
+      expect(mockOrdersRepository.getOrderWithPayments).not.toHaveBeenCalled();
+    });
+  });
+
   describe("POST /api/payments/phonepe/retry", () => {
+    it("requires an authenticated session", async () => {
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/phonepe/retry");
+      const req = {
+        body: { orderId: "order-123" },
+        headers: { 'x-tenant-id': 'tenant-a' },
+        session: {} as any,
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await handler(req, res, () => {});
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ message: "Authentication required" });
+      expect(mockPaymentsService.createPayment).not.toHaveBeenCalled();
+      expect(mockOrdersRepository.getOrderWithPayments).not.toHaveBeenCalled();
+    });
+
     it("validates payload shape", async () => {
       const router = await buildRouter();
       const handler = getRouteHandler(router, "post", "/phonepe/retry");
-      const req = { body: {}, headers: { 'x-tenant-id': 'tenant-a' } } as unknown as Request;
+      const req = {
+        body: {},
+        headers: { 'x-tenant-id': 'tenant-a' },
+        session: { userId: "user-1", userRole: "buyer" },
+      } as unknown as Request;
       const res = createMockResponse();
 
       await handler(req, res, () => {});
@@ -795,7 +844,11 @@ describe("payments router", () => {
     it("returns 404 when order is missing", async () => {
       const router = await buildRouter();
       const handler = getRouteHandler(router, "post", "/phonepe/retry");
-      const req = { body: { orderId: "missing" }, headers: { 'x-tenant-id': 'tenant-a' } } as unknown as Request;
+      const req = {
+        body: { orderId: "missing" },
+        headers: { 'x-tenant-id': 'tenant-a' },
+        session: { userId: "user-1", userRole: "buyer" },
+      } as unknown as Request;
       const res = createMockResponse();
 
       mockOrdersRepository.getOrderWithPayments.mockResolvedValueOnce(null);
@@ -809,7 +862,11 @@ describe("payments router", () => {
     it("rejects when the latest job has not expired", async () => {
       const router = await buildRouter();
       const handler = getRouteHandler(router, "post", "/phonepe/retry");
-      const req = { body: { orderId: "order-123" }, headers: { 'x-tenant-id': 'tenant-a' } } as unknown as Request;
+      const req = {
+        body: { orderId: "order-123" },
+        headers: { 'x-tenant-id': 'tenant-a' },
+        session: { userId: "user-1", userRole: "buyer" },
+      } as unknown as Request;
       const res = createMockResponse();
 
       mockOrdersRepository.getOrderWithPayments.mockResolvedValueOnce(buildOrderRecord());
@@ -819,6 +876,25 @@ describe("payments router", () => {
 
       expect(res.status).toHaveBeenCalledWith(409);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "PHONEPE_RETRY_NOT_ALLOWED" }));
+      expect(mockPaymentsService.createPayment).not.toHaveBeenCalled();
+    });
+
+    it("returns 403 when the order belongs to a different buyer", async () => {
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/phonepe/retry");
+      const req = {
+        body: { orderId: "order-123" },
+        headers: { 'x-tenant-id': 'tenant-a' },
+        session: { userId: "user-2", userRole: "buyer" },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValueOnce(buildOrderRecord({ userId: "user-1" }));
+
+      await handler(req, res, () => {});
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ error: "Order not accessible" });
       expect(mockPaymentsService.createPayment).not.toHaveBeenCalled();
     });
 
@@ -852,7 +928,11 @@ describe("payments router", () => {
       updateMock.mockReturnValueOnce({ set: setSpy });
 
       const res = buildResponse();
-      const req = { body: { orderId: "order-123" }, headers: { 'x-tenant-id': 'tenant-a' } } as unknown as Request;
+      const req = {
+        body: { orderId: "order-123" },
+        headers: { 'x-tenant-id': 'tenant-a' },
+        session: { userId: "user-1", userRole: "buyer" },
+      } as unknown as Request;
 
       await handler(req, res, () => {});
 
@@ -886,6 +966,33 @@ describe("payments router", () => {
           reconciliation: expect.objectContaining({ status: "pending" }),
         }),
       }));
+    });
+  });
+
+  describe("POST /api/payments/refunds", () => {
+    it("requires authentication", async () => {
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/refunds");
+      const req = {
+        body: {
+          paymentId: "pay_1",
+          amount: 10,
+          merchantRefundId: "refund-123",
+        },
+        headers: {
+          'x-tenant-id': 'tenant-a',
+          'idempotency-key': 'key-123',
+        },
+        session: {} as any,
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await handler(req, res, () => {});
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ message: "Authentication required" });
+      expect(findPaymentMock).not.toHaveBeenCalled();
+      expect(mockPaymentsService.createRefund).not.toHaveBeenCalled();
     });
   });
 
