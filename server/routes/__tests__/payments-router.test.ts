@@ -159,7 +159,9 @@ describe("payments router", () => {
     if (!layer) {
       throw new Error(`Route ${method.toUpperCase()} ${path} not found`);
     }
-    return layer.route.stack[0].handle as (req: Request, res: Response, next: () => void) => Promise<void> | void;
+    const handles = layer.route.stack;
+    const target = handles[handles.length - 1];
+    return target.handle as (req: Request, res: Response, next: () => void) => Promise<void> | void;
   };
 
   const buildResponse = (overrides: Record<string, any> = {}) => {
@@ -891,6 +893,93 @@ describe("payments router", () => {
       expect(res.jsonPayload.payment.status).toBe("COMPLETED");
       expect(res.jsonPayload.totals.paidMinor).toBe(1000);
       expect(res.jsonPayload.payment.upiUtr).toBe(phonePeIdentifierFixture.maskedUtr);
+    });
+  });
+
+  describe("GET /api/payments/admin/phonepe/orders/:orderId", () => {
+    it("returns PhonePe state, instrument details, and reconciliation markers", async () => {
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "get", "/admin/phonepe/orders/:orderId");
+
+      const phonePePayment = {
+        id: "pay_1",
+        provider: "phonepe",
+        status: "processing",
+        providerPaymentId: "merchant-1",
+        providerReferenceId: "merchant-1",
+        providerTransactionId: "pg-1",
+        upiPayerHandle: "payer@upi",
+        upiUtr: "UTR-MASKED",
+        amountAuthorizedMinor: 1000,
+        amountCapturedMinor: 0,
+        createdAt: new Date("2024-01-01T00:00:00Z"),
+        updatedAt: new Date("2024-01-01T00:01:00Z"),
+      };
+
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValue(
+        buildOrderRecord({ payments: [phonePePayment] })
+      );
+
+      mockPaymentsService.verifyPayment.mockResolvedValue({
+        paymentId: "pay_1",
+        providerPaymentId: "merchant-1",
+        providerOrderId: "pg-1",
+        status: "completed",
+        amount: 1000,
+        currency: "INR",
+        provider: "phonepe",
+        environment: "test",
+        providerData: {
+          state: "COMPLETED",
+          responseCode: "SUCCESS",
+          utr: "UTR123456",
+          upiPayerHandle: "payer@upi",
+          paymentInstrument: {
+            type: "UPI_COLLECT",
+            utr: "UTR123456",
+            payerVpa: "payer@upi",
+            payerAddress: "payer@upi",
+          },
+        },
+        createdAt: new Date("2024-01-01T00:02:00Z"),
+        updatedAt: new Date("2024-01-01T00:02:30Z"),
+      });
+
+      const reconciliationJob = buildPhonePeJob({
+        status: "pending",
+        attempt: 2,
+        lastStatus: "PENDING",
+        lastResponseCode: "PAYMENT_PENDING",
+      });
+
+      mockPhonePePollingStore.getLatestJobForOrder.mockResolvedValue(reconciliationJob);
+
+      const req = {
+        params: { orderId: "order-123" },
+        headers: {},
+        session: { adminId: "admin-1", userRole: "admin" },
+      } as unknown as Request;
+
+      const res = createMockResponse();
+      await handler(req, res, () => {});
+
+      expect(res.status).not.toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalled();
+
+      const payload = res.jsonPayload;
+      expect(payload.success).toBe(true);
+      expect(payload.data.merchantTransactionId).toBe("merchant-1");
+      expect(payload.data.instrument.utr).toBe("UTR123456");
+      expect(payload.data.instrument.payerHandle).toBe("payer@upi");
+      expect(payload.data.reconciliation.status).toBe("pending");
+      expect(mockPaymentsService.verifyPayment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paymentId: "pay_1",
+          providerPaymentId: "merchant-1",
+          providerData: expect.objectContaining({ merchantTransactionId: "merchant-1" }),
+        }),
+        "tenant-a",
+      );
     });
   });
 

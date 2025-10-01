@@ -11,6 +11,7 @@ import Cart from "@/pages/cart";
 import Checkout from "@/pages/checkout";
 import Payment from "@/pages/payment";
 import Admin from "@/pages/admin";
+import PhonePeReconciliationAdminPage from "@/pages/admin/phonepe-reconciliation";
 import Influencer from "@/pages/influencer";
 import ThankYou from "@/pages/thank-you";
 import UserOrders from "@/pages/user-orders";
@@ -24,6 +25,7 @@ function Router() {
     <ErrorBoundary>
       <Switch>
         {/* Full-screen admin and influencer pages */}
+        <Route path="/admin/phonepe-reconciliation" component={PhonePeReconciliationAdminPage} />
         <Route path="/admin" component={Admin} />
         <Route path="/influencer" component={Influencer} />
         

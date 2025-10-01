@@ -362,6 +362,7 @@ export class PhonePeAdapter implements PaymentsAdapter {
             response.data?.paymentInstrument?.payerAddress,
           providerTransactionId: response.data?.transactionId,
           providerReferenceId: merchantTransactionId,
+          paymentInstrument: response.data?.paymentInstrument
         },
         
         createdAt: new Date(),
