@@ -155,12 +155,14 @@ export class OrdersRepository {
     user: User;
     deliveryAddress: UserAddress;
     payments: Payment[];
+    offer?: Offer | null;
   }) | null> {
     const orderData = await db.query.orders.findFirst({
       where: eq(orders.id, id),
       with: {
         user: true,
         deliveryAddress: true,
+        offer: true,
         payments: {
           with: {
             refunds: true,
@@ -175,6 +177,7 @@ export class OrdersRepository {
 
     return {
       ...orderData,
+      offer: orderData.offer ?? null,
       payments: orderData.payments?.map((payment) => ({
         ...payment,
         refunds: payment.refunds ?? [],

@@ -996,9 +996,140 @@ describe("payments router", () => {
     });
   });
 
+  describe("GET /api/payments/status/:paymentId", () => {
+    const resolveHandlers = async () => {
+      const router = await buildRouter();
+      const layer = getRouteLayer(router, "get", "/status/:paymentId");
+      const handlers = layer.route.stack.map((stack: any) => stack.handle);
+      return {
+        authMiddleware: handlers[0],
+        handler: handlers[handlers.length - 1],
+      };
+    };
+
+    const buildReqRes = (sessionOverrides: Record<string, any> = {}, headerOverrides: Record<string, string> = {}) => {
+      const req = {
+        params: { paymentId: "pay-1" },
+        headers: headerOverrides,
+        session: {
+          userRole: "buyer",
+          userId: "user-1",
+          ...sessionOverrides,
+        },
+      } as unknown as Request;
+      const res = createMockResponse();
+      return { req, res };
+    };
+
+    beforeEach(() => {
+      mockPaymentsService.verifyPayment.mockReset();
+      mockPaymentsService.verifyPayment.mockResolvedValue({
+        paymentId: "pay-1",
+        status: "COMPLETED",
+        amount: 1000,
+        currency: "INR",
+        provider: "phonepe",
+        method: "upi",
+        error: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    });
+
+    it("returns 401 when no authenticated session exists", async () => {
+      const { authMiddleware, handler } = await resolveHandlers();
+      const { req, res } = buildReqRes({ userRole: undefined, userId: undefined });
+
+      let handlerCalled = false;
+      authMiddleware(req, res as Response, () => {
+        handlerCalled = true;
+        return handler(req, res as Response, () => {});
+      });
+
+      expect(handlerCalled).toBe(false);
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ message: "Authentication required" });
+      expect(findPaymentMock).not.toHaveBeenCalled();
+      expect(mockPaymentsService.verifyPayment).not.toHaveBeenCalled();
+    });
+
+    it("rejects requests for orders owned by another buyer", async () => {
+      findPaymentMock.mockResolvedValue({
+        id: "pay-1",
+        tenantId: "default",
+        order: {
+          id: "order-1",
+          tenantId: "default",
+          userId: "user-2",
+        },
+      });
+
+      const { authMiddleware, handler } = await resolveHandlers();
+      const { req, res } = buildReqRes();
+
+      await new Promise<void>((resolve, reject) => {
+        let nextCalled = false;
+        const next = (err?: any) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          nextCalled = true;
+          Promise.resolve(handler(req, res as Response, () => {}))
+            .then(resolve)
+            .catch(reject);
+        };
+
+        Promise.resolve(authMiddleware(req, res as Response, next))
+          .then(() => {
+            if (!nextCalled) {
+              resolve();
+            }
+          })
+          .catch(reject);
+      });
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ error: "Order not accessible" });
+      expect(mockPaymentsService.verifyPayment).not.toHaveBeenCalled();
+    });
+
+    it("allows admins to verify status without buyer ownership", async () => {
+      findPaymentMock.mockResolvedValue({
+        id: "pay-1",
+        tenantId: "default",
+        order: {
+          id: "order-1",
+          tenantId: "default",
+          userId: "user-2",
+        },
+      });
+
+      const { authMiddleware, handler } = await resolveHandlers();
+      const { req, res } = buildReqRes({ userRole: "admin", adminId: "admin-1", userId: undefined });
+
+      await new Promise<void>((resolve, reject) => {
+        authMiddleware(req, res as Response, (err?: any) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          Promise.resolve(handler(req, res as Response, () => {}))
+            .then(resolve)
+            .catch(reject);
+        });
+      });
+
+      expect(mockPaymentsService.verifyPayment).toHaveBeenCalledWith({ paymentId: "pay-1" }, "default");
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+  });
+
   describe("GET /api/payments/order-info/:orderId", () => {
     const baseOrder = {
       id: "order-1",
+      tenantId: "default",
+      userId: "user-1",
       status: "pending",
       paymentStatus: "pending",
       paymentFailedAt: null,
@@ -1012,22 +1143,108 @@ describe("payments router", () => {
       payments: [] as any[],
       user: {},
       deliveryAddress: {},
+      offer: { influencerId: "inf-1" },
     };
 
-    const invoke = async (orderOverrides: Partial<typeof baseOrder>) => {
+    const invoke = async (
+      orderOverrides: Partial<typeof baseOrder>,
+      sessionOverrides: Record<string, any> = {},
+      headerOverrides: Record<string, string> = {},
+    ) => {
       mockOrdersRepository.getOrderWithPayments.mockResolvedValue({
         ...baseOrder,
         ...orderOverrides,
       });
       const router = await buildRouter();
-      const handler = getRouteHandler(router, "get", "/order-info/:orderId");
+      const layer = getRouteLayer(router, "get", "/order-info/:orderId");
+      const handlers = layer.route.stack.map((stack: any) => stack.handle);
+      const authMiddleware = handlers[0];
+      const handler = handlers[handlers.length - 1];
       const res = createMockResponse();
-      const req = { params: { orderId: "order-1" }, headers: {} } as unknown as Request;
+      const req = {
+        params: { orderId: "order-1" },
+        headers: headerOverrides,
+        session: {
+          userRole: "buyer",
+          userId: "user-1",
+          ...sessionOverrides,
+        },
+      } as unknown as Request;
 
-      await handler(req, res, () => {});
+      await new Promise<void>((resolve, reject) => {
+        let nextCalled = false;
+        const next = (err?: any) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          nextCalled = true;
+          Promise.resolve(handler(req, res as Response, () => {}))
+            .then(() => resolve())
+            .catch(reject);
+        };
+
+        Promise.resolve(authMiddleware(req, res as Response, next))
+          .then(() => {
+            if (!nextCalled) {
+              resolve();
+            }
+          })
+          .catch(reject);
+      });
 
       return res;
     };
+
+    it("requires authentication", async () => {
+      const res = await invoke({}, { userRole: undefined, userId: undefined });
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ message: "Authentication required" });
+      expect(mockOrdersRepository.getOrderWithPayments).not.toHaveBeenCalled();
+    });
+
+    it("rejects access to orders from another tenant", async () => {
+      const res = await invoke({ tenantId: "tenant-b" });
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ error: "Order not accessible" });
+    });
+
+    it("rejects buyers accessing another user's order", async () => {
+      const res = await invoke({ userId: "user-2" });
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ error: "Order not accessible" });
+    });
+
+    it("allows admins to view any order", async () => {
+      const res = await invoke(
+        { userId: "user-2" },
+        { userRole: "admin", adminId: "admin-1", userId: undefined },
+      );
+
+      expect(res.jsonPayload.order.id).toBe("order-1");
+    });
+
+    it("allows influencers to view orders tied to their offers", async () => {
+      const res = await invoke(
+        { offer: { influencerId: "inf-9" } },
+        { userRole: "influencer", influencerId: "inf-9", userId: undefined },
+      );
+
+      expect(res.jsonPayload.order.id).toBe("order-1");
+    });
+
+    it("blocks influencers from unrelated orders", async () => {
+      const res = await invoke(
+        { offer: { influencerId: "inf-2" } },
+        { userRole: "influencer", influencerId: "inf-9", userId: undefined },
+      );
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ error: "Order not accessible" });
+    });
 
     it("returns pending status when no payments exist", async () => {
       const res = await invoke({ payments: [] });

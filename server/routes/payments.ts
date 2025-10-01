@@ -52,19 +52,24 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     const buyerId = role === 'buyer' && typeof req.session?.userId === 'string'
       ? req.session.userId
       : null;
+    const influencerId = role === 'influencer' && typeof req.session?.influencerId === 'string'
+      ? req.session.influencerId
+      : null;
 
     return {
       isAdmin,
       buyerId,
       adminId: isAdmin ? req.session?.adminId ?? null : null,
+      isInfluencer: influencerId !== null,
+      influencerId,
     };
   };
 
   const requireAuthenticatedSession: RequestHandler = (req, res, next) => {
     const sessionReq = req as SessionRequest;
-    const { isAdmin, buyerId } = resolveSessionContext(sessionReq);
+    const { isAdmin, buyerId, isInfluencer } = resolveSessionContext(sessionReq);
 
-    if (isAdmin || buyerId) {
+    if (isAdmin || buyerId || isInfluencer) {
       return next();
     }
 
@@ -1288,17 +1293,64 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
    * Get payment status
    * GET /api/payments/status/:paymentId
    */
-  router.get('/status/:paymentId', async (req, res) => {
+  router.get('/status/:paymentId', requireAuthenticatedSession, async (req: SessionRequest, res) => {
     try {
       const { paymentId } = req.params;
-      
+
       if (!paymentId) {
         return res.status(400).json({
           error: 'Payment ID is required'
         });
       }
-      
-      const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+
+      const tenantId = resolveTenantId(req);
+      const { isAdmin, buyerId } = resolveSessionContext(req);
+
+      const paymentRecord = await db.query.payments.findFirst({
+        where: and(
+          eq(paymentsTable.id, paymentId),
+          eq(paymentsTable.tenantId, tenantId),
+        ),
+        with: {
+          order: {
+            columns: {
+              id: true,
+              userId: true,
+              tenantId: true,
+              offerId: true,
+            },
+            with: {
+              offer: {
+                columns: {
+                  influencerId: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!paymentRecord) {
+        return res.status(404).json({ error: 'Payment not found' });
+      }
+
+      if (!paymentRecord.order) {
+        return res.status(404).json({ error: 'Order not found for payment' });
+      }
+
+      const orderTenantId = typeof paymentRecord.order.tenantId === 'string' && paymentRecord.order.tenantId.trim().length > 0
+        ? paymentRecord.order.tenantId.trim()
+        : 'default';
+
+      if (orderTenantId !== tenantId) {
+        return res.status(403).json({ error: 'Order not accessible' });
+      }
+
+      const hasBuyerAccess = buyerId && paymentRecord.order.userId === buyerId;
+
+      if (!isAdmin && !hasBuyerAccess) {
+        return res.status(403).json({ error: 'Order not accessible' });
+      }
 
       // We'll verify the payment which also fetches the latest status
       const result = await paymentsService.verifyPayment({
@@ -1334,9 +1386,10 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
    * Get order payment summary
    * GET /api/payments/order-info/:orderId
    */
-  router.get('/order-info/:orderId', async (req, res) => {
+  router.get('/order-info/:orderId', requireAuthenticatedSession, async (req: SessionRequest, res) => {
     const { orderId } = req.params;
-    const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+    const tenantId = resolveTenantId(req);
+    const { isAdmin, buyerId, isInfluencer, influencerId } = resolveSessionContext(req);
 
     if (!orderId) {
       return res.status(400).json({ error: 'Order ID is required' });
@@ -1347,6 +1400,23 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
 
       if (!order) {
         return res.status(404).json({ error: 'Order not found' });
+      }
+
+      const orderTenantId = typeof order.tenantId === 'string' && order.tenantId.trim().length > 0
+        ? order.tenantId.trim()
+        : 'default';
+
+      if (orderTenantId !== tenantId) {
+        return res.status(403).json({ error: 'Order not accessible' });
+      }
+
+      const hasBuyerAccess = buyerId && order.userId === buyerId;
+      const hasInfluencerAccess = isInfluencer && influencerId
+        ? order.offer?.influencerId === influencerId
+        : false;
+
+      if (!isAdmin && !hasBuyerAccess && !hasInfluencerAccess) {
+        return res.status(403).json({ error: 'Order not accessible' });
       }
 
       const reconciliationJob = await phonePePollingStore.getLatestJobForOrder(orderId, tenantId);
