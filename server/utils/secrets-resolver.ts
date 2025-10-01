@@ -10,9 +10,24 @@
 // Import types from our shared schema
 import type {
   PaymentProvider,
-  Environment
+  Environment,
+  PhonePeConfig,
+  PhonePeHosts,
+  PhonePeHostSelection,
 } from "../../shared/payment-providers";
+import { PHONEPE_DEFAULT_HOSTS } from "../../shared/payment-providers";
 import { ConfigurationError } from "../../shared/payment-types";
+
+interface PhonePeSecretConfig {
+  client_id: PhonePeConfig["client_id"];
+  client_secret: PhonePeConfig["client_secret"];
+  client_version: PhonePeConfig["client_version"];
+  webhookAuth: PhonePeConfig["webhookAuth"];
+  hosts: PhonePeHosts;
+  activeHost?: PhonePeHostSelection;
+  redirectUrl?: PhonePeConfig["redirectUrl"];
+  merchantId?: PhonePeConfig["merchantId"];
+}
 
 /**
  * Interface for provider secrets resolved from environment variables
@@ -28,6 +43,9 @@ export interface ProviderSecrets {
   
   // Additional configuration
   saltIndex?: number;          // PhonePe salt index
+
+  // Structured provider configs
+  phonepe?: PhonePeSecretConfig;
   
   // Computed from environment variables
   environmentPrefix: string;   // 'PAYAPP_TEST_' or 'PAYAPP_LIVE_'
@@ -150,6 +168,37 @@ export class SecretsResolver {
             }
           }
         }
+
+        const hostUat = getOptionalEnvValue(`${environmentPrefix}HOST_UAT`) ?? PHONEPE_DEFAULT_HOSTS.uat;
+        const hostProd = getOptionalEnvValue(`${environmentPrefix}HOST_PROD`) ?? PHONEPE_DEFAULT_HOSTS.prod;
+        const activeHost = getOptionalEnvValue(`${environmentPrefix}HOST_ACTIVE`);
+
+        secrets.phonepe = {
+          client_id: resolvedEnvValues[`${environmentPrefix}CLIENT_ID`],
+          client_secret: resolvedEnvValues[`${environmentPrefix}CLIENT_SECRET`],
+          client_version: resolvedEnvValues[`${environmentPrefix}CLIENT_VERSION`],
+          webhookAuth: {
+            username: resolvedEnvValues[`${environmentPrefix}WEBHOOK_USERNAME`],
+            password: resolvedEnvValues[`${environmentPrefix}WEBHOOK_PASSWORD`],
+          },
+          hosts: {
+            uat: hostUat,
+            prod: hostProd,
+          },
+          activeHost: activeHost,
+        };
+
+        {
+          const redirectUrl = getOptionalEnvValue(`${environmentPrefix}REDIRECT_URL`);
+          if (redirectUrl) {
+            secrets.phonepe.redirectUrl = redirectUrl;
+          }
+
+          const merchantIdOverride = getOptionalEnvValue(`${environmentPrefix}MERCHANT_ID`);
+          if (merchantIdOverride) {
+            secrets.phonepe.merchantId = merchantIdOverride;
+          }
+        }
         break;
 
       case 'stripe':
@@ -223,7 +272,18 @@ export class SecretsResolver {
       case 'billdesk':
         return [`${prefix}CHECKSUM_KEY`];
       case 'phonepe':
-        return [`${prefix}SALT`, `${prefix}WEBHOOK_SECRET`];
+        return [
+          `${prefix}SALT`,
+          `${prefix}WEBHOOK_SECRET`,
+          `${prefix}CLIENT_ID`,
+          `${prefix}CLIENT_SECRET`,
+          `${prefix}CLIENT_VERSION`,
+          `${prefix}WEBHOOK_USERNAME`,
+          `${prefix}WEBHOOK_PASSWORD`,
+          `${prefix}HOST_UAT`,
+          `${prefix}HOST_PROD`,
+          `${prefix}REDIRECT_URL`,
+        ];
       case 'stripe':
         return [`${prefix}SECRET_KEY`, `${prefix}WEBHOOK_SECRET`];
       default:

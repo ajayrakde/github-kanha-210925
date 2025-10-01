@@ -1,10 +1,18 @@
 import crypto from 'crypto';
+import type { Environment, PhonePeConfig } from '../../shared/payment-providers';
+import { PhonePeTokenManager } from './phonepe-token-manager';
+import { resolvePhonePeHost } from './phonepe-host';
 
 export interface PhonePeCredentials {
-  merchantId: string;
   saltKey: string;
   saltIndex: number;
-  apiHost: string; // sandbox or production URL
+}
+
+export interface PhonePeServiceOptions {
+  config: PhonePeConfig;
+  credentials: PhonePeCredentials;
+  environment: Environment;
+  tokenManager: PhonePeTokenManager;
 }
 
 export interface PaymentRequest {
@@ -57,10 +65,18 @@ export interface PaymentStatusResponse {
 }
 
 export class PhonePeService {
-  private credentials: PhonePeCredentials;
+  private readonly config: PhonePeConfig;
+  private readonly credentials: PhonePeCredentials;
+  private readonly environment: Environment;
+  private readonly apiHost: string;
+  private readonly tokenManager: PhonePeTokenManager;
 
-  constructor(credentials: PhonePeCredentials) {
-    this.credentials = credentials;
+  constructor(options: PhonePeServiceOptions) {
+    this.config = options.config;
+    this.credentials = options.credentials;
+    this.environment = options.environment;
+    this.tokenManager = options.tokenManager;
+    this.apiHost = resolvePhonePeHost(this.config, this.environment);
   }
 
   /**
@@ -83,11 +99,11 @@ export class PhonePeService {
   async createPayment(paymentData: PaymentRequest): Promise<PaymentResponse> {
     try {
       const requestPayload = {
-        merchantId: this.credentials.merchantId,
+        merchantId: this.config.merchantId,
         merchantTransactionId: paymentData.merchantTransactionId,
         merchantUserId: paymentData.merchantUserId,
         amount: paymentData.amount,
-        redirectUrl: paymentData.redirectUrl,
+        redirectUrl: paymentData.redirectUrl || this.config.redirectUrl,
         redirectMode: paymentData.redirectMode,
         callbackUrl: paymentData.callbackUrl,
         mobileNumber: paymentData.mobileNumber,
@@ -103,10 +119,9 @@ export class PhonePeService {
       const endpoint = '/pg/v1/pay';
       const xVerifyHeader = this.generateXVerifyHeader(base64Payload, endpoint);
 
-      const response = await fetch(`${this.credentials.apiHost}${endpoint}`, {
+      return await this.makeAuthorizedRequest<PaymentResponse>(endpoint, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'X-VERIFY': xVerifyHeader,
           'accept': 'application/json'
         },
@@ -114,14 +129,6 @@ export class PhonePeService {
           request: base64Payload
         })
       });
-
-      const responseData = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(`PhonePe API Error: ${response.status} - ${responseData.message || 'Unknown error'}`);
-      }
-
-      return responseData as PaymentResponse;
     } catch (error) {
       console.error('PhonePe payment creation failed:', error);
       throw new Error(`Payment creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -135,29 +142,20 @@ export class PhonePeService {
    */
   async checkPaymentStatus(merchantTransactionId: string): Promise<PaymentStatusResponse> {
     try {
-      const endpoint = `/pg/v1/status/${this.credentials.merchantId}/${merchantTransactionId}`;
+      const endpoint = `/pg/v1/status/${this.config.merchantId}/${merchantTransactionId}`;
       
       // For status check, we need to hash the endpoint + salt key (no payload)
       const stringToHash = endpoint + this.credentials.saltKey;
       const sha256Hash = crypto.createHash('sha256').update(stringToHash).digest('hex');
       const xVerifyHeader = `${sha256Hash}###${this.credentials.saltIndex}`;
 
-      const response = await fetch(`${this.credentials.apiHost}${endpoint}`, {
+      return await this.makeAuthorizedRequest<PaymentStatusResponse>(endpoint, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json',
           'X-VERIFY': xVerifyHeader,
           'accept': 'application/json'
         }
       });
-
-      const responseData = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(`PhonePe API Error: ${response.status} - ${responseData.message || 'Unknown error'}`);
-      }
-
-      return responseData as PaymentStatusResponse;
     } catch (error) {
       console.error('PhonePe status check failed:', error);
       throw new Error(`Payment status check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -239,5 +237,56 @@ export class PhonePeService {
    */
   static paiseToRupees(paise: number): number {
     return paise / 100;
+  }
+
+  private async makeAuthorizedRequest<T>(
+    endpoint: string,
+    init: RequestInit,
+    attempt: number = 0
+  ): Promise<T> {
+    const accessToken = await this.tokenManager.getAccessToken(attempt > 0);
+    const normalizedHeaders = new Headers({
+      'Content-Type': 'application/json',
+      'accept': 'application/json',
+    });
+    if (init.headers) {
+      const provided = new Headers(init.headers);
+      provided.forEach((value, key) => normalizedHeaders.set(key, value));
+    }
+    normalizedHeaders.set('Authorization', `O-Bearer ${accessToken}`);
+
+    const response = await fetch(`${this.apiHost}${endpoint}`, {
+      ...init,
+      headers: normalizedHeaders,
+    });
+
+    const rawBody = await response.text();
+    let parsedBody: any = undefined;
+    try {
+      parsedBody = rawBody ? JSON.parse(rawBody) : undefined;
+    } catch {
+      parsedBody = rawBody;
+    }
+
+    const tokenExpired =
+      response.status === 401 ||
+      response.status === 403 ||
+      (parsedBody && typeof parsedBody === 'object' && typeof parsedBody.code === 'string' && /TOKEN.*EXPIRED/i.test(parsedBody.code));
+
+    if (tokenExpired) {
+      this.tokenManager.invalidateToken();
+      if (attempt === 0) {
+        return this.makeAuthorizedRequest<T>(endpoint, init, attempt + 1);
+      }
+    }
+
+    if (!response.ok) {
+      const errorMessage = typeof parsedBody === 'string' || parsedBody === undefined
+        ? rawBody
+        : JSON.stringify(parsedBody);
+      throw new Error(`PhonePe API Error: ${response.status} - ${errorMessage || 'Unknown error'}`);
+    }
+
+    return parsedBody as T;
   }
 }

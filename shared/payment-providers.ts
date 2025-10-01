@@ -1,5 +1,17 @@
 import { z } from "zod";
 
+export interface PhonePeHosts {
+  uat: string;
+  prod: string;
+}
+
+export type PhonePeHostSelection = keyof PhonePeHosts | string;
+
+export const PHONEPE_DEFAULT_HOSTS: PhonePeHosts = {
+  uat: 'https://api-preprod.phonepe.com/apis/pgsandbox',
+  prod: 'https://api.phonepe.com/apis/hermes',
+};
+
 // Payment provider enum - exactly 8 providers as specified
 export const PaymentProviderEnum = z.enum([
   'razorpay',
@@ -17,6 +29,20 @@ export type PaymentProvider = z.infer<typeof PaymentProviderEnum>;
 // Environment enum
 export const EnvironmentEnum = z.enum(['test', 'live']);
 export type Environment = z.infer<typeof EnvironmentEnum>;
+
+export interface PhonePeConfig {
+  client_id: string;
+  client_secret: string;
+  client_version: string;
+  merchantId: string;
+  webhookAuth: {
+    username: string;
+    password: string;
+  };
+  redirectUrl: string;
+  hosts: PhonePeHosts;
+  activeHost?: PhonePeHostSelection;
+}
 
 // Capability matrix interface
 export interface ProviderCapabilities {
@@ -165,8 +191,26 @@ export const providerSecretKeys: Record<PaymentProvider, {
     live: ['PAYAPP_LIVE_BILLDESK_CHECKSUM_KEY'],
   },
   phonepe: {
-    test: ['PAYAPP_TEST_PHONEPE_SALT', 'PAYAPP_TEST_PHONEPE_WEBHOOK_SECRET'],
-    live: ['PAYAPP_LIVE_PHONEPE_SALT', 'PAYAPP_LIVE_PHONEPE_WEBHOOK_SECRET'],
+    test: [
+      'PAYAPP_TEST_PHONEPE_SALT',
+      'PAYAPP_TEST_PHONEPE_WEBHOOK_SECRET',
+      'PAYAPP_TEST_PHONEPE_CLIENT_ID',
+      'PAYAPP_TEST_PHONEPE_CLIENT_SECRET',
+      'PAYAPP_TEST_PHONEPE_CLIENT_VERSION',
+      'PAYAPP_TEST_PHONEPE_WEBHOOK_USERNAME',
+      'PAYAPP_TEST_PHONEPE_WEBHOOK_PASSWORD',
+      'PAYAPP_TEST_PHONEPE_REDIRECT_URL',
+    ],
+    live: [
+      'PAYAPP_LIVE_PHONEPE_SALT',
+      'PAYAPP_LIVE_PHONEPE_WEBHOOK_SECRET',
+      'PAYAPP_LIVE_PHONEPE_CLIENT_ID',
+      'PAYAPP_LIVE_PHONEPE_CLIENT_SECRET',
+      'PAYAPP_LIVE_PHONEPE_CLIENT_VERSION',
+      'PAYAPP_LIVE_PHONEPE_WEBHOOK_USERNAME',
+      'PAYAPP_LIVE_PHONEPE_WEBHOOK_PASSWORD',
+      'PAYAPP_LIVE_PHONEPE_REDIRECT_URL',
+    ],
   },
   stripe: {
     test: ['PAYAPP_TEST_STRIPE_SECRET_KEY', 'PAYAPP_TEST_STRIPE_WEBHOOK_SECRET'],
