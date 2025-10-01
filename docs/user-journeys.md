@@ -11,6 +11,8 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
 
 **SEO sitemap addition (current change):** the storefront now exposes `/sitemap.xml` alongside a public `robots.txt` so search engines can index buyer-facing pages while continuing to block admin, influencer, checkout, and API surfaces. These read-only endpoints do not alter any user journey flows.
 
+**Authentication response hardening (current change):** shared serializers now remove password hashes and similar secrets from OTP and password login responses for buyers, admins, and influencers. The sanitized payloads preserve identifiers, contact details, and session wiring so existing login screens keep working while client applications no longer see credential fields.
+
 ---
 
 ## Buyer Flow

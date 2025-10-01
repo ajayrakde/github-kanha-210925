@@ -7,6 +7,14 @@ import {
 } from "../storage";
 import { otpService } from "../otp-service";
 import type { SessionRequest } from "./types";
+import {
+  serializeAdmin,
+  serializeBuyer,
+  serializeInfluencer,
+  type SerializedAdmin,
+  type SerializedBuyer,
+  type SerializedInfluencer,
+} from "../services/serializers";
 
 export function createAuthRouter() {
   const router = Router();
@@ -23,12 +31,13 @@ export function createAuthRouter() {
       const result = await otpService.verifyOtp(phone, otp, "buyer");
 
       if (result.success && result.user) {
+        const sanitizedUser = serializeBuyer(result.user);
         req.session.userId = result.user.id;
         req.session.userRole = "buyer";
-        res.json({ 
-          success: true, 
-          user: result.user,
-          isNewUser: result.isNewUser 
+        res.json({
+          success: true,
+          user: sanitizedUser,
+          isNewUser: result.isNewUser
         });
       } else {
         res.status(400).json({ message: result.message || "Invalid OTP" });
@@ -50,7 +59,7 @@ export function createAuthRouter() {
       try {
         const user = await usersRepository.getUser(req.session.userId);
         if (user) {
-          res.json({ authenticated: true, user });
+          res.json({ authenticated: true, user: serializeBuyer(user) });
         } else {
           res.status(401).json({ authenticated: false });
         }
@@ -190,7 +199,11 @@ export function createAuthRouter() {
 
   router.post("/verify-otp", async (req: SessionRequest, res) => {
     try {
-      const { phone, otp, userType } = req.body;
+      const { phone, otp, userType } = req.body as {
+        phone?: string;
+        otp?: string;
+        userType?: "admin" | "buyer" | "influencer";
+      };
 
       if (!phone || !otp || !userType) {
         return res
@@ -201,24 +214,30 @@ export function createAuthRouter() {
       const result = await otpService.verifyOtp(phone, otp, userType);
 
       if (result.success && result.user) {
+        let sanitizedUser: SerializedAdmin | SerializedInfluencer | SerializedBuyer;
         switch (userType) {
           case "admin":
             req.session.adminId = result.user.id;
             req.session.userRole = "admin";
+            sanitizedUser = serializeAdmin(result.user);
             break;
           case "influencer":
             req.session.influencerId = result.user.id;
             req.session.userRole = "influencer";
+            sanitizedUser = serializeInfluencer(result.user);
             break;
           case "buyer":
             req.session.userId = result.user.id;
             req.session.userRole = "buyer";
+            sanitizedUser = serializeBuyer(result.user);
             break;
+          default:
+            return res.status(400).json({ message: "Invalid user type" });
         }
 
         res.json({
           message: result.message,
-          user: result.user,
+          user: sanitizedUser,
           isNewUser: result.isNewUser,
         });
       } else {
@@ -249,13 +268,13 @@ export function createAuthRouter() {
         return res.status(400).json({ message: "Please enter a valid Indian phone number" });
       }
 
-      let user: any = null;
+      let user: SerializedAdmin | SerializedInfluencer | SerializedBuyer | null = null;
 
       switch (userType) {
         case "admin": {
           const admin = await usersRepository.authenticateAdmin(cleanPhone, password);
           if (admin) {
-            user = admin;
+            user = serializeAdmin(admin);
             req.session.adminId = admin.id;
             req.session.userRole = "admin";
           }
@@ -264,7 +283,7 @@ export function createAuthRouter() {
         case "influencer": {
           const influencer = await usersRepository.authenticateInfluencer(cleanPhone, password);
           if (influencer) {
-            user = influencer;
+            user = serializeInfluencer(influencer);
             req.session.influencerId = influencer.id;
             req.session.userRole = "influencer";
           }
@@ -273,7 +292,7 @@ export function createAuthRouter() {
         case "buyer": {
           const buyer = await usersRepository.authenticateUser(cleanPhone, password);
           if (buyer) {
-            user = buyer;
+            user = serializeBuyer(buyer);
             req.session.userId = buyer.id;
             req.session.userRole = "buyer";
           }
