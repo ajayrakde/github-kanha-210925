@@ -33,6 +33,7 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - `POST /api/auth/send-otp`, `POST /api/auth/login` in `server/routes/auth.ts`, backed by `usersRepository`.
    - Successful login attaches buyer context to session.
    - Sessions now regenerate on every successful login (OTP or password) to prevent fixation while retaining the shopper's cart tracking token so baskets persist across authentication.
+   - Authentication responses now sanitize buyer records via shared serializers so hashed passwords never leave the API, preserving existing client flows while hardening data exposure.
    - Password-based fallbacks (where configured for returning buyers) now hash credentials with bcrypt and transparently upgrade legacy plaintext entries the first time a buyer logs in, so there is no change to the checkout experience.
 
 4. **Manage Addresses**  
@@ -82,6 +83,7 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - `/api/admin/login` handled in `server/routes/admin.ts`, backed by `usersRepository`.
    - `requireAdmin` middleware from `server/routes/index.ts` protects routes.
    - Admin sessions regenerate on login before role data is stored, preserving the existing cart-tracking token while ensuring fresh session identifiers.
+   - Admin-facing auth endpoints also reuse the shared serializers to exclude password hashes from API responses, keeping the dashboard UX identical while preventing accidental leakage of credential material.
    - Admin passwords are now stored as bcrypt hashes. Legacy plaintext credentials are rehashed automatically on successful login, keeping the dashboard sign-in flow unchanged while hardening storage.
    - Asset uploads via `POST /api/objects/upload` now rely on the same admin session guard, denying anonymous callers signed upload URLs.
 

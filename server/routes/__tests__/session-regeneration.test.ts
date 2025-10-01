@@ -14,6 +14,7 @@ const authenticateAdminMock = vi.hoisted(() => vi.fn());
 const authenticateInfluencerMock = vi.hoisted(() => vi.fn());
 const authenticateUserMock = vi.hoisted(() => vi.fn());
 const validateAdminLoginMock = vi.hoisted(() => vi.fn());
+const getUserMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../otp-service", () => ({
   otpService: {
@@ -42,7 +43,7 @@ vi.mock("../../storage", () => ({
     getAdmins: vi.fn(),
     getInfluencer: vi.fn(),
     getInfluencers: vi.fn(),
-    getUser: vi.fn(),
+    getUser: getUserMock,
     getUserAddresses: vi.fn().mockResolvedValue([]),
     createUserAddress: vi.fn(),
     setPreferredAddress: vi.fn(),
@@ -111,12 +112,13 @@ describe("session regeneration on login", () => {
     authenticateInfluencerMock.mockReset();
     authenticateUserMock.mockReset();
     validateAdminLoginMock.mockReset();
+    getUserMock.mockReset();
   });
 
   it("rotates the session id when a buyer logs in with OTP", async () => {
     verifyOtpMock.mockResolvedValueOnce({
       success: true,
-      user: { id: "buyer-1" },
+      user: { id: "buyer-1", password: "secret" },
       isNewUser: false,
       message: "OK",
     });
@@ -128,6 +130,8 @@ describe("session regeneration on login", () => {
     const response = await agent.post("/api/auth/login").send({ phone: "9876543210", otp: "123456" });
 
     expect(response.status).toBe(200);
+    expect(response.body.user).toEqual({ id: "buyer-1" });
+    expect(response.body.user?.password).toBeUndefined();
 
     const authenticatedSession = await getSessionSnapshot(agent);
     expect(authenticatedSession.sessionId).not.toBe(anonymousSession.sessionId);
@@ -136,10 +140,45 @@ describe("session regeneration on login", () => {
     expect(authenticatedSession.role).toBe("buyer");
   });
 
+  it("omits passwords in the /api/auth/me response", async () => {
+    verifyOtpMock.mockResolvedValueOnce({
+      success: true,
+      user: {
+        id: "buyer-2",
+        name: "Test Buyer",
+        password: "sensitive",
+      },
+      isNewUser: false,
+      message: "OK",
+    });
+
+    const app = buildApp();
+    const agent = request.agent(app);
+
+    const loginResponse = await agent
+      .post("/api/auth/login")
+      .send({ phone: "9876543211", otp: "123456" });
+
+    expect(loginResponse.status).toBe(200);
+
+    getUserMock.mockResolvedValueOnce({
+      id: "buyer-2",
+      name: "Test Buyer",
+      password: "sensitive",
+    });
+
+    const meResponse = await agent.get("/api/auth/me");
+
+    expect(meResponse.status).toBe(200);
+    expect(meResponse.body.authenticated).toBe(true);
+    expect(meResponse.body.user).toMatchObject({ id: "buyer-2", name: "Test Buyer" });
+    expect(meResponse.body.user?.password).toBeUndefined();
+  });
+
   it("rotates the session id when verifying an admin OTP", async () => {
     verifyOtpMock.mockResolvedValueOnce({
       success: true,
-      user: { id: "admin-42" },
+      user: { id: "admin-42", password: "hunter2" },
       isNewUser: false,
       message: "OK",
     });
@@ -153,6 +192,8 @@ describe("session regeneration on login", () => {
       .send({ phone: "9876543210", otp: "654321", userType: "admin" });
 
     expect(response.status).toBe(200);
+    expect(response.body.user).toEqual({ id: "admin-42" });
+    expect(response.body.user?.password).toBeUndefined();
 
     const authenticatedSession = await getSessionSnapshot(agent);
     expect(authenticatedSession.sessionId).not.toBe(anonymousSession.sessionId);
@@ -162,7 +203,7 @@ describe("session regeneration on login", () => {
   });
 
   it("rotates the session id for password logins", async () => {
-    authenticateUserMock.mockResolvedValueOnce({ id: "buyer-55" });
+    authenticateUserMock.mockResolvedValueOnce({ id: "buyer-55", password: "hashed" });
 
     const app = buildApp();
     const agent = request.agent(app);
@@ -173,6 +214,8 @@ describe("session regeneration on login", () => {
       .send({ phone: "9998887776", password: "secret", userType: "buyer" });
 
     expect(response.status).toBe(200);
+    expect(response.body.user).toEqual({ id: "buyer-55" });
+    expect(response.body.user?.password).toBeUndefined();
 
     const authenticatedSession = await getSessionSnapshot(agent);
     expect(authenticatedSession.sessionId).not.toBe(anonymousSession.sessionId);
