@@ -149,6 +149,26 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     }
   };
 
+  const logAuditEvent = async (
+    provider: PaymentProvider,
+    tenantId: string,
+    type: string,
+    details: Record<string, unknown>,
+  ): Promise<void> => {
+    const data = Object.fromEntries(
+      Object.entries(details).filter(([, value]) => value !== undefined && value !== null)
+    );
+
+    await db.insert(paymentEvents).values({
+      id: randomUUID(),
+      tenantId,
+      provider,
+      type,
+      data,
+      occurredAt: new Date(),
+    });
+  };
+
   // Input validation schemas
   const createPaymentSchema = z.object({
     orderId: z.string().min(1, 'Order ID is required'),
@@ -360,22 +380,69 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       const validatedData = tokenUrlSchema.parse(req.body);
 
       const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+
+      const order = await ordersRepository.getOrderWithPayments(validatedData.orderId);
+      if (!order) {
+        return res.status(404).json({ error: 'Order not found' });
+      }
+
+      const expectedAmountMinor = Number(order.amountMinor);
+      if (!Number.isFinite(expectedAmountMinor) || expectedAmountMinor <= 0) {
+        return res.status(400).json({ error: 'Order amount unavailable' });
+      }
+
+      const supportedCurrencies = ['INR', 'USD', 'EUR', 'GBP'] as const;
+      type SupportedCurrency = typeof supportedCurrencies[number];
+      const storedCurrency = typeof order.currency === 'string'
+        ? order.currency.trim().toUpperCase()
+        : undefined;
+
+      if (!storedCurrency || !supportedCurrencies.includes(storedCurrency as SupportedCurrency)) {
+        return res.status(400).json({ error: 'Order currency unsupported' });
+      }
+
+      const expectedCurrency = storedCurrency as SupportedCurrency;
+      const requestAmountMinor = Math.round(validatedData.amount * 100);
+      const amountMismatch = requestAmountMinor !== expectedAmountMinor;
+      const requestCurrency = validatedData.currency;
+      const currencyMismatch = requestCurrency !== expectedCurrency;
+
+      if (amountMismatch || currencyMismatch) {
+        try {
+          await logAuditEvent('phonepe', tenantId, 'token_url.payload_mismatch', {
+            orderId: validatedData.orderId,
+            tenantId,
+            amountMismatch,
+            currencyMismatch,
+            expectedAmountMinor,
+            expectedCurrency,
+            receivedAmountMinor: requestAmountMinor,
+            receivedCurrency: requestCurrency,
+          });
+        } catch (auditError) {
+          console.error('Failed to log PhonePe token URL audit event:', auditError);
+        }
+
+        return res.status(403).json({ error: 'Order amount or currency mismatch' });
+      }
+
+      const orderAmountMinor = expectedAmountMinor;
+      const orderCurrency = expectedCurrency;
       const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
       const successUrl = validatedData.redirectUrl || `${baseUrl}/payment/success`;
       const failureUrl = validatedData.redirectUrl || `${baseUrl}/payment/failed`;
       const cancelUrl = validatedData.redirectUrl || `${baseUrl}/payment/failed`;
-      const orderAmountMinor = Math.round(validatedData.amount * 100);
       const tokenUrlIdempotencyKey = deriveTokenUrlIdempotencyKey(
         tenantId,
         validatedData.orderId,
         orderAmountMinor,
-        validatedData.currency
+        orderCurrency
       );
       const paymentCreationIdempotencyKey = derivePaymentCreationIdempotencyKey(
         tenantId,
         validatedData.orderId,
         orderAmountMinor,
-        validatedData.currency
+        orderCurrency
       );
       const now = new Date();
 
@@ -422,7 +489,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           const paymentParams: CreatePaymentParams = {
             orderId: validatedData.orderId,
             orderAmount: orderAmountMinor,
-            currency: validatedData.currency,
+            currency: orderCurrency,
             customer: {
               ...validatedData.customer,
               phone: validatedData.mobileNumber || validatedData.customer.phone,
