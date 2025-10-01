@@ -10,9 +10,12 @@ const paymentInserts: any[] = [];
 
 const selectMock = vi.fn(() => ({
   from: vi.fn(() => ({
-    where: vi.fn(() => ({
-      limit: vi.fn(async () => upiQueryResults.shift() ?? []),
-    })),
+    where: vi.fn(() => {
+      const values = upiQueryResults.shift() ?? [];
+      const promise: any = Promise.resolve(values);
+      promise.limit = vi.fn(async () => values);
+      return promise;
+    }),
   })),
 }));
 
@@ -39,16 +42,18 @@ vi.mock("../../db", () => ({
 const adapter = {
   provider: "phonepe" as const,
   createPayment: vi.fn<[], Promise<PaymentResult>>(),
+  createRefund: vi.fn(),
 };
 
 const getAdapterWithFallbackMock = vi.fn(async () => adapter);
 const getPrimaryAdapterMock = vi.fn(async () => adapter);
+const createAdapterMock = vi.fn(async () => adapter);
 
 vi.mock("../adapter-factory", () => ({
   adapterFactory: {
     getAdapterWithFallback: getAdapterWithFallbackMock,
     getPrimaryAdapter: getPrimaryAdapterMock,
-    createAdapter: vi.fn(),
+    createAdapter: createAdapterMock,
     getHealthStatus: vi.fn(),
   },
 }));
@@ -81,9 +86,11 @@ describe("PaymentsService.createPayment", () => {
     transactionMock.mockImplementation(defaultTransactionImplementation);
     selectMock.mockClear();
     adapter.createPayment.mockReset();
+    adapter.createRefund.mockReset();
     executeWithIdempotencyMock.mockReset();
     generateKeyMock.mockReset();
     generateKeyMock.mockReturnValue("generated-key");
+    createAdapterMock.mockReset();
     (PaymentsServiceClass as unknown as { instances: Map<string, any> }).instances = new Map();
   });
 
@@ -496,6 +503,102 @@ describe("PaymentsService.updateStoredPayment lifecycle", () => {
     expect(updateSpy).toHaveBeenCalledTimes(1);
     expect(eventInsertSpy).toHaveBeenCalledTimes(1);
     expect(updateCalls[0].status).toBe("COMPLETED");
+  });
+});
+
+describe("PaymentsService.createRefund", () => {
+  const basePayment = {
+    id: "pay_1",
+    provider: "phonepe",
+    providerPaymentId: "prov_pay_1",
+    providerOrderId: "merchant_order_1",
+    orderId: "order_1",
+    amountCapturedMinor: 1000,
+    amountAuthorizedMinor: 1000,
+    amountRefundedMinor: 0,
+  };
+
+  beforeEach(() => {
+    executeWithIdempotencyMock.mockImplementation(async (_key, _scope, operation) => {
+      return await operation();
+    });
+    createAdapterMock.mockResolvedValue(adapter);
+  });
+
+  it("rejects refunds that would exceed the captured amount", async () => {
+    const service = createPaymentsService({ environment: "test" });
+
+    upiQueryResults.push([basePayment]);
+    upiQueryResults.push([{ totalNonFailed: 800, totalSucceeded: 600 }]);
+
+    await expect(
+      service.createRefund({ paymentId: "pay_1", amount: 300, idempotencyKey: "idempo" }, "default")
+    ).rejects.toMatchObject({ code: "REFUND_EXCEEDS_CAPTURED_AMOUNT" });
+
+    expect(adapter.createRefund).not.toHaveBeenCalled();
+  });
+
+  it("stores successful refunds, masks identifiers, and updates totals", async () => {
+    const service = createPaymentsService({ environment: "test" });
+    const refundCreatedAt = new Date("2024-02-01T00:00:00Z");
+
+    upiQueryResults.push([{ ...basePayment, amountRefundedMinor: 200 }]);
+    upiQueryResults.push([{ totalNonFailed: 200, totalSucceeded: 200 }]);
+
+    const updateSetSpy = vi.fn(() => ({ where: vi.fn() }));
+    transactionMock.mockImplementation(async (callback) => {
+      await callback({
+        insert: vi.fn(() => ({ values: insertValuesMock })),
+        update: vi.fn(() => ({ set: updateSetSpy })),
+      });
+    });
+
+    adapter.createRefund.mockResolvedValue({
+      refundId: "refund_1",
+      paymentId: "pay_1",
+      providerRefundId: "provider_refund",
+      merchantRefundId: "merchant_refund_1",
+      originalMerchantOrderId: "merchant_order_1",
+      amount: 300,
+      status: "completed",
+      provider: "phonepe",
+      environment: "test",
+      upiUtr: phonePeIdentifierFixture.utr,
+      providerData: {
+        paymentInstrument: {
+          utr: phonePeIdentifierFixture.utr,
+        },
+      },
+      createdAt: refundCreatedAt,
+    });
+
+    const result = await service.createRefund(
+      { paymentId: "pay_1", amount: 300, idempotencyKey: "idempo" },
+      "default"
+    );
+
+    expect(adapter.createRefund).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 300,
+        providerPaymentId: "prov_pay_1",
+        originalMerchantOrderId: "merchant_order_1",
+      })
+    );
+
+    expect(result.upiUtr).toBe(phonePeIdentifierFixture.maskedUtr);
+    expect(result.merchantRefundId).toBe("merchant_refund_1");
+
+    const refundInsert = paymentInserts.find((entry) => entry.id === "refund_1");
+    expect(refundInsert).toMatchObject({
+      merchantRefundId: "merchant_refund_1",
+      originalMerchantOrderId: "merchant_order_1",
+      upiUtr: phonePeIdentifierFixture.maskedUtr,
+      amountMinor: 300,
+    });
+
+    expect(updateSetSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ amountRefundedMinor: 500 })
+    );
   });
 });
 

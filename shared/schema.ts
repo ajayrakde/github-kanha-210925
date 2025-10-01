@@ -234,9 +234,12 @@ export const refunds = pgTable("refunds", {
   paymentId: varchar("payment_id").references(() => payments.id).notNull(),
   provider: varchar("provider", { length: 50 }).notNull(),
   providerRefundId: varchar("provider_refund_id"),
+  merchantRefundId: varchar("merchant_refund_id", { length: 255 }),
+  originalMerchantOrderId: varchar("original_merchant_order_id", { length: 255 }),
   amountMinor: integer("amount_minor").notNull(),
   status: varchar("status", { length: 50 }).notNull().default('pending'), // pending|succeeded|failed
   reason: text("reason"),
+  upiUtr: varchar("upi_utr", { length: 100 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({

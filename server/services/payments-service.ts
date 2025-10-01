@@ -375,62 +375,156 @@ export class PaymentsService {
               payment.provider as PaymentProvider
             );
           }
-          
+
+          const capturedAmountMinor = payment.amountCapturedMinor ?? payment.amountAuthorizedMinor ?? 0;
+          if (!capturedAmountMinor || capturedAmountMinor <= 0) {
+            throw new RefundError(
+              'No captured amount available for refund',
+              'NO_CAPTURED_AMOUNT',
+              payment.provider as PaymentProvider
+            );
+          }
+
+          const [existingTotals] = await db
+            .select({
+              totalNonFailed: sql<number>`COALESCE(SUM(CASE WHEN ${refunds.status} <> 'failed' THEN ${refunds.amountMinor} ELSE 0 END), 0)`,
+              totalSucceeded: sql<number>`COALESCE(SUM(CASE WHEN ${refunds.status} IN ('succeeded','success','completed','captured','refunded') THEN ${refunds.amountMinor} ELSE 0 END), 0)`
+            })
+            .from(refunds)
+            .where(
+              and(
+                eq(refunds.paymentId, params.paymentId),
+                eq(refunds.tenantId, resolvedTenantId)
+              )
+            );
+
+          const currentRefundedMinor = existingTotals?.totalNonFailed ?? 0;
+          const currentSucceededMinor = existingTotals?.totalSucceeded
+            ?? (typeof payment.amountRefundedMinor === 'number' ? payment.amountRefundedMinor : 0);
+
+          const requestedAmountMinor = typeof params.amount === 'number'
+            ? params.amount
+            : Math.max(capturedAmountMinor - currentRefundedMinor, 0);
+
+          if (!requestedAmountMinor || requestedAmountMinor <= 0) {
+            throw new RefundError('Refund amount must be greater than zero', 'INVALID_REFUND_AMOUNT');
+          }
+
+          const projectedRefundedMinor = currentRefundedMinor + requestedAmountMinor;
+          if (projectedRefundedMinor > capturedAmountMinor) {
+            throw new RefundError(
+              'Refund amount exceeds captured amount',
+              'REFUND_EXCEEDS_CAPTURED_AMOUNT',
+              payment.provider as PaymentProvider
+            );
+          }
+
           // Get adapter for the provider
           const adapter = await adapterFactory.createAdapter(
             payment.provider as PaymentProvider,
             this.config.environment,
             resolvedTenantId
           );
-          
+
           // Create refund through adapter with idempotency
           const enrichedParams: CreateRefundParams = {
             ...params,
             idempotencyKey,
             providerPaymentId: payment.providerPaymentId,
+            amount: requestedAmountMinor,
+            merchantRefundId: params.merchantRefundId,
+            originalMerchantOrderId:
+              params.originalMerchantOrderId
+              || payment.providerOrderId
+              || payment.orderId,
           };
-          
+
           const result = await this.executeWithRetry(
             () => adapter.createRefund(enrichedParams),
             this.config.retryAttempts || 3
           );
-          
+
+          const resolvedMerchantRefundId = result.merchantRefundId || enrichedParams.merchantRefundId;
+          const resolvedOriginalMerchantOrderId = result.originalMerchantOrderId || enrichedParams.originalMerchantOrderId;
+          const resolvedAmountMinor = typeof result.amount === 'number' && !Number.isNaN(result.amount)
+            ? result.amount
+            : requestedAmountMinor;
+          const maskedRefundUtr = adapter.provider === 'phonepe'
+            ? maskPhonePeUtr(result.upiUtr || result.providerData?.paymentInstrument?.utr) ?? undefined
+            : result.upiUtr;
+
+          const normalizedResult: RefundResult = {
+            ...result,
+            amount: resolvedAmountMinor,
+            merchantRefundId: resolvedMerchantRefundId,
+            originalMerchantOrderId: resolvedOriginalMerchantOrderId,
+            upiUtr: maskedRefundUtr,
+          };
+
+          const normalizedStatus = String(normalizedResult.status ?? '').toLowerCase();
+          const refundSucceeded = ['completed', 'succeeded', 'success', 'captured', 'refunded'].includes(normalizedStatus);
+
           // Store refund and log event in transaction
           await db.transaction(async (trx) => {
             // Store refund
             await trx.insert(refunds).values({
-              id: result.refundId,
+              id: normalizedResult.refundId,
               tenantId: resolvedTenantId,
-              paymentId: result.paymentId,
+              paymentId: normalizedResult.paymentId,
               provider: adapter.provider,
-              providerRefundId: result.providerRefundId,
-              amountMinor: result.amount,
-              status: result.status,
-              reason: result.reason,
-              createdAt: result.createdAt,
-              updatedAt: result.updatedAt || result.createdAt,
+              providerRefundId: normalizedResult.providerRefundId,
+              merchantRefundId: normalizedResult.merchantRefundId,
+              originalMerchantOrderId: normalizedResult.originalMerchantOrderId,
+              amountMinor: normalizedResult.amount,
+              status: normalizedResult.status,
+              reason: normalizedResult.reason,
+              upiUtr: maskedRefundUtr,
+              createdAt: normalizedResult.createdAt,
+              updatedAt: normalizedResult.updatedAt || normalizedResult.createdAt,
             });
-            
+
             // Log refund event
             await trx.insert(paymentEvents).values({
               id: crypto.randomUUID(),
               tenantId: resolvedTenantId,
-              paymentId: params.paymentId,
+              paymentId: normalizedResult.paymentId,
               provider: adapter.provider,
               type: 'refund_created',
               data: {
-                refundId: result.refundId,
-                amount: result.amount,
-                reason: result.reason,
+                refundId: normalizedResult.refundId,
+                amount: normalizedResult.amount,
+                reason: normalizedResult.reason,
+                merchantRefundId: normalizedResult.merchantRefundId,
+                originalMerchantOrderId: normalizedResult.originalMerchantOrderId,
+                upiUtr: maskedRefundUtr,
               },
-              occurredAt: result.createdAt,
+              occurredAt: normalizedResult.createdAt,
             });
+
+            if (refundSucceeded) {
+              const nextRefundedMinor = currentSucceededMinor + normalizedResult.amount;
+              await trx
+                .update(payments)
+                .set({
+                  amountRefundedMinor: nextRefundedMinor,
+                  updatedAt: new Date(),
+                })
+                .where(
+                  and(
+                    eq(payments.id, normalizedResult.paymentId),
+                    eq(payments.tenantId, resolvedTenantId)
+                  )
+                );
+            }
           });
-          
-          return result;
-          
+
+          return normalizedResult;
+
         } catch (error) {
           console.error('Refund creation failed:', error);
+          if (error instanceof RefundError) {
+            throw error;
+          }
           throw new RefundError(
             'Failed to create refund',
             'REFUND_CREATION_FAILED',
@@ -466,7 +560,7 @@ export class PaymentsService {
       
       // Update refund in database if status changed
       if (result.status !== refund.status) {
-        await this.updateStoredRefund(result, resolvedTenantId);
+        await this.updateStoredRefund(result, refund, resolvedTenantId);
 
         // Log status change event
         await this.logPaymentEvent({
@@ -1013,9 +1107,12 @@ export class PaymentsService {
       paymentId: result.paymentId,
       provider: provider,
       providerRefundId: result.providerRefundId,
+      merchantRefundId: result.merchantRefundId,
+      originalMerchantOrderId: result.originalMerchantOrderId,
       amountMinor: result.amount,
       status: result.status,
       reason: result.reason,
+      upiUtr: result.upiUtr,
       createdAt: result.createdAt,
       updatedAt: result.updatedAt || result.createdAt,
     });
@@ -1024,19 +1121,83 @@ export class PaymentsService {
   /**
    * Update stored refund
    */
-  private async updateStoredRefund(result: RefundResult, tenantId: string): Promise<void> {
+  private async updateStoredRefund(
+    result: RefundResult,
+    existingRefund: typeof refunds.$inferSelect,
+    tenantId: string
+  ): Promise<void> {
+    const updateData: Record<string, any> = {
+      status: result.status,
+      updatedAt: result.updatedAt || new Date(),
+    };
+
+    if (result.providerRefundId) {
+      updateData.providerRefundId = result.providerRefundId;
+    }
+
+    if (result.merchantRefundId) {
+      updateData.merchantRefundId = result.merchantRefundId;
+    }
+
+    if (result.originalMerchantOrderId) {
+      updateData.originalMerchantOrderId = result.originalMerchantOrderId;
+    }
+
+    if (typeof result.amount === 'number' && !Number.isNaN(result.amount)) {
+      updateData.amountMinor = result.amount;
+    }
+
+    const provider = existingRefund.provider as PaymentProvider | undefined;
+    const maskedUtr = provider === 'phonepe'
+      ? maskPhonePeUtr(result.upiUtr || result.providerData?.paymentInstrument?.utr) ?? existingRefund.upiUtr
+      : result.upiUtr;
+
+    if (maskedUtr) {
+      updateData.upiUtr = maskedUtr;
+    }
+
     await db
       .update(refunds)
-      .set({
-        status: result.status,
-        updatedAt: result.updatedAt || new Date(),
-      })
+      .set(updateData)
       .where(
         and(
           eq(refunds.id, result.refundId),
           eq(refunds.tenantId, tenantId)
         )
       );
+
+    const paymentId = result.paymentId || existingRefund.paymentId;
+    const normalizedStatus = String(result.status ?? '').toLowerCase();
+    const shouldRecalculate = ['completed', 'succeeded', 'success', 'captured', 'refunded', 'failed', 'cancelled'].includes(normalizedStatus);
+
+    if (paymentId && shouldRecalculate) {
+      const [totals] = await db
+        .select({
+          totalSucceeded: sql<number>`COALESCE(SUM(CASE WHEN ${refunds.status} IN ('succeeded','success','completed','captured','refunded') THEN ${refunds.amountMinor} ELSE 0 END), 0)`
+        })
+        .from(refunds)
+        .where(
+          and(
+            eq(refunds.paymentId, paymentId),
+            eq(refunds.tenantId, tenantId)
+          )
+        );
+
+      const succeededMinor = totals?.totalSucceeded ?? 0;
+
+      await db
+        .update(payments)
+        .set({
+          amountRefundedMinor: succeededMinor,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(payments.id, paymentId),
+            eq(payments.tenantId, tenantId)
+          )
+        );
+    }
   }
 
   /**

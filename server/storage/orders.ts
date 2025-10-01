@@ -107,7 +107,11 @@ export class OrdersRepository {
       with: {
         user: true,
         deliveryAddress: true,
-        payments: true,
+        payments: {
+          with: {
+            refunds: true,
+          },
+        },
       },
     });
 
@@ -117,7 +121,10 @@ export class OrdersRepository {
 
     return {
       ...orderData,
-      payments: orderData.payments ?? [],
+      payments: orderData.payments?.map((payment) => ({
+        ...payment,
+        refunds: payment.refunds ?? [],
+      })) ?? [],
     };
   }
 

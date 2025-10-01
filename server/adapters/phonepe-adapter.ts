@@ -116,11 +116,21 @@ interface PhonePeRefundResponse {
   message: string;
   data?: {
     merchantTransactionId: string;
-    transactionId: string;
+    merchantRefundId?: string;
+    merchantOrderId?: string;
+    transactionId?: string;
     amount: number;
     state: 'PENDING' | 'COMPLETED' | 'FAILED';
+    responseCode?: string;
+    message?: string;
+    paymentInstrument?: {
+      type?: string;
+      utr?: string;
+    };
   };
 }
+
+type PhonePeRefundResponseData = NonNullable<PhonePeRefundResponse["data"]>;
 
 /**
  * PhonePe adapter implementation
@@ -388,63 +398,68 @@ export class PhonePeAdapter implements PaymentsAdapter {
         throw new RefundError('Missing PhonePe transaction identifier', 'MISSING_PROVIDER_PAYMENT_ID', 'phonepe');
       }
 
-      const merchantTransactionId = `REF_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const merchantRefundId = params.merchantRefundId
+        || params.idempotencyKey
+        || `REF_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+
+      const originalMerchantOrderId = params.originalMerchantOrderId || params.providerPaymentId || params.paymentId;
 
       const refundRequest = {
-        merchantTransactionId,
-        originalTransactionId,
-        amount: params.amount, // Amount in paise
         merchantId: this.merchantId,
+        merchantTransactionId: merchantRefundId,
+        merchantRefundId,
+        originalTransactionId,
+        originalMerchantOrderId,
+        amount: params.amount,
+        reason: params.reason,
+        message: params.notes,
       };
-      
-      // Encode refund request
-      const base64Payload = Buffer.from(JSON.stringify(refundRequest)).toString('base64');
-      
-      // Generate checksum
-      const checksum = this.generateChecksum('/pg/v1/refund', base64Payload);
-      
-      const apiPayload = {
-        request: base64Payload,
-      };
-      
-      const headers = {
-        'Content-Type': 'application/json',
-        'X-VERIFY': checksum,
-        'X-MERCHANT-ID': this.merchantId,
-      };
-      
+
       const response = await this.makeApiCall<PhonePeRefundResponse>(
-        '/pg/v1/refund',
+        '/pg/v1/payments/v2/refund',
         'POST',
-        apiPayload,
-        headers
+        refundRequest
       );
-      
+
       if (!response.success) {
         throw new Error(`PhonePe refund error: ${response.code} - ${response.message}`);
       }
-      
+
+      const responseData: Partial<PhonePeRefundResponseData> = response.data ?? {};
+      const responseAmount = typeof responseData.amount === 'number'
+        ? responseData.amount
+        : params.amount ?? 0;
+
       const result: RefundResult = {
         refundId: crypto.randomUUID(),
         paymentId: params.paymentId,
-        providerRefundId: merchantTransactionId,
-        amount: params.amount || 0,
-        status: this.mapRefundStatus(response.data?.state || 'PENDING'),
+        providerRefundId: responseData.transactionId ?? responseData.merchantTransactionId ?? merchantRefundId,
+        merchantRefundId,
+        originalMerchantOrderId,
+        amount: responseAmount,
+        status: this.mapRefundStatus(responseData.state || 'PENDING'),
         provider: 'phonepe',
         environment: this.environment,
-        
+
         reason: params.reason,
         notes: params.notes,
-        
+
+        upiUtr: responseData.paymentInstrument?.utr,
+
         providerData: {
-          merchantTransactionId,
-          transactionId: response.data?.transactionId,
+          merchantTransactionId: responseData.merchantTransactionId ?? merchantRefundId,
+          merchantRefundId: responseData.merchantRefundId ?? merchantRefundId,
           originalTransactionId,
+          originalMerchantOrderId,
+          transactionId: responseData.transactionId,
+          responseCode: responseData.responseCode,
+          message: responseData.message,
+          paymentInstrument: responseData.paymentInstrument,
         },
-        
+
         createdAt: new Date(),
       };
-      
+
       return result;
       
     } catch (error) {
