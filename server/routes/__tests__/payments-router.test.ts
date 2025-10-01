@@ -252,17 +252,28 @@ describe("payments router", () => {
       amountMinor: number,
       currency: string,
       instrument: string,
-      payPageType: string
+      payPageType: string,
+      rawInstrument?: string,
     ) => {
       const hash = createHash("sha256");
-      hash.update([
+      const normalizedRawInstrument = typeof rawInstrument === "string"
+        ? rawInstrument.trim().toUpperCase().replace(/[\s-]+/g, "_")
+        : undefined;
+      const normalizedPayPageType = payPageType.toUpperCase();
+      const components = [
         tenant,
         orderId,
         amountMinor.toString(),
         currency,
         instrument,
-        payPageType.toUpperCase(),
-      ].join(":"));
+        normalizedPayPageType,
+      ];
+
+      if (normalizedRawInstrument && normalizedRawInstrument !== instrument) {
+        components.push(normalizedRawInstrument);
+      }
+
+      hash.update(components.join(":"));
       return `${prefix}:${hash.digest("hex")}`;
     };
 
@@ -322,6 +333,7 @@ describe("payments router", () => {
         "INR",
         "UPI_INTENT",
         "IFRAME",
+        "UPI_INTENT",
       );
       expect(executeWithIdempotencyMock).toHaveBeenCalledWith(
         expectedKey,
@@ -356,6 +368,7 @@ describe("payments router", () => {
         "INR",
         "UPI_INTENT",
         "IFRAME",
+        "UPI_INTENT",
       );
       const expiredPayload = {
         success: true,
@@ -367,6 +380,7 @@ describe("payments router", () => {
         },
         metadata: {
           effectiveInstrument: "UPI_INTENT",
+          requestedInstrument: "UPI_INTENT",
           payPageType: "IFRAME",
           cacheExpiresAt: new Date(Date.now() - 1000).toISOString(),
         },
@@ -404,6 +418,7 @@ describe("payments router", () => {
           "INR",
           "UPI_INTENT",
           "IFRAME",
+          "UPI_INTENT",
         ),
         "create_payment"
       );
@@ -452,6 +467,7 @@ describe("payments router", () => {
         "INR",
         "UPI_INTENT",
         "IFRAME",
+        "UPI_INTENT",
       );
       const expectedPaymentKey = computeKey(
         "phonepe-payment",
@@ -461,12 +477,14 @@ describe("payments router", () => {
         "INR",
         "UPI_INTENT",
         "IFRAME",
+        "UPI_INTENT",
       );
 
       const cachedPayload = idempotencyCache.get(`phonepe_token_url:${expectedTokenKey}`);
       cachedPayload.data.expiresAt = new Date(Date.now() - 1).toISOString();
       cachedPayload.metadata = {
         effectiveInstrument: "UPI_INTENT",
+        requestedInstrument: "UPI_INTENT",
         payPageType: "IFRAME",
         cacheExpiresAt: new Date(Date.now() - 1).toISOString(),
       };
@@ -570,6 +588,7 @@ describe("payments router", () => {
         "USD",
         "UPI_INTENT",
         "IFRAME",
+        "UPI_INTENT",
       );
       const expectedPaymentKey = computeKey(
         "phonepe-payment",
@@ -579,6 +598,7 @@ describe("payments router", () => {
         "USD",
         "UPI_INTENT",
         "IFRAME",
+        "UPI_INTENT",
       );
 
       expect(mockPaymentsService.createPayment).toHaveBeenCalledWith(

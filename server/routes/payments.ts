@@ -231,6 +231,15 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
 
   type PhonePeEffectiveInstrument = 'UPI_INTENT' | 'UPI_COLLECT' | 'UPI_QR' | 'PAY_PAGE';
 
+  const normalizePhonePeInstrumentToken = (value: unknown): string | undefined => {
+    if (typeof value !== 'string') {
+      return undefined;
+    }
+
+    const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, '_');
+    return normalized.length > 0 ? normalized : undefined;
+  };
+
   const resolveEffectivePhonePeInstrument = (value: unknown): PhonePeEffectiveInstrument => {
     const candidates: string[] = [];
 
@@ -288,16 +297,25 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     currency: string,
     instrument: PhonePeEffectiveInstrument,
     payPageType: string,
+    rawInstrument?: string,
   ): string => {
     const hash = createHash('sha256');
-    hash.update([
+    const normalizedRawInstrument = normalizePhonePeInstrumentToken(rawInstrument);
+    const normalizedPayPageType = payPageType.toUpperCase();
+    const hashComponents = [
       tenant,
       orderId,
       amountMinor.toString(),
       currency,
       instrument,
-      payPageType.toUpperCase(),
-    ].join(':'));
+      normalizedPayPageType,
+    ];
+
+    if (normalizedRawInstrument && normalizedRawInstrument !== instrument) {
+      hashComponents.push(normalizedRawInstrument);
+    }
+
+    hash.update(hashComponents.join(':'));
     return `${prefix}:${hash.digest('hex')}`;
   };
 
@@ -308,6 +326,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     currency: string,
     instrument: PhonePeEffectiveInstrument,
     payPageType: string,
+    rawInstrument?: string,
   ): string => derivePhonePeIdempotencyKey(
     'phonepe-token',
     tenant,
@@ -316,6 +335,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     currency,
     instrument,
     payPageType,
+    rawInstrument,
   );
 
   const derivePaymentCreationIdempotencyKey = (
@@ -325,6 +345,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     currency: string,
     instrument: PhonePeEffectiveInstrument,
     payPageType: string,
+    rawInstrument?: string,
   ): string => derivePhonePeIdempotencyKey(
     'phonepe-payment',
     tenant,
@@ -333,6 +354,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     currency,
     instrument,
     payPageType,
+    rawInstrument,
   );
 
   const cancelPaymentSchema = z.object({
@@ -535,7 +557,10 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       const successUrl = validatedData.redirectUrl || `${baseUrl}/payment/success`;
       const failureUrl = validatedData.redirectUrl || `${baseUrl}/payment/failed`;
       const cancelUrl = validatedData.redirectUrl || `${baseUrl}/payment/failed`;
-      const effectiveInstrument = resolveEffectivePhonePeInstrument(validatedData.instrumentPreference);
+      const rawInstrumentPreference = validatedData.instrumentPreference;
+      const normalizedRequestedInstrument = normalizePhonePeInstrumentToken(rawInstrumentPreference);
+      const effectiveInstrument = resolveEffectivePhonePeInstrument(rawInstrumentPreference);
+      const requestedInstrumentToken = normalizedRequestedInstrument ?? effectiveInstrument;
       const payPageType = validatedData.payPageType;
       const tokenUrlIdempotencyKey = deriveTokenUrlIdempotencyKey(
         tenantId,
@@ -544,6 +569,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         orderCurrency,
         effectiveInstrument,
         payPageType,
+        rawInstrumentPreference,
       );
       const originalPaymentCreationIdempotencyKey = derivePaymentCreationIdempotencyKey(
         tenantId,
@@ -552,6 +578,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         orderCurrency,
         effectiveInstrument,
         payPageType,
+        rawInstrumentPreference,
       );
       let paymentCreationIdempotencyKey = originalPaymentCreationIdempotencyKey;
       let refreshedPaymentIdempotencyKey: string | undefined;
@@ -574,6 +601,9 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         const cachedInstrument = typeof metadata?.effectiveInstrument === 'string'
           ? metadata?.effectiveInstrument.toUpperCase()
           : undefined;
+        const cachedRequestedInstrument = typeof metadata?.requestedInstrument === 'string'
+          ? metadata?.requestedInstrument.toUpperCase()
+          : undefined;
         const cachedPayPageType = typeof metadata?.payPageType === 'string'
           ? metadata?.payPageType.toUpperCase()
           : undefined;
@@ -583,11 +613,13 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         const cacheExpiresAt = cacheExpiresAtValue ? new Date(cacheExpiresAtValue) : undefined;
 
         const instrumentMatches = !cachedInstrument || cachedInstrument === effectiveInstrument;
+        const requestedInstrumentMatches = !cachedRequestedInstrument
+          || cachedRequestedInstrument === requestedInstrumentToken;
         const payPageMatches = !cachedPayPageType || cachedPayPageType === payPageType;
         const tokenExpired = !!(expiresAt && !Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() <= now.getTime());
         const ttlExpired = !!(cacheExpiresAt && !Number.isNaN(cacheExpiresAt.getTime()) && cacheExpiresAt.getTime() <= now.getTime());
 
-        if (instrumentMatches && payPageMatches && !tokenExpired && !ttlExpired) {
+        if (instrumentMatches && payPageMatches && requestedInstrumentMatches && !tokenExpired && !ttlExpired) {
           return res.json(responsePayload);
         }
 
@@ -679,6 +711,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
             },
             metadata: {
               effectiveInstrument,
+              requestedInstrument: requestedInstrumentToken,
               payPageType,
               cacheExpiresAt: new Date(expiresAt.getTime() + 60_000).toISOString(),
             },
