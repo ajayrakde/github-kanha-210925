@@ -12,29 +12,125 @@ import {
   type UserAddress,
   type InsertUserAddress,
 } from "@shared/schema";
-import { db } from "../db";
+import bcrypt from "bcryptjs";
 import { eq, and, desc } from "drizzle-orm";
 
+import { db } from "../db";
+
+const BCRYPT_SALT_ROUNDS = 12;
+
+type PasswordTable = typeof users | typeof admins | typeof influencers;
+
+type PasswordRecord = {
+  id: string;
+  password: string | null;
+};
+
 export class UsersRepository {
+  constructor(private readonly database: typeof db = db) {}
+
+  private isBcryptHash(password: string | null | undefined): password is string {
+    return typeof password === "string" && password.startsWith("$2");
+  }
+
+  private async hashPassword(password: string): Promise<string> {
+    return bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+  }
+
+  private async preparePasswordForWrite(
+    password: string | null | undefined,
+  ): Promise<string | null | undefined> {
+    if (password === undefined) {
+      return undefined;
+    }
+
+    if (password === null) {
+      return null;
+    }
+
+    if (!password) {
+      return password;
+    }
+
+    if (this.isBcryptHash(password)) {
+      return password;
+    }
+
+    return this.hashPassword(password);
+  }
+
+  private async verifyPassword(
+    record: PasswordRecord,
+    plainText: string,
+    table: PasswordTable,
+  ): Promise<boolean> {
+    if (!record.password) {
+      return false;
+    }
+
+    if (this.isBcryptHash(record.password)) {
+      return bcrypt.compare(plainText, record.password);
+    }
+
+    if (record.password === plainText) {
+      const hashed = await this.hashPassword(plainText);
+      await this.database
+        .update(table)
+        .set({ password: hashed, updatedAt: new Date() })
+        .where(eq(table.id, record.id));
+      record.password = hashed;
+      return true;
+    }
+
+    return false;
+  }
+
   async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
+    const [user] = await this.database
+      .select()
+      .from(users)
+      .where(eq(users.id, id));
     return user;
   }
 
   async getUserByPhone(phone: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.phone, phone));
+    const [user] = await this.database
+      .select()
+      .from(users)
+      .where(eq(users.phone, phone));
     return user;
   }
 
   async createUser(user: InsertUser): Promise<User> {
-    const [createdUser] = await db.insert(users).values(user).returning();
+    const values: InsertUser = { ...user };
+    if (user.password !== undefined) {
+      values.password = (await this.preparePasswordForWrite(
+        user.password,
+      )) as typeof values.password;
+    }
+
+    const [createdUser] = await this.database
+      .insert(users)
+      .values(values)
+      .returning();
     return createdUser;
   }
 
   async updateUser(id: string, user: Partial<InsertUser>): Promise<User> {
-    const [updatedUser] = await db
+    const updateData: Partial<InsertUser> & { updatedAt: Date } = {
+      ...user,
+      updatedAt: new Date(),
+    };
+
+    if (user.password !== undefined) {
+      updateData.password = (await this.preparePasswordForWrite(
+        user.password,
+      )) as typeof updateData.password;
+    }
+
+    const [updatedUser] = await this.database
       .update(users)
-      .set({ ...user, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(users.id, id))
       .returning();
     return updatedUser;
@@ -43,8 +139,11 @@ export class UsersRepository {
   async authenticateUser(phone: string, password: string): Promise<User | null> {
     if (!password) return null;
     try {
-      const [user] = await db.select().from(users).where(eq(users.phone, phone));
-      if (user && user.password === password) {
+      const [user] = await this.database
+        .select()
+        .from(users)
+        .where(eq(users.phone, phone));
+      if (user && (await this.verifyPassword(user, password, users))) {
         return user;
       }
       return null;
@@ -55,59 +154,107 @@ export class UsersRepository {
   }
 
   async getAdmins(): Promise<Admin[]> {
-    return await db.select().from(admins).where(eq(admins.isActive, true));
+    return await this.database
+      .select()
+      .from(admins)
+      .where(eq(admins.isActive, true));
   }
 
   async getAdmin(id: string): Promise<Admin | undefined> {
-    const [admin] = await db.select().from(admins).where(eq(admins.id, id));
+    const [admin] = await this.database
+      .select()
+      .from(admins)
+      .where(eq(admins.id, id));
     return admin;
   }
 
   async getAdminByUsername(username: string): Promise<Admin | undefined> {
-    const [admin] = await db.select().from(admins).where(eq(admins.username, username));
+    const [admin] = await this.database
+      .select()
+      .from(admins)
+      .where(eq(admins.username, username));
     return admin;
   }
 
   async getAdminByPhone(phone: string): Promise<Admin | undefined> {
-    const [admin] = await db.select().from(admins).where(eq(admins.phone, phone));
+    const [admin] = await this.database
+      .select()
+      .from(admins)
+      .where(eq(admins.phone, phone));
     return admin;
   }
 
   async createAdmin(admin: InsertAdmin): Promise<Admin> {
-    const [createdAdmin] = await db.insert(admins).values(admin).returning();
+    const values: InsertAdmin = { ...admin };
+    if (admin.password !== undefined) {
+      values.password = (await this.preparePasswordForWrite(
+        admin.password,
+      )) as typeof values.password;
+    }
+
+    const [createdAdmin] = await this.database
+      .insert(admins)
+      .values(values)
+      .returning();
     return createdAdmin;
   }
 
   async updateAdmin(id: string, admin: Partial<InsertAdmin>): Promise<Admin> {
-    const [updatedAdmin] = await db
+    const updateData: Partial<InsertAdmin> & { updatedAt: Date } = {
+      ...admin,
+      updatedAt: new Date(),
+    };
+
+    if (admin.password !== undefined) {
+      updateData.password = (await this.preparePasswordForWrite(
+        admin.password,
+      )) as typeof updateData.password;
+    }
+
+    const [updatedAdmin] = await this.database
       .update(admins)
-      .set({ ...admin, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(admins.id, id))
       .returning();
     return updatedAdmin;
   }
 
   async deleteAdmin(id: string): Promise<void> {
-    await db.update(admins).set({ isActive: false }).where(eq(admins.id, id));
+    await this.database
+      .update(admins)
+      .set({ isActive: false })
+      .where(eq(admins.id, id));
   }
 
   async deactivateAdmin(id: string): Promise<void> {
-    await db.update(admins).set({ isActive: false }).where(eq(admins.id, id));
+    await this.database
+      .update(admins)
+      .set({ isActive: false })
+      .where(eq(admins.id, id));
   }
 
   async validateAdminLogin(username: string, password: string): Promise<Admin | null> {
-    const admin = await this.getAdminByUsername(username);
-    if (admin && admin.password === password && admin.isActive) {
-      return admin;
+    if (!password) {
+      return null;
     }
-    return null;
+
+    const admin = await this.getAdminByUsername(username);
+    if (!admin || !admin.isActive) {
+      return null;
+    }
+
+    const isValid = await this.verifyPassword(admin, password, admins);
+    return isValid ? admin : null;
   }
 
   async authenticateAdmin(phone: string, password: string): Promise<Admin | null> {
     if (!password) return null;
     try {
-      const [admin] = await db.select().from(admins).where(eq(admins.phone, phone));
-      if (admin && admin.password === password && admin.isActive) {
+      const [admin] = await this.database
+        .select()
+        .from(admins)
+        .where(eq(admins.phone, phone));
+      if (admin && admin.isActive && (await this.verifyPassword(admin, password, admins))) {
         return admin;
       }
       return null;
@@ -118,46 +265,95 @@ export class UsersRepository {
   }
 
   async getInfluencers(): Promise<Influencer[]> {
-    return await db.select().from(influencers).orderBy(desc(influencers.createdAt));
+    return await this.database
+      .select()
+      .from(influencers)
+      .orderBy(desc(influencers.createdAt));
   }
 
   async getInfluencer(id: string): Promise<Influencer | undefined> {
-    const [influencer] = await db.select().from(influencers).where(eq(influencers.id, id));
+    const [influencer] = await this.database
+      .select()
+      .from(influencers)
+      .where(eq(influencers.id, id));
     return influencer;
   }
 
   async getInfluencerByPhone(phone: string): Promise<Influencer | undefined> {
-    const [influencer] = await db.select().from(influencers).where(eq(influencers.phone, phone));
+    const [influencer] = await this.database
+      .select()
+      .from(influencers)
+      .where(eq(influencers.phone, phone));
     return influencer;
   }
 
   async createInfluencer(influencer: InsertInfluencer): Promise<Influencer> {
-    const [createdInfluencer] = await db.insert(influencers).values(influencer).returning();
+    const values: InsertInfluencer = { ...influencer };
+    if (influencer.password !== undefined) {
+      values.password = (await this.preparePasswordForWrite(
+        influencer.password,
+      )) as typeof values.password;
+    }
+
+    const [createdInfluencer] = await this.database
+      .insert(influencers)
+      .values(values)
+      .returning();
     return createdInfluencer;
   }
 
-  async updateInfluencer(id: string, influencer: Partial<InsertInfluencer>): Promise<Influencer> {
-    const [updatedInfluencer] = await db
+  async updateInfluencer(
+    id: string,
+    influencer: Partial<InsertInfluencer>,
+  ): Promise<Influencer> {
+    const updateData: Partial<InsertInfluencer> & { updatedAt: Date } = {
+      ...influencer,
+      updatedAt: new Date(),
+    };
+
+    if (influencer.password !== undefined) {
+      updateData.password = (await this.preparePasswordForWrite(
+        influencer.password,
+      )) as typeof updateData.password;
+    }
+
+    const [updatedInfluencer] = await this.database
       .update(influencers)
-      .set({ ...influencer, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(influencers.id, id))
       .returning();
     return updatedInfluencer;
   }
 
   async deleteInfluencer(id: string): Promise<void> {
-    await db.update(influencers).set({ isActive: false }).where(eq(influencers.id, id));
+    await this.database
+      .update(influencers)
+      .set({ isActive: false })
+      .where(eq(influencers.id, id));
   }
 
   async deactivateInfluencer(id: string): Promise<void> {
-    await db.update(influencers).set({ isActive: false }).where(eq(influencers.id, id));
+    await this.database
+      .update(influencers)
+      .set({ isActive: false })
+      .where(eq(influencers.id, id));
   }
 
-  async authenticateInfluencer(phone: string, password: string): Promise<Influencer | null> {
+  async authenticateInfluencer(
+    phone: string,
+    password: string,
+  ): Promise<Influencer | null> {
     if (!password) return null;
     try {
-      const [influencer] = await db.select().from(influencers).where(eq(influencers.phone, phone));
-      if (influencer && influencer.password === password && influencer.isActive) {
+      const [influencer] = await this.database
+        .select()
+        .from(influencers)
+        .where(eq(influencers.phone, phone));
+      if (
+        influencer &&
+        influencer.isActive &&
+        (await this.verifyPassword(influencer, password, influencers))
+      ) {
         return influencer;
       }
       return null;
@@ -168,7 +364,7 @@ export class UsersRepository {
   }
 
   async getUserAddresses(userId: string): Promise<UserAddress[]> {
-    return await db
+    return await this.database
       .select()
       .from(userAddresses)
       .where(eq(userAddresses.userId, userId))
@@ -176,12 +372,18 @@ export class UsersRepository {
   }
 
   async createUserAddress(address: InsertUserAddress): Promise<UserAddress> {
-    const [createdAddress] = await db.insert(userAddresses).values(address).returning();
+    const [createdAddress] = await this.database
+      .insert(userAddresses)
+      .values(address)
+      .returning();
     return createdAddress;
   }
 
-  async updateUserAddress(id: string, address: Partial<InsertUserAddress>): Promise<UserAddress> {
-    const [updatedAddress] = await db
+  async updateUserAddress(
+    id: string,
+    address: Partial<InsertUserAddress>,
+  ): Promise<UserAddress> {
+    const [updatedAddress] = await this.database
       .update(userAddresses)
       .set({ ...address, updatedAt: new Date() })
       .where(eq(userAddresses.id, id))
@@ -190,25 +392,25 @@ export class UsersRepository {
   }
 
   async deleteUserAddress(id: string, userId: string): Promise<void> {
-    await db
+    await this.database
       .delete(userAddresses)
       .where(and(eq(userAddresses.id, id), eq(userAddresses.userId, userId)));
   }
 
   async setPreferredAddress(userId: string, addressId: string): Promise<void> {
-    await db
+    await this.database
       .update(userAddresses)
       .set({ isPreferred: false })
       .where(eq(userAddresses.userId, userId));
 
-    await db
+    await this.database
       .update(userAddresses)
       .set({ isPreferred: true })
       .where(and(eq(userAddresses.id, addressId), eq(userAddresses.userId, userId)));
   }
 
   async getPreferredAddress(userId: string): Promise<UserAddress | undefined> {
-    const [address] = await db
+    const [address] = await this.database
       .select()
       .from(userAddresses)
       .where(and(eq(userAddresses.userId, userId), eq(userAddresses.isPreferred, true)))
