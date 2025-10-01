@@ -260,6 +260,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     amount: z.number().positive().optional(),
     reason: z.string().optional(),
     notes: z.string().optional(),
+    merchantRefundId: z.string().min(1).optional(),
+    originalMerchantOrderId: z.string().min(1).optional(),
   });
 
   const phonePeReturnSchema = z.object({
@@ -986,6 +988,33 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         return (amountMinor / 100).toFixed(2);
       };
 
+      const mapRefund = (refund: any, paymentProvider?: PaymentProvider) => {
+        const maskedRefundUtr = maskPhonePeIdentifier(paymentProvider, refund.upiUtr, {
+          type: 'utr',
+        });
+
+        return {
+          id: refund.id,
+          paymentId: refund.paymentId,
+          status: refund.status,
+          amountMinor: refund.amountMinor ?? 0,
+          amount: toCurrency(refund.amountMinor ?? 0),
+          reason: refund.reason ?? undefined,
+          providerRefundId: refund.providerRefundId ?? undefined,
+          merchantRefundId: refund.merchantRefundId ?? undefined,
+          originalMerchantOrderId: refund.originalMerchantOrderId ?? undefined,
+          upiUtr: maskedRefundUtr ?? undefined,
+          createdAt:
+            refund.createdAt instanceof Date
+              ? refund.createdAt.toISOString()
+              : refund.createdAt ?? undefined,
+          updatedAt:
+            refund.updatedAt instanceof Date
+              ? refund.updatedAt.toISOString()
+              : refund.updatedAt ?? undefined,
+        };
+      };
+
       const mapPayment = (payment: typeof sortedPayments[number]) => {
         const amountMinor = payment.amountCapturedMinor ?? payment.amountAuthorizedMinor ?? 0;
         const provider = payment.provider as PaymentProvider | undefined;
@@ -997,6 +1026,9 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         const maskedUpiUtr = maskPhonePeIdentifier(provider, payment.upiUtr, {
           type: 'utr',
         });
+        const paymentRefunds = Array.isArray((payment as any).refunds)
+          ? (payment as any).refunds
+          : [];
 
         return {
           id: payment.id,
@@ -1014,6 +1046,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           upiInstrumentVariant: normalizedVariant ?? undefined,
           upiInstrumentLabel: upiInstrumentLabel ?? undefined,
           receiptUrl: payment.receiptUrl ?? undefined,
+          refunds: paymentRefunds.map((refund: any) => mapRefund(refund, provider)),
           createdAt: payment.createdAt instanceof Date ? payment.createdAt.toISOString() : payment.createdAt,
           updatedAt: payment.updatedAt instanceof Date ? payment.updatedAt.toISOString() : payment.updatedAt,
         };
@@ -1070,6 +1103,15 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       const taxableBase = subtotal - discount;
       const tax = Math.max(total - shipping - taxableBase, 0);
 
+      const refundsData = sortedPayments.flatMap((payment) => {
+        const paymentRefunds = Array.isArray((payment as any).refunds)
+          ? (payment as any).refunds
+          : [];
+        return paymentRefunds.map((refund: any) =>
+          mapRefund(refund, payment.provider as PaymentProvider | undefined)
+        );
+      });
+
       res.json({
         order: {
           id: order.id,
@@ -1109,6 +1151,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         },
         totalPaid: totalPaidMinor / 100,
         totalRefunded: totalRefundedMinor / 100,
+        refunds: refundsData,
         breakdown: {
           subtotal,
           discount,
@@ -1165,10 +1208,12 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         reason: validatedData.reason,
         notes: validatedData.notes,
         idempotencyKey: idempotencyKeyHeader.trim(),
+        merchantRefundId: validatedData.merchantRefundId,
+        originalMerchantOrderId: validatedData.originalMerchantOrderId,
       };
 
       const result = await paymentsService.createRefund(refundParams, tenantId);
-      
+
       res.json({
         success: true,
         data: {
@@ -1178,6 +1223,9 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           status: result.status,
           reason: result.reason,
           provider: result.provider,
+          merchantRefundId: result.merchantRefundId,
+          originalMerchantOrderId: result.originalMerchantOrderId,
+          upiUtr: result.upiUtr,
           createdAt: result.createdAt,
         }
       });

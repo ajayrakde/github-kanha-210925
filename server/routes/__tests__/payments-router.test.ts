@@ -755,6 +755,7 @@ describe("payments router", () => {
         receiptUrl: "https://receipt",
         createdAt: new Date("2024-01-01T00:05:00Z"),
         updatedAt: new Date("2024-01-01T00:07:00Z"),
+        refunds: [],
       };
       const res = await invoke({
         paymentStatus: "paid",
@@ -768,6 +769,64 @@ describe("payments router", () => {
       expect(res.jsonPayload.payment.upiInstrumentLabel).toBe(phonePeIdentifierFixture.label);
       expect(res.jsonPayload.payment.receiptUrl).toBe("https://receipt");
       expect(res.jsonPayload.totals.paidMinor).toBe(1000);
+    });
+
+    it("exposes masked refund records for completed payments", async () => {
+      const now = new Date("2024-01-01T00:05:00Z");
+      const payment = {
+        id: "pay_with_refund",
+        status: "COMPLETED",
+        provider: "phonepe",
+        methodKind: "upi",
+        amountAuthorizedMinor: 1000,
+        amountCapturedMinor: 1000,
+        amountRefundedMinor: 300,
+        providerPaymentId: "mtid",
+        providerTransactionId: "txn",
+        providerReferenceId: "ref",
+        upiPayerHandle: phonePeIdentifierFixture.vpa,
+        upiUtr: phonePeIdentifierFixture.utr,
+        upiInstrumentVariant: phonePeIdentifierFixture.variant,
+        receiptUrl: "https://receipt",
+        createdAt: now,
+        updatedAt: now,
+        refunds: [
+          {
+            id: "refund_1",
+            paymentId: "pay_with_refund",
+            provider: "phonepe",
+            providerRefundId: "provider_refund",
+            merchantRefundId: "merchant_refund",
+            originalMerchantOrderId: "merchant_order",
+            amountMinor: 300,
+            status: "completed",
+            reason: "duplicate",
+            upiUtr: phonePeIdentifierFixture.utr,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+      };
+
+      const res = await invoke({
+        paymentStatus: "paid",
+        status: "confirmed",
+        payments: [payment],
+      });
+
+      expect(res.jsonPayload.payment.upiUtr).toBe(phonePeIdentifierFixture.maskedUtr);
+      expect(res.jsonPayload.transactions[0].refunds[0]).toMatchObject({
+        amountMinor: 300,
+        merchantRefundId: "merchant_refund",
+        originalMerchantOrderId: "merchant_order",
+        upiUtr: phonePeIdentifierFixture.maskedUtr,
+      });
+      expect(res.jsonPayload.refunds[0]).toMatchObject({
+        paymentId: "pay_with_refund",
+        amountMinor: 300,
+        upiUtr: phonePeIdentifierFixture.maskedUtr,
+      });
+      expect(res.jsonPayload.totals.refundedMinor).toBe(300);
     });
 
     it("reports failed attempts without overriding order state", async () => {

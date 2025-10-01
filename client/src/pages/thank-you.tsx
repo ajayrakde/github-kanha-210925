@@ -38,6 +38,22 @@ interface PaymentTransactionInfo {
   methodKind?: string;
   createdAt?: string;
   updatedAt?: string;
+  refunds?: RefundInfo[];
+}
+
+interface RefundInfo {
+  id: string;
+  paymentId: string;
+  status: string;
+  amount: string;
+  amountMinor?: number;
+  reason?: string;
+  providerRefundId?: string;
+  merchantRefundId?: string;
+  originalMerchantOrderId?: string;
+  upiUtr?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface PaymentStatusInfo {
@@ -59,6 +75,7 @@ interface PaymentStatusInfo {
   latestTransactionFailureAt?: string | null;
   totalPaid: number;
   totalRefunded: number;
+  refunds?: RefundInfo[];
   reconciliation?: {
     status: 'pending' | 'completed' | 'failed' | 'expired';
     attempt: number;
@@ -701,7 +718,62 @@ export default function ThankYou() {
               </div>
             </div>
           )}
-          
+
+          {(latestTransaction?.refunds?.length ?? 0) > 0 && (
+            <div className="mt-4 pt-3 border-t border-gray-200">
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Refunds</h4>
+              <div className="space-y-2">
+                {latestTransaction?.refunds?.map((refund) => (
+                  <div
+                    key={refund.id}
+                    className="text-xs text-gray-600 border border-dashed border-gray-200 rounded-md p-2 space-y-1"
+                  >
+                    <div className="flex justify-between">
+                      <span>Status:</span>
+                      <span className="font-medium capitalize">{refund.status}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Amount:</span>
+                      <span className="font-medium">
+                        ₹{((refund.amountMinor ?? 0) / 100).toFixed(2)}
+                      </span>
+                    </div>
+                    {refund.upiUtr && (
+                      <div className="flex justify-between">
+                        <span>UTR:</span>
+                        <span className="font-mono">{formatIdentifier(refund.upiUtr)}</span>
+                      </div>
+                    )}
+                    {refund.merchantRefundId && (
+                      <div className="flex justify-between">
+                        <span>Merchant Refund ID:</span>
+                        <span className="font-mono">{formatIdentifier(refund.merchantRefundId)}</span>
+                      </div>
+                    )}
+                    {refund.originalMerchantOrderId && (
+                      <div className="flex justify-between">
+                        <span>Original Order ID:</span>
+                        <span className="font-mono">{formatIdentifier(refund.originalMerchantOrderId)}</span>
+                      </div>
+                    )}
+                    {refund.reason && (
+                      <div className="flex justify-between">
+                        <span>Reason:</span>
+                        <span className="font-medium">{refund.reason}</span>
+                      </div>
+                    )}
+                    {refund.createdAt && (
+                      <div className="flex justify-between">
+                        <span>Requested:</span>
+                        <span>{new Date(refund.createdAt).toLocaleString('en-IN')}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex items-center justify-between mt-2">
             <div className="flex items-center">
               <i className="fas fa-truck text-blue-600 mr-2"></i>
