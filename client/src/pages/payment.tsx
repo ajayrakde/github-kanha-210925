@@ -191,6 +191,7 @@ export default function Payment() {
         callbackUrl: `${window.location.origin}/api/payments/webhook/phonepe`,
         mobileNumber: currentOrderData.userInfo.phone,
         instrumentPreference,
+        payPageType: 'IFRAME',
       });
 
       const payload = await response.json();

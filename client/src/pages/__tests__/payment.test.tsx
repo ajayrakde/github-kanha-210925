@@ -99,7 +99,7 @@ describe("Payment page", () => {
     expect(apiRequestMock).toHaveBeenCalledWith(
       "POST",
       "/api/payments/token-url",
-      expect.objectContaining({ orderId: "order-1", instrumentPreference: "UPI_INTENT" })
+      expect.objectContaining({ orderId: "order-1", instrumentPreference: "UPI_INTENT", payPageType: 'IFRAME' })
     );
 
     expect(window.PhonePeCheckout?.transact).toHaveBeenCalledWith(
@@ -133,7 +133,7 @@ describe("Payment page", () => {
       expect(apiRequestMock).toHaveBeenCalledWith(
         "POST",
         "/api/payments/token-url",
-        expect.objectContaining({ instrumentPreference: "UPI_QR" })
+        expect.objectContaining({ instrumentPreference: "UPI_QR", payPageType: 'IFRAME' })
       );
     });
   });
