@@ -220,38 +220,82 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
     }
   });
 
-  router.get("/", requireAdmin, async (req: SessionRequest, res) => {
-    try {
-      const filters = {
-        status: req.query.status as string,
-        startDate: req.query.startDate as string,
-        endDate: req.query.endDate as string,
-      };
+ router.get("/", async (req: SessionRequest, res) => {
+    const { session } = req;
 
-      const cleanFilters = Object.fromEntries(
-        Object.entries(filters).filter(([_, value]) => value && value !== "all"),
-      );
+    if (session.adminId && session.userRole === "admin") {
+      try {
+        const filters = {
+          status: req.query.status as string,
+          startDate: req.query.startDate as string,
+          endDate: req.query.endDate as string,
+        };
 
-      const orders = await ordersRepository.getOrders(
-        Object.keys(cleanFilters).length > 0 ? cleanFilters : undefined,
-      );
-      res.json(orders);
-    } catch (error) {
-      console.error("Error fetching orders:", error);
-      res.status(500).json({ message: "Failed to fetch orders" });
+        const cleanFilters = Object.fromEntries(
+          Object.entries(filters).filter(([_, value]) => value && value !== "all"),
+        );
+
+        const orders = await ordersRepository.getOrders(
+          Object.keys(cleanFilters).length > 0 ? cleanFilters : undefined,
+        );
+        return res.json(orders);
+      } catch (error) {
+        console.error("Error fetching orders:", error);
+        return res.status(500).json({ message: "Failed to fetch orders" });
+      }
     }
+
+    if (session.influencerId && session.userRole === "influencer") {
+      try {
+        const orders = await ordersRepository.getOrdersByInfluencer(session.influencerId);
+        return res.json(orders);
+      } catch (error) {
+        console.error("Error fetching influencer orders:", error);
+        return res.status(500).json({ message: "Failed to fetch orders" });
+      }
+    }
+
+    if (!session.userRole) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
+    return res.status(403).json({ message: "Access denied" });
   });
 
-  router.get("/:id", requireAdmin, async (req: SessionRequest, res) => {
+
+  router.get("/:id", async (req: SessionRequest, res) => {
+    const { session } = req;
+
+    if (!session.userRole) {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
     try {
       const order = await ordersRepository.getOrder(req.params.id);
       if (!order) {
         return res.status(404).json({ message: "Order not found" });
       }
-      res.json(order);
+
+      if (session.adminId && session.userRole === "admin") {
+        return res.json(order);
+      }
+
+      if (session.userId && session.userRole === "buyer" && order.userId === session.userId) {
+        return res.json(order);
+      }
+
+      if (
+        session.influencerId &&
+        session.userRole === "influencer" &&
+        order.offer?.influencerId === session.influencerId
+      ) {
+        return res.json(order);
+      }
+
+      return res.status(403).json({ message: "Access denied" });
     } catch (error) {
       console.error("Error fetching order:", error);
-      res.status(500).json({ message: "Failed to fetch order" });
+      return res.status(500).json({ message: "Failed to fetch order" });
     }
   });
 

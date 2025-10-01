@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Request, Response, Router } from "express";
-import type { RequireAdminMiddleware } from "../types";
+import type { RequireAdminMiddleware, SessionRequest } from "../types";
 
 const mockOrdersRepository = {
   getOrders: vi.fn(),
+  getOrdersByInfluencer: vi.fn(),
   getOrder: vi.fn(),
   getCartItems: vi.fn(),
   createOrder: vi.fn(),
@@ -69,106 +70,204 @@ const createMockResponse = () => {
   return res as Response & { statusCode?: number; jsonPayload?: any };
 };
 
-describe("orders router admin access", () => {
+
+describe("orders router access control", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  const invokeRouteStack = async (
+  const runRoute = async (
     router: Router,
     path: string,
-    req: Partial<Request>,
+    req: Partial<SessionRequest>,
     res: Response,
   ) => {
     const layer = getRouteLayer(router, "get", path);
-    const [adminMiddleware, handler] = layer.route.stack;
-
-    await new Promise<void>((resolve, reject) => {
-      try {
-        adminMiddleware.handle(req, res, async () => {
-          try {
-            await handler.handle(req, res, () => {});
-            resolve();
-          } catch (error) {
-            reject(error);
-          }
-        });
-      } catch (error) {
-        reject(error);
-      }
-    });
+    await layer.route.stack[0].handle(req, res, () => {});
   };
 
-  it("returns 401 when non-admins request the order list", async () => {
-    const requireAdminMock = vi.fn((_req: Request, res: Response) => {
-      res.status(401).json({ message: "Admin access required" });
+  describe("GET /", () => {
+    it("returns 401 when no session is present", async () => {
+      const router = await buildRouter();
+      const res = createMockResponse();
+      const req = { query: {}, session: {} } as Partial<SessionRequest>;
+
+      await runRoute(router, "/", req, res);
+
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ message: "Authentication required" });
+      expect(mockOrdersRepository.getOrders).not.toHaveBeenCalled();
+      expect(mockOrdersRepository.getOrdersByInfluencer).not.toHaveBeenCalled();
     });
 
-    const router = await buildRouter(requireAdminMock);
-    const layer = getRouteLayer(router, "get", "/");
-    const res = createMockResponse();
-    const req = { query: {} } as Request;
+    it("returns 403 when a buyer tries to list all orders", async () => {
+      const router = await buildRouter();
+      const res = createMockResponse();
+      const req = {
+        query: {},
+        session: { userRole: "buyer", userId: "buyer-1" },
+      } as Partial<SessionRequest>;
 
-    await layer.route.stack[0].handle(req, res, () => {});
+      await runRoute(router, "/", req, res);
 
-    expect(requireAdminMock).toHaveBeenCalledTimes(1);
-    expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ message: "Admin access required" });
-    expect(mockOrdersRepository.getOrders).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ message: "Access denied" });
+      expect(mockOrdersRepository.getOrders).not.toHaveBeenCalled();
+      expect(mockOrdersRepository.getOrdersByInfluencer).not.toHaveBeenCalled();
+    });
+
+    it("allows admins to retrieve the order list with filters", async () => {
+      const router = await buildRouter();
+      const res = createMockResponse();
+      const req = {
+        query: { status: "pending", startDate: "2024-01-01", endDate: "2024-01-31" },
+        session: { userRole: "admin", adminId: "admin-1" },
+      } as Partial<SessionRequest>;
+
+      const orders = [{ id: "order-1" }];
+      mockOrdersRepository.getOrders.mockResolvedValueOnce(orders);
+
+      await runRoute(router, "/", req, res);
+
+      expect(mockOrdersRepository.getOrders).toHaveBeenCalledWith({
+        status: "pending",
+        startDate: "2024-01-01",
+        endDate: "2024-01-31",
+      });
+      expect(res.json).toHaveBeenCalledWith(orders);
+    });
+
+    it("allows influencers to retrieve orders tied to their offers", async () => {
+      const router = await buildRouter();
+      const res = createMockResponse();
+      const req = {
+        query: {},
+        session: { userRole: "influencer", influencerId: "inf-1" },
+      } as Partial<SessionRequest>;
+
+      const orders = [{ id: "order-2" }];
+      mockOrdersRepository.getOrdersByInfluencer.mockResolvedValueOnce(orders);
+
+      await runRoute(router, "/", req, res);
+
+      expect(mockOrdersRepository.getOrdersByInfluencer).toHaveBeenCalledWith("inf-1");
+      expect(res.json).toHaveBeenCalledWith(orders);
+    });
   });
 
-  it("allows admins to retrieve the order list", async () => {
-    const requireAdminMock = vi.fn((_req: Request, _res: Response, next: () => void) => {
-      next();
-    });
-    const router = await buildRouter(requireAdminMock);
-    const res = createMockResponse();
-    const req = { query: {} } as Request;
+  describe("GET /:id", () => {
+    it("returns 401 when no session is present", async () => {
+      const router = await buildRouter();
+      const res = createMockResponse();
+      const req = {
+        params: { id: "order-1" },
+        session: {},
+      } as Partial<SessionRequest>;
 
-    const orders = [{ id: "order-1" }];
-    mockOrdersRepository.getOrders.mockResolvedValueOnce(orders);
+      await runRoute(router, "/:id", req, res);
 
-    await invokeRouteStack(router, "/", req, res);
-
-    expect(requireAdminMock).toHaveBeenCalledTimes(1);
-    expect(mockOrdersRepository.getOrders).toHaveBeenCalledWith(undefined);
-    expect(res.json).toHaveBeenCalledWith(orders);
-  });
-
-  it("returns 401 when non-admins request an order by id", async () => {
-    const requireAdminMock = vi.fn((_req: Request, res: Response) => {
-      res.status(401).json({ message: "Admin access required" });
+      expect(res.status).toHaveBeenCalledWith(401);
+      expect(res.json).toHaveBeenCalledWith({ message: "Authentication required" });
+      expect(mockOrdersRepository.getOrder).not.toHaveBeenCalled();
     });
 
-    const router = await buildRouter(requireAdminMock);
-    const layer = getRouteLayer(router, "get", "/:id");
-    const res = createMockResponse();
-    const req = { params: { id: "order-1" } } as unknown as Request;
+    it("allows admins to fetch a single order", async () => {
+      const router = await buildRouter();
+      const res = createMockResponse();
+      const req = {
+        params: { id: "order-1" },
+        session: { userRole: "admin", adminId: "admin-1" },
+      } as Partial<SessionRequest>;
 
-    await layer.route.stack[0].handle(req, res, () => {});
+      const order = { id: "order-1" };
+      mockOrdersRepository.getOrder.mockResolvedValueOnce(order);
 
-    expect(requireAdminMock).toHaveBeenCalledTimes(1);
-    expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith({ message: "Admin access required" });
-    expect(mockOrdersRepository.getOrder).not.toHaveBeenCalled();
-  });
+      await runRoute(router, "/:id", req, res);
 
-  it("allows admins to fetch a single order", async () => {
-    const requireAdminMock = vi.fn((_req: Request, _res: Response, next: () => void) => {
-      next();
+      expect(mockOrdersRepository.getOrder).toHaveBeenCalledWith("order-1");
+      expect(res.json).toHaveBeenCalledWith(order);
     });
 
-    const router = await buildRouter(requireAdminMock);
-    const res = createMockResponse();
-    const req = { params: { id: "order-1" } } as unknown as Request;
+    it("allows buyers to fetch their own order", async () => {
+      const router = await buildRouter();
+      const res = createMockResponse();
+      const req = {
+        params: { id: "order-1" },
+        session: { userRole: "buyer", userId: "buyer-1" },
+      } as Partial<SessionRequest>;
 
-    const order = { id: "order-1" };
-    mockOrdersRepository.getOrder.mockResolvedValueOnce(order);
+      const order = { id: "order-1", userId: "buyer-1" };
+      mockOrdersRepository.getOrder.mockResolvedValueOnce(order);
 
-    await invokeRouteStack(router, "/:id", req, res);
+      await runRoute(router, "/:id", req, res);
 
-    expect(requireAdminMock).toHaveBeenCalledTimes(1);
-    expect(mockOrdersRepository.getOrder).toHaveBeenCalledWith("order-1");
-    expect(res.json).toHaveBeenCalledWith(order);
+      expect(res.json).toHaveBeenCalledWith(order);
+    });
+
+    it("prevents buyers from accessing other users' orders", async () => {
+      const router = await buildRouter();
+      const res = createMockResponse();
+      const req = {
+        params: { id: "order-1" },
+        session: { userRole: "buyer", userId: "buyer-1" },
+      } as Partial<SessionRequest>;
+
+      const order = { id: "order-1", userId: "buyer-2" };
+      mockOrdersRepository.getOrder.mockResolvedValueOnce(order);
+
+      await runRoute(router, "/:id", req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ message: "Access denied" });
+    });
+
+    it("allows influencers to fetch orders containing their offers", async () => {
+      const router = await buildRouter();
+      const res = createMockResponse();
+      const req = {
+        params: { id: "order-1" },
+        session: { userRole: "influencer", influencerId: "inf-1" },
+      } as Partial<SessionRequest>;
+
+      const order = { id: "order-1", offer: { influencerId: "inf-1" } };
+      mockOrdersRepository.getOrder.mockResolvedValueOnce(order);
+
+      await runRoute(router, "/:id", req, res);
+
+      expect(res.json).toHaveBeenCalledWith(order);
+    });
+
+    it("prevents influencers from accessing unrelated orders", async () => {
+      const router = await buildRouter();
+      const res = createMockResponse();
+      const req = {
+        params: { id: "order-1" },
+        session: { userRole: "influencer", influencerId: "inf-1" },
+      } as Partial<SessionRequest>;
+
+      const order = { id: "order-1", offer: { influencerId: "inf-2" } };
+      mockOrdersRepository.getOrder.mockResolvedValueOnce(order);
+
+      await runRoute(router, "/:id", req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ message: "Access denied" });
+    });
+
+    it("returns 404 when the order is not found", async () => {
+      const router = await buildRouter();
+      const res = createMockResponse();
+      const req = {
+        params: { id: "missing-order" },
+        session: { userRole: "admin", adminId: "admin-1" },
+      } as Partial<SessionRequest>;
+
+      mockOrdersRepository.getOrder.mockResolvedValueOnce(undefined);
+
+      await runRoute(router, "/:id", req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ message: "Order not found" });
+    });
   });
 });

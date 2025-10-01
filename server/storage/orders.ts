@@ -3,6 +3,7 @@ import {
   orderItems,
   cartItems,
   products,
+  offers,
   type Order,
   type InsertOrder,
   type OrderItem,
@@ -16,7 +17,7 @@ import {
 } from "@shared/schema";
 import type { AbandonedCart } from "@/lib/types";
 import { db } from "../db";
-import { eq, and, desc, sql, gte, lt } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lt, inArray } from "drizzle-orm";
 
 export const MIN_CART_ITEM_QUANTITY = 1;
 export const MAX_CART_ITEM_QUANTITY = 10;
@@ -105,6 +106,49 @@ export class OrdersRepository {
           payments: orderData.payments ?? [],
         }
       : undefined;
+  }
+
+  async getOrdersByInfluencer(
+    influencerId: string,
+  ): Promise<(Order & {
+    user: User;
+    items: (OrderItem & { product: Product })[];
+    offer?: Offer;
+    deliveryAddress: UserAddress;
+    payments: Payment[];
+  })[]> {
+    const influencerOffers = await db
+      .select({ id: offers.id })
+      .from(offers)
+      .where(eq(offers.influencerId, influencerId));
+
+    if (influencerOffers.length === 0) {
+      return [];
+    }
+
+    const offerIds = influencerOffers.map(offer => offer.id);
+
+    const ordersData = await db.query.orders.findMany({
+      where: inArray(orders.offerId, offerIds),
+      with: {
+        user: true,
+        items: {
+          with: {
+            product: true,
+          },
+        },
+        offer: true,
+        deliveryAddress: true,
+        payments: true,
+      },
+      orderBy: desc(orders.createdAt),
+    });
+
+    return ordersData.map(order => ({
+      ...order,
+      offer: order.offer || undefined,
+      payments: order.payments ?? [],
+    }));
   }
 
   async getOrderWithPayments(id: string): Promise<(Order & {
