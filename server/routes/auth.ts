@@ -7,6 +7,7 @@ import {
 } from "../storage";
 import { otpService } from "../otp-service";
 import type { SessionRequest } from "./types";
+import { regenerateSession, saveSession } from "../utils/session";
 
 export function createAuthRouter() {
   const router = Router();
@@ -23,12 +24,19 @@ export function createAuthRouter() {
       const result = await otpService.verifyOtp(phone, otp, "buyer");
 
       if (result.success && result.user) {
+        const anonymousSessionId = req.session.sessionId;
+        await regenerateSession(req);
+        if (anonymousSessionId) {
+          req.session.sessionId = anonymousSessionId;
+        }
         req.session.userId = result.user.id;
         req.session.userRole = "buyer";
-        res.json({ 
-          success: true, 
+        await saveSession(req);
+
+        res.json({
+          success: true,
           user: result.user,
-          isNewUser: result.isNewUser 
+          isNewUser: result.isNewUser
         });
       } else {
         res.status(400).json({ message: result.message || "Invalid OTP" });
@@ -201,6 +209,12 @@ export function createAuthRouter() {
       const result = await otpService.verifyOtp(phone, otp, userType);
 
       if (result.success && result.user) {
+        const anonymousSessionId = req.session.sessionId;
+        await regenerateSession(req);
+        if (anonymousSessionId) {
+          req.session.sessionId = anonymousSessionId;
+        }
+
         switch (userType) {
           case "admin":
             req.session.adminId = result.user.id;
@@ -215,6 +229,8 @@ export function createAuthRouter() {
             req.session.userRole = "buyer";
             break;
         }
+
+        await saveSession(req);
 
         res.json({
           message: result.message,
@@ -256,6 +272,11 @@ export function createAuthRouter() {
           const admin = await usersRepository.authenticateAdmin(cleanPhone, password);
           if (admin) {
             user = admin;
+            const anonymousSessionId = req.session.sessionId;
+            await regenerateSession(req);
+            if (anonymousSessionId) {
+              req.session.sessionId = anonymousSessionId;
+            }
             req.session.adminId = admin.id;
             req.session.userRole = "admin";
           }
@@ -265,6 +286,11 @@ export function createAuthRouter() {
           const influencer = await usersRepository.authenticateInfluencer(cleanPhone, password);
           if (influencer) {
             user = influencer;
+            const anonymousSessionId = req.session.sessionId;
+            await regenerateSession(req);
+            if (anonymousSessionId) {
+              req.session.sessionId = anonymousSessionId;
+            }
             req.session.influencerId = influencer.id;
             req.session.userRole = "influencer";
           }
@@ -274,6 +300,11 @@ export function createAuthRouter() {
           const buyer = await usersRepository.authenticateUser(cleanPhone, password);
           if (buyer) {
             user = buyer;
+            const anonymousSessionId = req.session.sessionId;
+            await regenerateSession(req);
+            if (anonymousSessionId) {
+              req.session.sessionId = anonymousSessionId;
+            }
             req.session.userId = buyer.id;
             req.session.userRole = "buyer";
           }
@@ -284,6 +315,8 @@ export function createAuthRouter() {
       if (!user) {
         return res.status(401).json({ message: "Invalid phone number or password" });
       }
+
+      await saveSession(req);
 
       res.json({
         message: "Login successful",
