@@ -102,11 +102,13 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
 ---
 
 ## Influencer Flow
-1. **Authentication**  
+1. **Authentication**
    - Influencer login/profile handled by `server/routes/influencers.ts`, backed by `usersRepository`.
+   - Self-serve influencer operations (login/logout/profile) live under `/api/influencer` and require an authenticated influencer session.
 
-2. **Lifecycle Management**  
-   - Admin creates/deactivates influencers using the same routes, now backed by `usersRepository`.
+2. **Lifecycle Management**
+   - Admin creates/deactivates influencers using `/api/influencers`, protected by the `requireAdmin` middleware.
+   - Anonymous calls to lifecycle routes receive `401` responses to ensure only admins manage influencer accounts.
 
 3. **Coupon & Analytics**  
    - Coupon redemption logic moved to `offersRepository`.  
