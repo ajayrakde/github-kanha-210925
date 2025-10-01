@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Response, Router } from "express";
+import type { Request, Response, Router } from "express";
 import type { RequireAdminMiddleware, SessionRequest } from "../types";
 
 const mockOrdersRepository = {
@@ -69,6 +69,7 @@ const createMockResponse = () => {
 
   return res as Response & { statusCode?: number; jsonPayload?: any };
 };
+
 
 describe("orders router access control", () => {
   beforeEach(() => {

@@ -220,7 +220,7 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
     }
   });
 
-  router.get("/", async (req: SessionRequest, res) => {
+ router.get("/", async (req: SessionRequest, res) => {
     const { session } = req;
 
     if (session.adminId && session.userRole === "admin") {
@@ -261,6 +261,7 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
 
     return res.status(403).json({ message: "Access denied" });
   });
+
 
   router.get("/:id", async (req: SessionRequest, res) => {
     const { session } = req;
