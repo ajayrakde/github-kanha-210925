@@ -1,21 +1,20 @@
-import { Button } from "@/components/ui/button";
-import { useLocation } from "wouter";
+import { Link } from "wouter";
+
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export default function RefundPolicy() {
-  const [, setLocation] = useLocation();
-
   return (
     <div className="max-w-4xl mx-auto py-8">
       <div className="mb-6">
-        <Button 
-          variant="ghost" 
-          onClick={() => setLocation("/")}
-          className="mb-4"
+        <Link
+          href="/"
+          className={cn(buttonVariants({ variant: "ghost" }), "mb-4")}
           data-testid="button-back-home"
         >
-          <i className="fas fa-arrow-left mr-2"></i>
+          <i className="fas fa-arrow-left mr-2" aria-hidden="true"></i>
           Back to Home
-        </Button>
+        </Link>
         <h1 className="text-3xl font-bold text-gray-900">Return / Refund / Cancellation Policy</h1>
       </div>
 

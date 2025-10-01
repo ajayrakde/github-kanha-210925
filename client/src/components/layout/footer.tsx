@@ -1,44 +1,41 @@
-import { useLocation } from "wouter";
-import { Button } from "@/components/ui/button";
+import { Link } from "wouter";
 
 export default function Footer() {
-  const [location, setLocation] = useLocation();
-
   return (
     <footer className="bg-gray-50 border-t border-gray-200 mt-auto">
       <div className="max-w-4xl mx-auto px-4 py-3">
         <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-gray-500">
-          <button
-            onClick={() => setLocation("/terms-of-service")}
-            className="hover:text-gray-700 transition-colors"
+          <Link
+            href="/terms-of-service"
+            className="rounded hover:text-gray-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-50"
             data-testid="link-terms-of-service"
           >
             Terms of service
-          </button>
+          </Link>
           <span>•</span>
-          <button
-            onClick={() => setLocation("/refund-policy")}
-            className="hover:text-gray-700 transition-colors"
+          <Link
+            href="/refund-policy"
+            className="rounded hover:text-gray-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-50"
             data-testid="link-refund-policy"
           >
             Refund Return cancellation policy
-          </button>
+          </Link>
           <span>•</span>
-          <button
-            onClick={() => setLocation("/admin")}
-            className="hover:text-gray-700 transition-colors"
+          <Link
+            href="/admin"
+            className="rounded hover:text-gray-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-50"
             data-testid="button-admin"
           >
             Admin
-          </button>
+          </Link>
           <span>•</span>
-          <button
-            onClick={() => setLocation("/influencer")}
-            className="hover:text-gray-700 transition-colors"
+          <Link
+            href="/influencer"
+            className="rounded hover:text-gray-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-50"
             data-testid="button-influencer"
           >
             Influencer
-          </button>
+          </Link>
           <span>•</span>
           <span>contact: +919890894335/support@kanhaa.com</span>
         </div>
