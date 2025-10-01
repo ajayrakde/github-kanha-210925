@@ -118,9 +118,30 @@ export default function ProductDetails() {
     );
   }
 
-  const productImages = product.images && product.images.length > 0 
-    ? product.images 
+  const productImages = product.images && product.images.length > 0
+    ? product.images
     : [product.displayImageUrl || product.imageUrl || `https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=300`];
+  const structuredDataImages = productImages.filter((image): image is string => Boolean(image));
+  const trimmedDescription = product.description?.trim();
+  const parsedPrice = Number.parseFloat(product.price);
+  const hasValidPrice = Number.isFinite(parsedPrice);
+  const productStructuredData = product.name && trimmedDescription && structuredDataImages.length > 0 && hasValidPrice
+    ? {
+        "@context": "https://schema.org",
+        "@type": "Product",
+        name: product.name,
+        description: trimmedDescription,
+        image: structuredDataImages,
+        sku: product.id,
+        productID: product.id,
+        offers: {
+          "@type": "Offer",
+          priceCurrency: "INR",
+          price: parsedPrice.toFixed(2),
+          availability: product.stock > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+        },
+      }
+    : null;
 
   const cartItem = cartItems?.find(item => item.productId === product.id);
   const isInCart = !!cartItem;
@@ -165,6 +186,12 @@ export default function ProductDetails() {
 
   return (
     <>
+      {productStructuredData && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(productStructuredData) }}
+        />
+      )}
       <div className="container mx-auto px-4 py-6 max-w-6xl">
         {/* Back Button */}
         <Button 
