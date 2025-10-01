@@ -1,0 +1,11 @@
+User-agent: *
+Disallow: /admin
+Disallow: /admin/
+Disallow: /influencer
+Disallow: /api/
+Disallow: /checkout
+Disallow: /payment
+Disallow: /thank-you
+Allow: /
+
+Sitemap: https://kanha.store/sitemap.xml

@@ -9,6 +9,8 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
 
 **Session security update (current change):** session cookies are now issued with `SameSite=Lax`, marked `secure` in production, and require the active secret to be sourced from a managed secrets provider. Rotation keeps prior secrets valid briefly, so buyer, admin, and influencer login flows continue working without interruption during key changes.
 
+**SEO sitemap addition (current change):** the storefront now exposes `/sitemap.xml` alongside a public `robots.txt` so search engines can index buyer-facing pages while continuing to block admin, influencer, checkout, and API surfaces. These read-only endpoints do not alter any user journey flows.
+
 ---
 
 ## Buyer Flow
