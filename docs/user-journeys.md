@@ -1,11 +1,13 @@
 # User Journey Reference
 
-This document summarizes the primary user journeys supported by the backend API.  
+This document summarizes the primary user journeys supported by the backend API.
 Two recent refactors were applied:
 1. **Storage Layer Refactor** – migrated to per-domain repositories (`productsRepository`, `ordersRepository`, `usersRepository`, etc.).
 2. **Route Modularization** – split Express routes into feature-specific routers (e.g., `server/routes/products.ts`, `server/routes/auth.ts`, etc.).
 
 Both refactors improved maintainability but did not change **endpoint URLs** or **response contracts**. Customer-facing behavior remains consistent.
+
+**Session security update (current change):** session cookies are now issued with `SameSite=Lax`, marked `secure` in production, and require the active secret to be sourced from a managed secrets provider. Rotation keeps prior secrets valid briefly, so buyer, admin, and influencer login flows continue working without interruption during key changes.
 
 ---
 
