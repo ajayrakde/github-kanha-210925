@@ -265,7 +265,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
 
   const createRefundSchema = z.object({
     paymentId: z.string().min(1),
-    amount: z.number().positive().optional(),
+    amount: z.number().positive(),
+    merchantRefundId: z.string().min(1, 'merchantRefundId is required'),
     reason: z.string().optional(),
     notes: z.string().optional(),
   });
@@ -1174,7 +1175,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
 
       const refundParams: CreateRefundParams = {
         paymentId: validatedData.paymentId,
-        amount: validatedData.amount ? Math.round(validatedData.amount * 100) : undefined, // Convert to minor units
+        amount: Math.round(validatedData.amount * 100), // Convert to minor units
+        merchantRefundId: validatedData.merchantRefundId,
         reason: validatedData.reason,
         notes: validatedData.notes,
         idempotencyKey: idempotencyKeyHeader.trim(),

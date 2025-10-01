@@ -16,6 +16,7 @@ import type {
   VerifyPaymentParams,
   CreateRefundParams,
   RefundResult,
+  RefundStatus,
   PaymentServiceConfig,
   PaymentEvent,
   HealthCheckResult,
@@ -349,69 +350,192 @@ export class PaymentsService {
 
   /**
    * Create a refund with idempotency protection
-   */
+  */
   public async createRefund(params: CreateRefundParams, tenantId: string): Promise<RefundResult> {
     // Generate idempotency key if not provided
     const idempotencyKey = params.idempotencyKey || idempotencyService.generateKey('refund');
 
     const resolvedTenantId = tenantId || 'default';
-    
+
     // Execute with idempotency protection
     return await idempotencyService.executeWithIdempotency(
       idempotencyKey,
       'create_refund',
       async () => {
+        const merchantRefundId = params.merchantRefundId?.trim();
+
+        if (!merchantRefundId) {
+          throw new RefundError('merchantRefundId is required', 'MISSING_MERCHANT_REFUND_ID');
+        }
+
+        if (!Number.isFinite(params.amount) || params.amount <= 0) {
+          throw new RefundError('Refund amount must be positive', 'INVALID_REFUND_AMOUNT');
+        }
+
+        let insertedRefund: typeof refunds.$inferSelect | null = null;
+        let paymentRecord: typeof payments.$inferSelect | null = null;
+
         try {
-          // Get payment from database to determine provider
-          const payment = await this.getStoredPayment(params.paymentId, resolvedTenantId);
-          if (!payment) {
-            throw new RefundError('Payment not found', 'PAYMENT_NOT_FOUND');
+          const transactionResult = await db.transaction(async (trx) => {
+            const [payment] = await trx
+              .select()
+              .from(payments)
+              .where(
+                and(
+                  eq(payments.id, params.paymentId),
+                  eq(payments.tenantId, resolvedTenantId)
+                )
+              )
+              .limit(1);
+
+            if (!payment) {
+              throw new RefundError('Payment not found', 'PAYMENT_NOT_FOUND');
+            }
+
+            const [existing] = await trx
+              .select()
+              .from(refunds)
+              .where(
+                and(
+                  eq(refunds.paymentId, params.paymentId),
+                  eq(refunds.tenantId, resolvedTenantId),
+                  eq(refunds.merchantRefundId, merchantRefundId)
+                )
+              )
+              .limit(1);
+
+            if (existing) {
+              return {
+                payment,
+                existingRefund: existing,
+                pendingRefund: null,
+              } as const;
+            }
+
+            const capturedMinor = payment.amountCapturedMinor ?? 0;
+            const alreadyRefundedMinor = payment.amountRefundedMinor ?? 0;
+            const remainingMinor = capturedMinor - alreadyRefundedMinor;
+
+            if (remainingMinor < params.amount) {
+              throw new RefundError(
+                'Refund amount exceeds captured amount',
+                'REFUND_AMOUNT_EXCEEDS_CAPTURED'
+              );
+            }
+
+            if (!payment.providerPaymentId) {
+              throw new RefundError(
+                'Payment is missing provider payment identifier',
+                'MISSING_PROVIDER_PAYMENT_ID',
+                payment.provider as PaymentProvider
+              );
+            }
+
+            const now = new Date();
+            const refundId = crypto.randomUUID();
+
+            const [pendingRefund] = await trx
+              .insert(refunds)
+              .values({
+                id: refundId,
+                tenantId: resolvedTenantId,
+                paymentId: params.paymentId,
+                merchantRefundId,
+                amountMinor: params.amount,
+                status: 'pending',
+                createdAt: now,
+                updatedAt: now,
+              })
+              .returning();
+
+            return {
+              payment,
+              existingRefund: null,
+              pendingRefund,
+            } as const;
+          });
+
+          paymentRecord = transactionResult.payment;
+
+          if (transactionResult.existingRefund) {
+            return this.toRefundResult(transactionResult.existingRefund, paymentRecord);
           }
 
-          if (!payment.providerPaymentId) {
+          insertedRefund = transactionResult.pendingRefund;
+
+          if (!paymentRecord?.providerPaymentId) {
             throw new RefundError(
               'Payment is missing provider payment identifier',
-              'MISSING_PROVIDER_PAYMENT_ID',
-              payment.provider as PaymentProvider
+              'MISSING_PROVIDER_PAYMENT_ID'
             );
           }
-          
-          // Get adapter for the provider
+
           const adapter = await adapterFactory.createAdapter(
-            payment.provider as PaymentProvider,
+            paymentRecord.provider as PaymentProvider,
             this.config.environment,
             resolvedTenantId
           );
-          
-          // Create refund through adapter with idempotency
-          const enrichedParams: CreateRefundParams = {
-            ...params,
-            idempotencyKey,
-            providerPaymentId: payment.providerPaymentId,
-          };
-          
-          const result = await this.executeWithRetry(
-            () => adapter.createRefund(enrichedParams),
+
+          const adapterResult = await this.executeWithRetry(
+            () =>
+              adapter.createRefund({
+                ...params,
+                amount: params.amount,
+                merchantRefundId,
+                providerPaymentId: paymentRecord!.providerPaymentId!,
+                providerOrderId: paymentRecord!.providerOrderId ?? undefined,
+                idempotencyKey,
+              }),
             this.config.retryAttempts || 3
           );
-          
-          // Store refund and log event in transaction
-          await db.transaction(async (trx) => {
-            // Store refund
-            await trx.insert(refunds).values({
-              id: result.refundId,
-              tenantId: resolvedTenantId,
-              paymentId: result.paymentId,
-              provider: adapter.provider,
-              providerRefundId: result.providerRefundId,
-              amountMinor: result.amount,
-              status: result.status,
-              reason: result.reason,
-              createdAt: result.createdAt,
-              updatedAt: result.updatedAt || result.createdAt,
-            });
-            
-            // Log refund event
+
+          const normalizedStatus = this.normalizeRefundStatus(adapterResult.status);
+          const providerTxnId =
+            adapterResult.providerTransactionId ??
+            adapterResult.providerData?.providerTxnId ??
+            adapterResult.providerData?.transactionId ??
+            adapterResult.providerData?.upiTransactionId ??
+            undefined;
+
+          const utrMasked =
+            adapterResult.utrMasked ??
+            (adapterResult.providerData?.utr
+              ? maskPhonePeUtr(adapterResult.providerData.utr)
+              : undefined);
+
+          const timestamp = adapterResult.updatedAt || adapterResult.createdAt || new Date();
+
+          const finalRow = await db.transaction(async (trx) => {
+            await trx
+              .update(refunds)
+              .set({
+                status: normalizedStatus,
+                providerTxnId: providerTxnId ?? null,
+                utrMasked: utrMasked ?? null,
+                updatedAt: timestamp,
+              })
+              .where(
+                and(
+                  eq(refunds.id, insertedRefund!.id),
+                  eq(refunds.tenantId, resolvedTenantId)
+                )
+              );
+
+            if (normalizedStatus === 'completed') {
+              await trx
+                .update(payments)
+                .set({
+                  amountRefundedMinor: sql`${payments.amountRefundedMinor} + ${params.amount}`,
+                  updatedAt: timestamp,
+                })
+                .where(
+                  and(
+                    eq(payments.id, params.paymentId),
+                    eq(payments.tenantId, resolvedTenantId)
+                  )
+                );
+            }
+
             await trx.insert(paymentEvents).values({
               id: crypto.randomUUID(),
               tenantId: resolvedTenantId,
@@ -419,17 +543,61 @@ export class PaymentsService {
               provider: adapter.provider,
               type: 'refund_created',
               data: {
-                refundId: result.refundId,
-                amount: result.amount,
-                reason: result.reason,
+                refundId: insertedRefund!.id,
+                amount: params.amount,
+                status: normalizedStatus,
               },
-              occurredAt: result.createdAt,
+              occurredAt: timestamp,
             });
+
+            const [row] = await trx
+              .select()
+              .from(refunds)
+              .where(
+                and(
+                  eq(refunds.id, insertedRefund!.id),
+                  eq(refunds.tenantId, resolvedTenantId)
+                )
+              )
+              .limit(1);
+
+            return row!;
           });
-          
-          return result;
-          
+
+          const resolvedRow = finalRow || {
+            ...(insertedRefund as typeof refunds.$inferSelect),
+            status: normalizedStatus,
+            providerTxnId: providerTxnId ?? insertedRefund?.providerTxnId ?? null,
+            utrMasked: utrMasked ?? insertedRefund?.utrMasked ?? null,
+            updatedAt: timestamp,
+          };
+
+          return this.toRefundResult(resolvedRow, paymentRecord, {
+            providerTransactionId: providerTxnId,
+            utrMasked,
+          });
+
         } catch (error) {
+          if (insertedRefund) {
+            await db
+              .update(refunds)
+              .set({
+                status: 'failed',
+                updatedAt: new Date(),
+              })
+              .where(
+                and(
+                  eq(refunds.id, insertedRefund.id),
+                  eq(refunds.tenantId, resolvedTenantId)
+                )
+              );
+          }
+
+          if (error instanceof RefundError) {
+            console.error('Refund creation failed:', error);
+            throw error;
+          }
+
           console.error('Refund creation failed:', error);
           throw new RefundError(
             'Failed to create refund',
@@ -449,45 +617,62 @@ export class PaymentsService {
     try {
       // Get refund from database to determine provider
       const resolvedTenantId = tenantId || 'default';
-      const refund = await this.getStoredRefund(refundId, resolvedTenantId);
-      if (!refund) {
+      const record = await this.getStoredRefund(refundId, resolvedTenantId);
+      if (!record) {
         throw new RefundError('Refund not found', 'REFUND_NOT_FOUND');
       }
 
       // Get adapter for the provider
       const adapter = await adapterFactory.createAdapter(
-        refund.provider as PaymentProvider,
+        record.payment.provider as PaymentProvider,
         this.config.environment,
         resolvedTenantId
       );
-      
+
       // Get status through adapter
-      const result = await adapter.getRefundStatus(refundId);
-      
-      // Update refund in database if status changed
-      if (result.status !== refund.status) {
-        await this.updateStoredRefund(result, resolvedTenantId);
+      const adapterResult = await adapter.getRefundStatus(refundId);
+      const normalizedStatus = this.normalizeRefundStatus(adapterResult.status);
+
+      let updatedRow = record.refund;
+
+      if (normalizedStatus !== this.normalizeRefundStatus(record.refund.status)) {
+        updatedRow =
+          (await this.updateStoredRefund(
+            {
+              ...adapterResult,
+              status: normalizedStatus,
+              paymentId: record.refund.paymentId,
+              merchantRefundId: record.refund.merchantRefundId,
+              provider: adapter.provider,
+              environment: this.config.environment,
+            },
+            resolvedTenantId
+          )) ?? record.refund;
 
         // Log status change event
         await this.logPaymentEvent({
           id: crypto.randomUUID(),
           tenantId: resolvedTenantId,
-          refundId: result.refundId,
+          refundId: adapterResult.refundId,
           provider: adapter.provider,
           environment: this.config.environment,
           type: 'refund_status_changed',
-          status: result.status,
+          status: normalizedStatus,
           data: {
-            previousStatus: refund.status,
-            newStatus: result.status,
+            previousStatus: record.refund.status,
+            newStatus: normalizedStatus,
           },
           timestamp: new Date(),
           source: 'api',
         });
       }
-      
-      return result;
-      
+
+      return this.toRefundResult(updatedRow, record.payment, {
+        providerTransactionId:
+          adapterResult.providerTransactionId ?? updatedRow.providerTxnId ?? undefined,
+        utrMasked: adapterResult.utrMasked ?? updatedRow.utrMasked ?? undefined,
+      });
+
     } catch (error) {
       console.error('Refund status check failed:', error);
       throw new RefundError(
@@ -1005,45 +1190,139 @@ export class PaymentsService {
   }
   
   /**
-   * Store refund in database
-   */
-  private async storeRefund(result: RefundResult, provider: PaymentProvider): Promise<void> {
-    await db.insert(refunds).values({
-      id: result.refundId,
-      paymentId: result.paymentId,
-      provider: provider,
-      providerRefundId: result.providerRefundId,
-      amountMinor: result.amount,
-      status: result.status,
-      reason: result.reason,
-      createdAt: result.createdAt,
-      updatedAt: result.updatedAt || result.createdAt,
-    });
-  }
-  
-  /**
    * Update stored refund
    */
-  private async updateStoredRefund(result: RefundResult, tenantId: string): Promise<void> {
-    await db
-      .update(refunds)
-      .set({
-        status: result.status,
-        updatedAt: result.updatedAt || new Date(),
-      })
-      .where(
-        and(
-          eq(refunds.id, result.refundId),
-          eq(refunds.tenantId, tenantId)
+  private async updateStoredRefund(
+    result: RefundResult,
+    tenantId: string
+  ): Promise<typeof refunds.$inferSelect | null> {
+    const normalizedStatus = this.normalizeRefundStatus(result.status);
+
+    return await db.transaction(async (trx) => {
+      const [existing] = await trx
+        .select()
+        .from(refunds)
+        .where(
+          and(
+            eq(refunds.id, result.refundId),
+            eq(refunds.tenantId, tenantId)
+          )
         )
-      );
+        .limit(1);
+
+      if (!existing) {
+        return null;
+      }
+
+      await trx
+        .update(refunds)
+        .set({
+          status: normalizedStatus,
+          providerTxnId: result.providerTransactionId ?? existing.providerTxnId,
+          utrMasked: result.utrMasked ?? existing.utrMasked,
+          updatedAt: result.updatedAt || new Date(),
+        })
+        .where(
+          and(
+            eq(refunds.id, result.refundId),
+            eq(refunds.tenantId, tenantId)
+          )
+        );
+
+      if (existing.status !== 'completed' && normalizedStatus === 'completed') {
+        await trx
+          .update(payments)
+          .set({
+            amountRefundedMinor: sql`${payments.amountRefundedMinor} + ${existing.amountMinor}`,
+            updatedAt: result.updatedAt || new Date(),
+          })
+          .where(
+            and(
+              eq(payments.id, existing.paymentId),
+              eq(payments.tenantId, tenantId)
+            )
+          );
+      }
+
+      const [updated] = await trx
+        .select()
+        .from(refunds)
+        .where(
+          and(
+            eq(refunds.id, result.refundId),
+            eq(refunds.tenantId, tenantId)
+          )
+        )
+        .limit(1);
+
+      return updated ?? existing;
+    });
+  }
+
+  /**
+   * Normalize refund status values
+   */
+  private normalizeRefundStatus(status: any): RefundStatus {
+    if (typeof status !== 'string') {
+      return 'pending';
+    }
+
+    const normalized = status.trim().toLowerCase();
+
+    switch (normalized) {
+      case 'success':
+      case 'succeeded':
+      case 'completed':
+      case 'captured':
+        return 'completed';
+      case 'failed':
+      case 'failure':
+      case 'declined':
+        return 'failed';
+      case 'cancelled':
+      case 'canceled':
+      case 'timeout':
+      case 'timed_out':
+      case 'timedout':
+        return 'cancelled';
+      case 'processing':
+      case 'initiated':
+        return 'processing';
+      case 'pending':
+      default:
+        return 'pending';
+    }
+  }
+
+  private toRefundResult(
+    row: typeof refunds.$inferSelect,
+    payment: typeof payments.$inferSelect,
+    overrides?: {
+      providerTransactionId?: string;
+      utrMasked?: string;
+    }
+  ): RefundResult {
+    return {
+      refundId: row.id,
+      paymentId: row.paymentId,
+      merchantRefundId: row.merchantRefundId,
+      amount: row.amountMinor,
+      status: this.normalizeRefundStatus(row.status),
+      provider: payment.provider as PaymentProvider,
+      environment: this.config.environment,
+      providerTransactionId:
+        overrides?.providerTransactionId ?? row.providerTxnId ?? undefined,
+      utrMasked: overrides?.utrMasked ?? row.utrMasked ?? undefined,
+      createdAt: row.createdAt ?? new Date(),
+      updatedAt: row.updatedAt ?? undefined,
+    };
   }
 
   /**
    * Get stored refund
    */
   private async getStoredRefund(refundId: string, tenantId: string) {
-    const result = await db
+    const refundResult = await db
       .select()
       .from(refunds)
       .where(
@@ -1054,7 +1333,28 @@ export class PaymentsService {
       )
       .limit(1);
 
-    return result[0] || null;
+    const refund = refundResult[0];
+    if (!refund) {
+      return null;
+    }
+
+    const paymentResult = await db
+      .select()
+      .from(payments)
+      .where(
+        and(
+          eq(payments.id, refund.paymentId),
+          eq(payments.tenantId, tenantId)
+        )
+      )
+      .limit(1);
+
+    const payment = paymentResult[0];
+    if (!payment) {
+      return null;
+    }
+
+    return { refund, payment } as const;
   }
   
   /**

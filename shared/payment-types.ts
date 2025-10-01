@@ -228,7 +228,9 @@ export interface VerifyPaymentParams {
 export interface CreateRefundParams {
   paymentId: string;
   providerPaymentId?: string;
-  amount?: number; // Amount in minor units (if partial refund)
+  providerOrderId?: string;
+  amount: number; // Amount in minor units (if partial refund)
+  merchantRefundId?: string;
   reason?: string;
   notes?: string;
   idempotencyKey?: string;
@@ -251,15 +253,18 @@ export interface RefundResult {
   refundId: string;
   paymentId: string;
   providerRefundId?: string;
-  
+  merchantRefundId?: string;
+
   // Amount and status
   amount: number; // Amount in minor units
   status: RefundStatus;
-  
+
   // Provider details
   provider: PaymentProvider;
   environment: Environment;
-  
+  providerTransactionId?: string;
+  utrMasked?: string;
+
   // Additional information
   reason?: string;
   notes?: string;

@@ -30,6 +30,7 @@ import type { ResolvedConfig } from "../services/config-resolver";
 import { PhonePeTokenManager } from "../services/phonepe-token-manager";
 import { PaymentError, RefundError, WebhookError } from "../../shared/payment-types";
 import { resolvePhonePeHost } from "../services/phonepe-host";
+import { maskPhonePeUtr } from "../../shared/upi";
 
 /**
  * PhonePe API Response Types
@@ -116,9 +117,12 @@ interface PhonePeRefundResponse {
   message: string;
   data?: {
     merchantTransactionId: string;
-    transactionId: string;
+    transactionId?: string;
+    providerReferenceId?: string;
+    upiTransactionId?: string;
+    utr?: string;
     amount: number;
-    state: 'PENDING' | 'COMPLETED' | 'FAILED';
+    state: 'PENDING' | 'COMPLETED' | 'FAILED' | 'SUCCESS';
   };
 }
 
@@ -383,70 +387,65 @@ export class PhonePeAdapter implements PaymentsAdapter {
    */
   public async createRefund(params: CreateRefundParams): Promise<RefundResult> {
     try {
+      if (!params.merchantRefundId) {
+        throw new RefundError('merchantRefundId is required', 'MISSING_MERCHANT_REFUND_ID', 'phonepe');
+      }
+
       const originalTransactionId = params.providerPaymentId || params.paymentId;
       if (!originalTransactionId) {
         throw new RefundError('Missing PhonePe transaction identifier', 'MISSING_PROVIDER_PAYMENT_ID', 'phonepe');
       }
 
-      const merchantTransactionId = `REF_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      const refundRequest = {
-        merchantTransactionId,
-        originalTransactionId,
-        amount: params.amount, // Amount in paise
+      const requestPayload = {
         merchantId: this.merchantId,
+        merchantTransactionId: params.merchantRefundId,
+        originalTransactionId,
+        originalMerchantOrderId: params.providerOrderId,
+        amount: params.amount,
+        merchantRefundId: params.merchantRefundId,
       };
-      
-      // Encode refund request
-      const base64Payload = Buffer.from(JSON.stringify(refundRequest)).toString('base64');
-      
-      // Generate checksum
-      const checksum = this.generateChecksum('/pg/v1/refund', base64Payload);
-      
-      const apiPayload = {
-        request: base64Payload,
-      };
-      
-      const headers = {
-        'Content-Type': 'application/json',
-        'X-VERIFY': checksum,
-        'X-MERCHANT-ID': this.merchantId,
-      };
-      
+
       const response = await this.makeApiCall<PhonePeRefundResponse>(
-        '/pg/v1/refund',
+        '/payments/v2/refund',
         'POST',
-        apiPayload,
-        headers
+        requestPayload
       );
-      
+
       if (!response.success) {
         throw new Error(`PhonePe refund error: ${response.code} - ${response.message}`);
       }
-      
+
+      const providerTxnId =
+        response.data?.transactionId || response.data?.providerReferenceId || undefined;
+
+      const utrMasked = response.data?.utr
+        ? maskPhonePeUtr(response.data.utr)
+        : response.data?.upiTransactionId
+        ? maskPhonePeUtr(response.data.upiTransactionId)
+        : undefined;
+
       const result: RefundResult = {
         refundId: crypto.randomUUID(),
         paymentId: params.paymentId,
-        providerRefundId: merchantTransactionId,
-        amount: params.amount || 0,
+        merchantRefundId: params.merchantRefundId,
+        providerTransactionId: providerTxnId,
+        amount: params.amount,
         status: this.mapRefundStatus(response.data?.state || 'PENDING'),
         provider: 'phonepe',
         environment: this.environment,
-        
-        reason: params.reason,
-        notes: params.notes,
-        
+        utrMasked,
         providerData: {
-          merchantTransactionId,
-          transactionId: response.data?.transactionId,
+          merchantRefundId: params.merchantRefundId,
           originalTransactionId,
+          originalMerchantOrderId: params.providerOrderId,
+          transactionId: providerTxnId,
+          rawState: response.data?.state,
         },
-        
         createdAt: new Date(),
       };
-      
+
       return result;
-      
+
     } catch (error) {
       console.error('PhonePe refund creation failed:', error);
       throw new RefundError(
@@ -1036,6 +1035,7 @@ export class PhonePeAdapter implements PaymentsAdapter {
     switch (state) {
       case 'PENDING': return 'pending';
       case 'COMPLETED': return 'completed';
+      case 'SUCCESS': return 'completed';
       case 'FAILED': return 'failed';
       default: return 'pending';
     }
