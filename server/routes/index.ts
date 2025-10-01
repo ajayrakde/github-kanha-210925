@@ -19,6 +19,7 @@ import { createAnalyticsRouter, createCartAnalyticsRouter } from "./analytics";
 import { createAdminShippingRouter, createShippingRouter } from "./shipping";
 import { createSeedRouter } from "./seed";
 import { createPaymentsRouter } from "./payments";
+import { createSitemapRouter } from "./sitemap";
 import {
   EnvironmentSessionSecretsManager,
   SessionSecretRotator,
@@ -149,6 +150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/shipping", createShippingRouter());
   app.use("/api/payments", createPaymentsRouter(requireAdmin));
   app.use("/api/seed-accounts", createSeedRouter(requireAdmin));
+  app.use(createSitemapRouter());
 
   async function initializeDefaultSettings() {
     try {
