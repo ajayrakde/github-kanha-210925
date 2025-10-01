@@ -24,9 +24,10 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - Implemented in `server/routes/cart.ts`, using `ordersRepository` cart helpers.  
    - Persistence, validation, and session handling unchanged.
 
-3. **Authenticate with OTP**  
-   - `POST /api/auth/send-otp`, `POST /api/auth/login` in `server/routes/auth.ts`, backed by `usersRepository`.  
+3. **Authenticate with OTP**
+   - `POST /api/auth/send-otp`, `POST /api/auth/login` in `server/routes/auth.ts`, backed by `usersRepository`.
    - Successful login attaches buyer context to session.
+   - Password-based fallbacks (where configured for returning buyers) now hash credentials with bcrypt and transparently upgrade legacy plaintext entries the first time a buyer logs in, so there is no change to the checkout experience.
 
 4. **Manage Addresses**  
    - `/api/auth/addresses` endpoints (create/list/update/delete) in `server/routes/auth.ts`.  
@@ -67,9 +68,10 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
 ---
 
 ## Administrator Flow
-1. **Authentication**  
-   - `/api/admin/login` handled in `server/routes/admin.ts`, backed by `usersRepository`.  
+1. **Authentication**
+   - `/api/admin/login` handled in `server/routes/admin.ts`, backed by `usersRepository`.
    - `requireAdmin` middleware from `server/routes/index.ts` protects routes.
+   - Admin passwords are now stored as bcrypt hashes. Legacy plaintext credentials are rehashed automatically on successful login, keeping the dashboard sign-in flow unchanged while hardening storage.
 
 2. **Product & Offer Management**  
    - CRUD operations under `/api/products` and `/api/admin/offers`.  
@@ -104,8 +106,9 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
 ---
 
 ## Influencer Flow
-1. **Authentication**  
+1. **Authentication**
    - Influencer login/profile handled by `server/routes/influencers.ts`, backed by `usersRepository`.
+   - Password authentication now verifies bcrypt hashes and upgrades any remaining plaintext passwords during the next successful login without altering the influencer portal UX.
 
 2. **Lifecycle Management**  
    - Admin creates/deactivates influencers using the same routes, now backed by `usersRepository`.
