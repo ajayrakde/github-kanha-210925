@@ -88,12 +88,19 @@ export default function Payment() {
   const { toast } = useToast();
   const checkoutLoaderRef = useRef<Promise<PhonePeCheckoutInstance> | null>(null);
   const latestPaymentIdRef = useRef<string | null>(null);
+  const pollTimeoutRef = useRef<number | null>(null);
+  const clearStatusPolling = () => {
+    if (pollTimeoutRef.current !== null) {
+      window.clearTimeout(pollTimeoutRef.current);
+      pollTimeoutRef.current = null;
+    }
+  };
 
   // Extract orderId from URL parameters
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const orderIdParam = urlParams.get('orderId');
-    
+
     if (orderIdParam) {
       setOrderId(orderIdParam);
       
@@ -107,6 +114,12 @@ export default function Payment() {
       }
     }
   }, [location]);
+
+  useEffect(() => {
+    return () => {
+      clearStatusPolling();
+    };
+  }, []);
 
   // Fetch order details from API if not in session storage
   const { data: order, isLoading: isLoadingOrder } = useQuery<OrderData>({
@@ -229,6 +242,7 @@ export default function Payment() {
                 });
               }
               latestPaymentIdRef.current = null;
+              clearStatusPolling();
               setPaymentStatus('failed');
               toast({
                 title: "Payment Cancelled",
@@ -274,27 +288,60 @@ export default function Payment() {
       const response = await apiRequest("GET", `/api/payments/status/${paymentId}`);
       return response.json();
     },
-    onSuccess: (data) => {
-      if (data.data && data.data.statusResponse && data.data.statusResponse.data) {
-        const status = data.data.statusResponse.data.state;
-        if (status === 'COMPLETED') {
-          setPaymentStatus('completed');
-          toast({
-            title: "Payment Successful",
-            description: "Your payment has been completed successfully!",
-          });
-          setTimeout(() => {
-            setLocation("/thank-you");
-          }, 2000);
-        } else if (status === 'FAILED') {
-          setPaymentStatus('failed');
-          toast({
-            title: "Payment Failed",
-            description: "Your payment could not be processed. Please try again.",
-            variant: "destructive"
-          });
-        }
+    onSuccess: (data, paymentId) => {
+      const status = data?.data?.status as string | undefined;
+      const errorInfo = data?.data?.error as { message?: string } | undefined;
+
+      if (status === 'COMPLETED') {
+        clearStatusPolling();
+        latestPaymentIdRef.current = null;
+        setPaymentStatus('completed');
+        toast({
+          title: "Payment Successful",
+          description: "Your payment has been completed successfully!",
+        });
+        const thankYouPath = orderId ? `/thank-you?orderId=${orderId}` : '/thank-you';
+        setLocation(thankYouPath);
+        return;
       }
+
+      if (status === 'FAILED') {
+        clearStatusPolling();
+        latestPaymentIdRef.current = null;
+        setPaymentStatus('failed');
+        toast({
+          title: "Payment Failed",
+          description: errorInfo?.message || "Your payment could not be processed. Please try again.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (status === 'PENDING' && paymentId) {
+        setPaymentStatus('processing');
+        clearStatusPolling();
+        pollTimeoutRef.current = window.setTimeout(() => {
+          checkPaymentStatusMutation.mutate(paymentId);
+        }, 3000);
+        return;
+      }
+
+      if (errorInfo?.message) {
+        toast({
+          title: "Payment Status",
+          description: errorInfo.message,
+        });
+      }
+    },
+    onError: () => {
+      clearStatusPolling();
+      latestPaymentIdRef.current = null;
+      setPaymentStatus('failed');
+      toast({
+        title: "Status Check Failed",
+        description: "We couldn't verify the payment status. Please try again.",
+        variant: "destructive"
+      });
     }
   });
 
@@ -310,6 +357,7 @@ export default function Payment() {
   const handleRetryPayment = () => {
     setPaymentStatus('pending');
     latestPaymentIdRef.current = null;
+    clearStatusPolling();
     createPaymentMutation.mutate();
   };
 
@@ -317,6 +365,7 @@ export default function Payment() {
   const handleInitiatePayment = () => {
     if (currentOrderData) {
       latestPaymentIdRef.current = null;
+      clearStatusPolling();
       createPaymentMutation.mutate();
     }
   };

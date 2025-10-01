@@ -99,7 +99,7 @@ describe("Payment page", () => {
     expect(apiRequestMock).toHaveBeenCalledWith(
       "POST",
       "/api/payments/token-url",
-      expect.objectContaining({ orderId: "order-1", instrumentPreference: "UPI_INTENT", payPageType: 'IFRAME' })
+      expect.objectContaining({ orderId: "order-1", instrumentPreference: "UPI_INTENT", payPageType: 'IFRAME', payPage: 'IFRAME' })
     );
 
     expect(window.PhonePeCheckout?.transact).toHaveBeenCalledWith(
@@ -133,7 +133,7 @@ describe("Payment page", () => {
       expect(apiRequestMock).toHaveBeenCalledWith(
         "POST",
         "/api/payments/token-url",
-        expect.objectContaining({ instrumentPreference: "UPI_QR", payPageType: 'IFRAME' })
+        expect.objectContaining({ instrumentPreference: "UPI_QR", payPageType: 'IFRAME', payPage: 'IFRAME' })
       );
     });
   });
@@ -186,5 +186,146 @@ describe("Payment page", () => {
     await waitFor(() => {
       expect(screen.getByText(/Payment Failed/i)).toBeInTheDocument();
     });
+  });
+
+  it("navigates to Thank You once the status API reports completion", async () => {
+    const queryClient = new QueryClient();
+    apiRequestMock.mockImplementation((method, url) => {
+      if (method === "POST" && url === "/api/payments/token-url") {
+        return Promise.resolve({
+          json: async () => ({
+            data: {
+              tokenUrl: "https://phonepe.example/pay",
+              merchantTransactionId: "merchant-1",
+              paymentId: "pay_success",
+            },
+          }),
+        } as any);
+      }
+      if (method === "GET" && url === "/api/payments/status/pay_success") {
+        return Promise.resolve({ json: async () => ({ data: { status: "COMPLETED" } }) } as any);
+      }
+      throw new Error(`Unexpected request ${method} ${url}`);
+    });
+
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Payment />
+      </QueryClientProvider>
+    );
+
+    const payButton = await screen.findByTestId("button-initiate-payment");
+    await user.click(payButton);
+
+    const transactMock = window.PhonePeCheckout?.transact as ReturnType<typeof vi.fn>;
+    const callback = transactMock.mock.calls[0]?.[0]?.callback as ((event: any) => void) | undefined;
+    expect(callback).toBeTypeOf("function");
+
+    callback?.({ status: "CONCLUDED" });
+
+    await waitFor(() => {
+      expect(apiRequestMock).toHaveBeenCalledWith("GET", "/api/payments/status/pay_success");
+    });
+
+    await waitFor(() => {
+      expect(setLocationMock).toHaveBeenCalledWith("/thank-you?orderId=order-1");
+    });
+  });
+
+  it("continues polling while the payment is pending", async () => {
+    vi.useFakeTimers();
+    const queryClient = new QueryClient();
+    let statusCalls = 0;
+    apiRequestMock.mockImplementation((method, url) => {
+      if (method === "POST" && url === "/api/payments/token-url") {
+        return Promise.resolve({
+          json: async () => ({
+            data: {
+              tokenUrl: "https://phonepe.example/pay",
+              merchantTransactionId: "merchant-1",
+              paymentId: "pay_pending",
+            },
+          }),
+        } as any);
+      }
+      if (method === "GET" && url === "/api/payments/status/pay_pending") {
+        statusCalls += 1;
+        if (statusCalls === 1) {
+          return Promise.resolve({ json: async () => ({ data: { status: "PENDING" } }) } as any);
+        }
+        return Promise.resolve({ json: async () => ({ data: { status: "COMPLETED" } }) } as any);
+      }
+      throw new Error(`Unexpected request ${method} ${url}`);
+    });
+
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Payment />
+      </QueryClientProvider>
+    );
+
+    const payButton = await screen.findByTestId("button-initiate-payment");
+    await user.click(payButton);
+
+    const transactMock = window.PhonePeCheckout?.transact as ReturnType<typeof vi.fn>;
+    const callback = transactMock.mock.calls[0]?.[0]?.callback as ((event: any) => void) | undefined;
+    callback?.({ status: "CONCLUDED" });
+
+    await waitFor(() => {
+      expect(apiRequestMock).toHaveBeenCalledWith("GET", "/api/payments/status/pay_pending");
+    });
+
+    vi.advanceTimersByTime(3000);
+
+    await waitFor(() => {
+      expect(apiRequestMock).toHaveBeenCalledTimes(3); // token + two status calls
+    });
+
+    vi.useRealTimers();
+  });
+
+  it("shows the retry UI when the status API reports failure", async () => {
+    const queryClient = new QueryClient();
+    apiRequestMock.mockImplementation((method, url) => {
+      if (method === "POST" && url === "/api/payments/token-url") {
+        return Promise.resolve({
+          json: async () => ({
+            data: {
+              tokenUrl: "https://phonepe.example/pay",
+              merchantTransactionId: "merchant-1",
+              paymentId: "pay_failed",
+            },
+          }),
+        } as any);
+      }
+      if (method === "GET" && url === "/api/payments/status/pay_failed") {
+        return Promise.resolve({
+          json: async () => ({ data: { status: "FAILED", error: { message: "DECLINED" } } }),
+        } as any);
+      }
+      throw new Error(`Unexpected request ${method} ${url}`);
+    });
+
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Payment />
+      </QueryClientProvider>
+    );
+
+    const payButton = await screen.findByTestId("button-initiate-payment");
+    await user.click(payButton);
+
+    const transactMock = window.PhonePeCheckout?.transact as ReturnType<typeof vi.fn>;
+    const callback = transactMock.mock.calls[0]?.[0]?.callback as ((event: any) => void) | undefined;
+    callback?.({ status: "CONCLUDED" });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Payment Failed/i)).toBeInTheDocument();
+    });
+
+    expect(setLocationMock).not.toHaveBeenCalledWith("/thank-you?orderId=order-1");
   });
 });

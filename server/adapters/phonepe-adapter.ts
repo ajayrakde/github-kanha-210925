@@ -204,20 +204,24 @@ export class PhonePeAdapter implements PaymentsAdapter {
       const amountInPaise = Math.round(params.orderAmount);
 
       const phonepeOptions = params.providerOptions?.phonepe;
-      const instrumentType = this.resolvePaymentInstrumentType(phonepeOptions);
-      const paymentModeConfig = this.buildPaymentModeConfig(instrumentType);
+      const usePayPage = this.shouldUsePayPage(phonepeOptions);
+      const instrumentType = this.resolvePaymentInstrumentType(phonepeOptions, usePayPage);
+      const paymentModeConfig = this.buildPaymentModeConfig(instrumentType, usePayPage);
+      const paymentInstrument = this.buildPaymentInstrument(instrumentType, usePayPage);
+      const redirectUrl = params.successUrl || this.defaultRedirectUrl;
+      const callbackUrl = this.resolveCallbackUrl(params);
 
       const paymentRequest: PhonePePaymentRequest = {
         merchantTransactionId,
         merchantId: this.merchantId,
         amount: amountInPaise, // paise
-        redirectUrl: params.successUrl || this.defaultRedirectUrl,
+        redirectUrl,
         redirectMode: "POST",
-        callbackUrl: params.successUrl || this.defaultRedirectUrl,
+        callbackUrl,
         paymentFlow: { type: "PG_CHECKOUT" },
         expireAfter,
         paymentModeConfig,
-        paymentInstrument: this.buildPaymentInstrument(instrumentType),
+        paymentInstrument,
       };
 
       const base64Payload = Buffer.from(JSON.stringify(paymentRequest)).toString("base64");
@@ -815,7 +819,10 @@ export class PhonePeAdapter implements PaymentsAdapter {
     return parsedBody as T;
   }
 
-  private resolvePaymentInstrumentType(options: unknown): PhonePePaymentInstrumentType {
+  private resolvePaymentInstrumentType(
+    options: unknown,
+    usePayPage: boolean
+  ): PhonePeUpiInstrumentType {
     const candidateStrings: string[] = [];
 
     if (typeof options === "string") {
@@ -846,7 +853,11 @@ export class PhonePeAdapter implements PaymentsAdapter {
 
     for (const candidate of candidateStrings) {
       const normalized = candidate.trim().toUpperCase().replace(/[\s-]+/g, "_");
-      if (normalized === "PAY_PAGE" || normalized === "PAYPAGE") return "PAY_PAGE";
+      if (normalized === "PAY_PAGE" || normalized === "PAYPAGE") {
+        if (usePayPage) {
+          continue;
+        }
+      }
       if (normalized === "UPI_INTENT" || normalized === "INTENT") return "UPI_INTENT";
       if (normalized === "UPI_COLLECT" || normalized === "COLLECT") return "UPI_COLLECT";
       if (normalized === "UPI_QR" || normalized === "QR" || normalized === "QR_CODE") return "UPI_QR";
@@ -856,11 +867,12 @@ export class PhonePeAdapter implements PaymentsAdapter {
   }
 
   private buildPaymentModeConfig(
-    instrumentType: PhonePePaymentInstrumentType
+    instrumentType: PhonePeUpiInstrumentType,
+    usePayPage: boolean
   ): PhonePePaymentRequest["paymentModeConfig"] {
     const paymentInstruments = PhonePeAdapter.UPI_INSTRUMENT_TYPES.map((type) => ({
       type,
-      enabled: instrumentType === "PAY_PAGE" ? true : instrumentType === type,
+      enabled: instrumentType === type,
     }));
 
     return {
@@ -869,10 +881,63 @@ export class PhonePeAdapter implements PaymentsAdapter {
   }
 
   private buildPaymentInstrument(
-    instrumentType: PhonePePaymentInstrumentType
+    instrumentType: PhonePeUpiInstrumentType,
+    usePayPage: boolean
   ): PhonePePaymentRequest["paymentInstrument"] {
-    return instrumentType === "PAY_PAGE" ? { type: "PAY_PAGE" } : { type: instrumentType };
+    if (usePayPage) {
+      return { type: "PAY_PAGE" };
     }
+
+    return { type: instrumentType };
+  }
+
+  private shouldUsePayPage(options: unknown): boolean {
+    const candidates: string[] = [];
+
+    if (typeof options === "string") {
+      candidates.push(options);
+    } else if (options && typeof options === "object") {
+      const record = options as Record<string, unknown>;
+      const payPageKeys = ["payPage", "payPageType", "payPageMode"];
+
+      for (const key of payPageKeys) {
+        const value = record[key];
+        if (typeof value === "string") {
+          candidates.push(value);
+        }
+      }
+
+      const instrumentPreference = record["instrumentPreference"];
+      if (typeof instrumentPreference === "string") {
+        candidates.push(instrumentPreference);
+      }
+    }
+
+    return candidates.some((candidate) => {
+      const normalized = candidate.trim().toUpperCase().replace(/[\s-]+/g, "_");
+      return normalized === "IFRAME" || normalized === "PAY_PAGE" || normalized === "EMBEDDED";
+    });
+  }
+
+  private resolveCallbackUrl(params: CreatePaymentParams): string | undefined {
+    const metadata = params.metadata ?? {};
+    const callbackCandidates = [
+      metadata.phonepeCallbackUrl,
+      metadata.callbackUrl,
+      params.cancelUrl,
+      params.failureUrl,
+      params.successUrl,
+      this.defaultRedirectUrl,
+    ];
+
+    for (const candidate of callbackCandidates) {
+      if (typeof candidate === "string" && candidate.trim().length > 0) {
+        return candidate;
+      }
+    }
+
+    return undefined;
+  }
 
   private clampExpireAfter(value: unknown): number {
     const numeric =

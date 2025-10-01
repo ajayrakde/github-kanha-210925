@@ -384,6 +384,7 @@ describe("payments router", () => {
           effectiveInstrument: "UPI_INTENT",
           requestedInstrument: "UPI_INTENT",
           payPageType: "IFRAME",
+          payPage: "IFRAME",
           cacheExpiresAt: new Date(Date.now() - 1000).toISOString(),
         },
       };
@@ -488,6 +489,7 @@ describe("payments router", () => {
         effectiveInstrument: "UPI_INTENT",
         requestedInstrument: "UPI_INTENT",
         payPageType: "IFRAME",
+        payPage: "IFRAME",
         cacheExpiresAt: new Date(Date.now() - 1).toISOString(),
       };
       idempotencyCache.set(`phonepe_token_url:${expectedTokenKey}`, cachedPayload);
@@ -696,6 +698,8 @@ describe("payments router", () => {
       const [params] = mockPaymentsService.createPayment.mock.calls.at(-1) ?? [];
       expect(params?.providerOptions?.phonepe?.instrumentPreference).toBe("UPI_QR");
       expect(params?.providerOptions?.phonepe?.payPageType).toBe("IFRAME");
+      expect(params?.providerOptions?.phonepe?.payPage).toBe("IFRAME");
+      expect(params?.metadata?.payPage).toBe("IFRAME");
       expect(res.jsonPayload.success).toBe(true);
     });
   });

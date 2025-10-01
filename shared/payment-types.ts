@@ -229,8 +229,7 @@ export interface CreateRefundParams {
   paymentId: string;
   providerPaymentId?: string;
   providerOrderId?: string;
-  amount: number; // Amount in minor units (if partial refund)
-  merchantRefundId?: string;
+  amount?: number; // Amount in minor units (if partial refund)
   reason?: string;
   notes?: string;
   idempotencyKey?: string;
@@ -261,13 +260,13 @@ export interface RefundResult {
   // Amount and status
   amount: number; // Amount in minor units
   status: RefundStatus;
-
+  
   // Provider details
   provider: PaymentProvider;
   environment: Environment;
   providerTransactionId?: string;
   utrMasked?: string;
-
+  
   // Additional information
   reason?: string;
   notes?: string;

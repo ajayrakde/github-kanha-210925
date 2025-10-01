@@ -75,13 +75,18 @@ describe('PhonePeAdapter.createPayment', () => {
     }
   });
 
-  const createAdapter = (options?: { activeHost?: string }) => {
-    const tokenManager = {
-      getAccessToken: vi.fn().mockResolvedValue('cached-token'),
-      invalidateToken: vi.fn(),
-    };
+  const createAdapter = (options?: {
+    activeHost?: string;
+    fetchMock?: ReturnType<typeof vi.fn>;
+    tokenManager?: { getAccessToken: ReturnType<typeof vi.fn>; invalidateToken: ReturnType<typeof vi.fn> };
+  }) => {
+    const tokenManager =
+      options?.tokenManager ?? {
+        getAccessToken: vi.fn().mockResolvedValue('cached-token'),
+        invalidateToken: vi.fn(),
+      };
 
-    const fetchMock = vi.fn().mockResolvedValue(buildFetchResponse());
+    const fetchMock = options?.fetchMock ?? vi.fn().mockResolvedValue(buildFetchResponse());
     global.fetch = fetchMock as unknown as typeof fetch;
 
     const adapterConfig: ResolvedConfig = {
@@ -129,6 +134,8 @@ describe('PhonePeAdapter.createPayment', () => {
     expect(payload.expireAfter).toBeGreaterThanOrEqual(300);
     expect(payload.expireAfter).toBeLessThanOrEqual(3600);
 
+    expect(payload.redirectUrl).toBe(baseConfig.phonepeConfig?.redirectUrl);
+    expect(payload.callbackUrl).toBe(baseConfig.phonepeConfig?.redirectUrl);
     expect(payload.paymentInstrument.type).toBe('UPI_COLLECT');
 
     expect(payload.paymentModeConfig.paymentModes).toHaveLength(1);
@@ -182,7 +189,7 @@ describe('PhonePeAdapter.createPayment', () => {
     }
   );
 
-  it('supports PAY_PAGE instrument preference by enabling all UPI variants', async () => {
+  it('honors the payPage flag by requesting a PAY_PAGE instrument', async () => {
     const { adapter, fetchMock } = createAdapter();
 
     await adapter.createPayment({
@@ -190,19 +197,31 @@ describe('PhonePeAdapter.createPayment', () => {
       orderAmount: 6000,
       currency: 'INR',
       customer: {},
+      successUrl: 'https://merchant.example/custom-success',
+      metadata: { phonepeCallbackUrl: 'https://merchant.example/callback' },
       providerOptions: {
         phonepe: {
-          instrumentPreference: 'PAY_PAGE',
+          instrumentPreference: 'UPI_INTENT',
+          payPage: 'IFRAME',
+          payPageType: 'IFRAME',
         },
       },
     });
 
     const { payload } = decodeLastRequest(fetchMock);
     expect(payload.paymentInstrument.type).toBe('PAY_PAGE');
+    expect(payload.redirectUrl).toBe('https://merchant.example/custom-success');
+    expect(payload.callbackUrl).toBe('https://merchant.example/callback');
 
     const [upiMode] = payload.paymentModeConfig.paymentModes;
-    upiMode.paymentInstruments.forEach((instrument: any) => {
-      expect(instrument.enabled).toBe(true);
+    const enabledMap = Object.fromEntries(
+      upiMode.paymentInstruments.map((instrument: any) => [instrument.type, instrument.enabled])
+    );
+
+    expect(enabledMap).toEqual({
+      UPI_INTENT: true,
+      UPI_COLLECT: false,
+      UPI_QR: false,
     });
   });
 
@@ -220,6 +239,40 @@ describe('PhonePeAdapter.createPayment', () => {
     expect(fetchMock).toHaveBeenCalled();
     const [requestUrl] = fetchMock.mock.calls[0]!;
     expect(requestUrl).toBe(`${customHost}/pg/v1/pay`);
+  });
+
+  it('refreshes the token and retries once when PhonePe returns 401', async () => {
+    const tokenManager = {
+      getAccessToken: vi.fn().mockResolvedValueOnce('expired-token').mockResolvedValueOnce('fresh-token'),
+      invalidateToken: vi.fn(),
+    };
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        text: async () => JSON.stringify({ code: 'TOKEN_EXPIRED' }),
+      } as any)
+      .mockResolvedValueOnce(buildFetchResponse());
+
+    const { adapter } = createAdapter({ fetchMock, tokenManager });
+
+    await adapter.createPayment({
+      orderId: 'order-refresh',
+      orderAmount: 7000,
+      currency: 'INR',
+      customer: {},
+    });
+
+    expect(tokenManager.invalidateToken).toHaveBeenCalledTimes(1);
+    expect(tokenManager.getAccessToken).toHaveBeenNthCalledWith(1, false);
+    expect(tokenManager.getAccessToken).toHaveBeenNthCalledWith(2, true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [, retryOptions] = fetchMock.mock.calls[1]!;
+    expect((retryOptions.headers as Record<string, string>)['Authorization']).toBe(
+      'O-Bearer fresh-token'
+    );
   });
 });
 
