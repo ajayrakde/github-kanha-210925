@@ -142,4 +142,123 @@ describe("Thank-you page", () => {
 
     expect(setLocationMock).toHaveBeenCalledWith("/payment?orderId=order-1");
   });
+
+  it("shows a PhonePe start-again CTA for expired reconciliation and triggers a retry", async () => {
+    const queryClient = new QueryClient();
+    const now = new Date();
+    const expiredData = {
+      order: {
+        id: "order-1",
+        status: "pending",
+        paymentStatus: "failed",
+        paymentFailedAt: now.toISOString(),
+        paymentMethod: "phonepe",
+        total: "499.00",
+        shippingCharge: "50.00",
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      },
+      payment: null,
+      transactions: [],
+      latestTransaction: {
+        id: "txn-expired",
+        status: "expired",
+        merchantTransactionId: "MERCHANT_EXPIRED_123",
+      },
+      latestTransactionFailed: true,
+      latestTransactionFailureAt: now.toISOString(),
+      totalPaid: 0,
+      totalRefunded: 0,
+      reconciliation: {
+        status: "expired" as const,
+        attempt: 8,
+        nextPollAt: now.toISOString(),
+        expiresAt: now.toISOString(),
+      },
+    };
+
+    const retryResponse = {
+      success: true,
+      data: {
+        paymentId: "pay_new",
+        order: { id: "order-1", paymentStatus: "processing" },
+        reconciliation: {
+          status: "pending" as const,
+          attempt: 0,
+          nextPollAt: new Date(now.getTime() + 5000).toISOString(),
+          expiresAt: new Date(now.getTime() + 900000).toISOString(),
+        },
+      },
+    };
+
+    const refreshedData = {
+      ...expiredData,
+      order: { ...expiredData.order, paymentStatus: "processing" },
+      reconciliation: retryResponse.data.reconciliation,
+      latestTransactionFailed: false,
+      latestTransaction: {
+        id: "txn-new",
+        status: "processing",
+        merchantTransactionId: "MERCHANT_NEW_456",
+      },
+    };
+
+    queryClient.setQueryData(["/api/payments/order-info", "order-1"], expiredData);
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.startsWith("/api/payments/phonepe/return")) {
+        return {
+          ok: true,
+          json: async () => ({ status: "processing", message: "Processing" }),
+        } as Response;
+      }
+      if (url === "/api/payments/phonepe/retry") {
+        expect(init?.method).toBe("POST");
+        return {
+          ok: true,
+          json: async () => retryResponse,
+        } as Response;
+      }
+      if (url === "/api/payments/order-info/order-1") {
+        return {
+          ok: true,
+          json: async () => refreshedData,
+        } as Response;
+      }
+      return {
+        ok: true,
+        json: async () => ({}),
+      } as Response;
+    }) as unknown as typeof fetch;
+
+    global.fetch = fetchMock;
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ThankYou />
+      </QueryClientProvider>
+    );
+
+    const retryButton = await screen.findByTestId("button-phonepe-retry");
+    expect(retryButton).toBeInTheDocument();
+
+    await act(async () => {
+      retryButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/payments/phonepe/retry",
+        expect.objectContaining({ method: "POST" })
+      );
+    });
+
+    await waitFor(() => {
+      const badges = screen.getAllByTestId("badge-payment-status");
+      expect(badges.some((badge) => /Processing/i.test(badge.textContent ?? ""))).toBe(true);
+    });
+
+    expect(screen.queryByText(/Failed to start a new PhonePe payment attempt/i)).not.toBeInTheDocument();
+  });
 });

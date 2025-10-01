@@ -2,7 +2,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState, type ComponentProps } from "react";
 import { Separator } from "@/components/ui/separator";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
 
@@ -141,11 +141,14 @@ const formatIdentifier = (value: string, max: number = 18) => {
 
 export default function ThankYou() {
   const [, setLocation] = useLocation();
+  const queryClient = useQueryClient();
   const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [orderId, setOrderId] = useState<string>("");
   const [shouldStartPolling, setShouldStartPolling] = useState(false);
   const [reconciliationStatus, setReconciliationStatus] = useState<'idle' | 'processing' | 'complete'>('idle');
   const [reconciliationMessage, setReconciliationMessage] = useState<string | null>(null);
+  const [isRetryingPhonePe, setIsRetryingPhonePe] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
   const [orderDate] = useState(new Date().toLocaleDateString('en-IN', {
     year: 'numeric',
     month: 'long',
@@ -326,6 +329,12 @@ export default function ThankYou() {
     }
   }, [paymentInfo?.reconciliation]);
 
+  useEffect(() => {
+    if (paymentInfo?.reconciliation?.status !== 'expired') {
+      setRetryError(null);
+    }
+  }, [paymentInfo?.reconciliation?.status]);
+
   // Get the current order data - prioritize paymentInfo data over sessionStorage
   const currentOrderData = paymentInfo?.order || orderData;
   const paymentStatusFromOrder = paymentInfo?.order?.paymentStatus;
@@ -334,19 +343,79 @@ export default function ThankYou() {
     paymentInfo?.latestTransactionFailed === true || normalizeStatus(paymentInfo?.latestTransaction?.status) === 'failed';
   const latestTransactionFailureAt = paymentInfo?.latestTransactionFailureAt ?? null;
   const currentPaymentStatus = (() => {
+    if (reconciliationStatus === 'processing') {
+      return 'processing';
+    }
     if (latestTransactionFailed && normalizedPaymentStatus !== 'paid') {
       return 'failed';
     }
     if (paymentStatusFromOrder && normalizedPaymentStatus && normalizedPaymentStatus !== 'pending') {
       return paymentStatusFromOrder;
     }
-    if (reconciliationStatus === 'processing') {
-      return 'processing';
-    }
     return paymentStatusFromOrder || 'pending';
   })();
   const currentOrderStatus = paymentInfo?.order?.status || 'pending';
   const latestTransaction = paymentInfo?.latestTransaction;
+  const canStartPhonePeRetry = paymentInfo?.reconciliation?.status === 'expired';
+
+  const handlePhonePeRetry = async () => {
+    if (!orderId || isRetryingPhonePe) {
+      return;
+    }
+
+    setRetryError(null);
+    setIsRetryingPhonePe(true);
+
+    try {
+      const response = await fetch('/api/payments/phonepe/retry', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ orderId }),
+      });
+
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        const message = typeof payload?.error === 'string'
+          ? payload.error
+          : `Retry request failed with status ${response.status}`;
+        throw new Error(message);
+      }
+
+      setReconciliationStatus('processing');
+      setReconciliationMessage('We are waiting for PhonePe to confirm your payment. This usually takes a few moments.');
+      setShouldStartPolling(true);
+
+      await queryClient.invalidateQueries({ queryKey: ["/api/payments/order-info", orderId] });
+
+      if (payload?.data?.order?.paymentStatus) {
+        queryClient.setQueryData(["/api/payments/order-info", orderId], (existing: unknown) => {
+          if (!existing || typeof existing !== 'object') {
+            return payload.data;
+          }
+          const current = existing as Record<string, any>;
+          return {
+            ...current,
+            order: {
+              ...(current.order ?? {}),
+              ...payload.data.order,
+            },
+            reconciliation: payload.data.reconciliation ?? current.reconciliation ?? null,
+          };
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error
+        ? error.message
+        : 'Failed to start a new PhonePe payment attempt.';
+      setRetryError(message);
+    } finally {
+      setIsRetryingPhonePe(false);
+    }
+  };
 
   // Dynamic header info based on payment status
   const getHeaderInfo = (paymentStatus: string, orderStatus: string) => {
@@ -726,6 +795,24 @@ export default function ThankYou() {
 
       {/* Action Buttons */}
       <div className="space-y-3 text-center">
+        {canStartPhonePeRetry && (
+          <div className="space-y-2">
+            <Button
+              className="w-full max-w-md bg-indigo-600 hover:bg-indigo-700"
+              onClick={handlePhonePeRetry}
+              disabled={isRetryingPhonePe}
+              data-testid="button-phonepe-retry"
+            >
+              {isRetryingPhonePe && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
+              {isRetryingPhonePe ? 'Restarting…' : 'Start again'}
+            </Button>
+            {retryError && (
+              <p className="text-sm text-red-600" role="alert">
+                {retryError}
+              </p>
+            )}
+          </div>
+        )}
         {latestTransactionFailed && displayOrderData && (
           <Button
             className="w-full max-w-md bg-red-600 hover:bg-red-700"
