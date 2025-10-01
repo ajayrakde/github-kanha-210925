@@ -7,6 +7,7 @@ import {
   // paymentsRepository, // Temporarily commented during payment system refactor
 } from "../storage";
 import type { RequireAdminMiddleware, SessionRequest } from "./types";
+import { regenerateSession, saveSession } from "../utils/session";
 
 export function createAdminRouter(requireAdmin: RequireAdminMiddleware) {
   const router = Router();
@@ -16,8 +17,14 @@ export function createAdminRouter(requireAdmin: RequireAdminMiddleware) {
       const { username, password } = req.body;
       const admin = await usersRepository.validateAdminLogin(username, password);
       if (admin) {
+        const anonymousSessionId = req.session.sessionId;
+        await regenerateSession(req);
+        if (anonymousSessionId) {
+          req.session.sessionId = anonymousSessionId;
+        }
         req.session.adminId = admin.id;
         req.session.userRole = "admin";
+        await saveSession(req);
         res.json({
           success: true,
           admin: { id: admin.id, username: admin.username, name: admin.name },

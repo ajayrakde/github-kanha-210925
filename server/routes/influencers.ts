@@ -2,6 +2,7 @@ import { Router } from "express";
 
 import { usersRepository } from "../storage";
 import type { RequireAdminMiddleware, SessionRequest } from "./types";
+import { regenerateSession, saveSession } from "../utils/session";
 
 export function createInfluencersRouter(requireAdmin: RequireAdminMiddleware) {
   const router = Router();
@@ -47,8 +48,14 @@ export function createInfluencerAuthRouter() {
       const { phone, password } = req.body;
       const influencer = await usersRepository.authenticateInfluencer(phone, password);
       if (influencer) {
+        const anonymousSessionId = req.session.sessionId;
+        await regenerateSession(req);
+        if (anonymousSessionId) {
+          req.session.sessionId = anonymousSessionId;
+        }
         req.session.influencerId = influencer.id;
         req.session.userRole = "influencer";
+        await saveSession(req);
         res.json({
           success: true,
           influencer: { id: influencer.id, phone: influencer.phone, name: influencer.name },

@@ -32,6 +32,7 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
 3. **Authenticate with OTP**
    - `POST /api/auth/send-otp`, `POST /api/auth/login` in `server/routes/auth.ts`, backed by `usersRepository`.
    - Successful login attaches buyer context to session.
+   - Sessions now regenerate on every successful login (OTP or password) to prevent fixation while retaining the shopper's cart tracking token so baskets persist across authentication.
    - Password-based fallbacks (where configured for returning buyers) now hash credentials with bcrypt and transparently upgrade legacy plaintext entries the first time a buyer logs in, so there is no change to the checkout experience.
 
 4. **Manage Addresses**  
@@ -80,6 +81,7 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
 1. **Authentication**
    - `/api/admin/login` handled in `server/routes/admin.ts`, backed by `usersRepository`.
    - `requireAdmin` middleware from `server/routes/index.ts` protects routes.
+   - Admin sessions regenerate on login before role data is stored, preserving the existing cart-tracking token while ensuring fresh session identifiers.
    - Admin passwords are now stored as bcrypt hashes. Legacy plaintext credentials are rehashed automatically on successful login, keeping the dashboard sign-in flow unchanged while hardening storage.
    - Asset uploads via `POST /api/objects/upload` now rely on the same admin session guard, denying anonymous callers signed upload URLs.
 
@@ -123,6 +125,7 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
 ## Influencer Flow
 1. **Authentication**
    - Influencer login/profile handled by `server/routes/influencers.ts`, backed by `usersRepository`.
+   - Sessions regenerate on influencer login to prevent fixation and immediately persist the influencer context for downstream analytics and order lookups.
    - Password authentication now verifies bcrypt hashes and upgrades any remaining plaintext passwords during the next successful login without altering the influencer portal UX.
    - Self-serve influencer operations (login/logout/profile) live under `/api/influencer` and require an authenticated influencer session.
 
