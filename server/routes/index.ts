@@ -107,7 +107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/orders", createOrdersRouter());
   app.use("/api/auth", createAuthRouter());
   app.use("/api/otp", createLegacyOtpRouter());
-  app.use("/api/objects", createObjectStorageRouter(objectStorageService));
+  app.use("/api/objects", createObjectStorageRouter(requireAdmin, objectStorageService));
   app.use("/objects", createPublicObjectRouter(objectStorageService));
   app.use("/api/influencers", createInfluencersRouter());
   app.use("/api/influencer", createInfluencerAuthRouter());
