@@ -109,6 +109,16 @@ const capabilityIcons: Record<string, any> = {
 
 interface ProviderConfigData extends Omit<PaymentProviderConfig, 'id' | 'tenantId' | 'createdAt' | 'updatedAt'> {}
 
+type ProviderConfigsResponse = {
+  success: boolean;
+  data: PaymentProviderConfig[];
+};
+
+type ApiMessageResponse = {
+  success: boolean;
+  message?: string;
+};
+
 export default function PaymentProvidersManagement() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<Environment>('test');
@@ -118,17 +128,34 @@ export default function PaymentProvidersManagement() {
 
   // Fetch provider configurations
   const { data: configs = [], isLoading } = useQuery<PaymentProviderConfig[]>({
-    queryKey: ['/api/admin/payment-provider-configs'],
+    queryKey: ['/api/payments/admin/provider-configs'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/payments/admin/provider-configs');
+      const payload = (await response.json()) as ProviderConfigsResponse;
+
+      if (!payload?.success || !Array.isArray(payload.data)) {
+        throw new Error('Failed to load payment provider configurations');
+      }
+
+      return payload.data;
+    },
   });
 
   // Create/update provider configuration
-  const configMutation = useMutation({
+  const configMutation = useMutation<ApiMessageResponse, Error, ProviderConfigData>({
     mutationFn: async (data: ProviderConfigData) => {
-      return apiRequest('POST', '/api/admin/payment-provider-configs', data);
+      const response = await apiRequest('POST', '/api/payments/admin/provider-configs', data);
+      const payload = (await response.json()) as ApiMessageResponse;
+
+      if (!payload?.success) {
+        throw new Error(payload?.message || 'Failed to save provider configuration');
+      }
+
+      return payload;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/admin/payment-provider-configs'] });
-      toast({ title: "Success", description: "Provider configuration saved successfully" });
+    onSuccess: (payload) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/payments/admin/provider-configs'] });
+      toast({ title: "Success", description: payload?.message ?? "Provider configuration saved successfully" });
       setShowConfigDialog(false);
     },
     onError: () => {
@@ -137,9 +164,16 @@ export default function PaymentProvidersManagement() {
   });
 
   // Health check mutation
-  const healthCheckMutation = useMutation({
-    mutationFn: async ({ provider, environment }: { provider: PaymentProvider, environment: Environment }) => {
-      return apiRequest('POST', `/api/admin/payment-providers/${provider}/health-check?environment=${environment}`);
+  const healthCheckMutation = useMutation<unknown, Error, { provider: PaymentProvider; environment: Environment }>({
+    mutationFn: async ({ provider, environment }) => {
+      const response = await apiRequest('POST', `/api/payments/admin/providers/${provider}/health-check?environment=${environment}`);
+      const payload = (await response.json()) as { success: boolean; data?: unknown; message?: string };
+
+      if (!payload?.success) {
+        throw new Error(payload?.message || 'Health check failed');
+      }
+
+      return payload.data;
     },
     onSuccess: (_, { provider, environment }) => {
       const key = `${provider}-${environment}`;
