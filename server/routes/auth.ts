@@ -8,6 +8,14 @@ import {
 import { otpService } from "../otp-service";
 import type { SessionRequest } from "./types";
 import { regenerateSession, saveSession } from "../utils/session";
+import {
+  serializeAdmin,
+  serializeBuyer,
+  serializeInfluencer,
+  type SerializedBuyer,
+  type SerializedAdmin,
+  type SerializedInfluencer,
+} from "../utils/user-serializers";
 
 export function createAuthRouter() {
   const router = Router();
@@ -33,9 +41,14 @@ export function createAuthRouter() {
         req.session.userRole = "buyer";
         await saveSession(req);
 
+        const user = serializeBuyer(result.user);
+        if (!user) {
+          return res.status(500).json({ message: "Login failed. Please try again." });
+        }
+
         res.json({
           success: true,
-          user: result.user,
+          user,
           isNewUser: result.isNewUser
         });
       } else {
@@ -57,8 +70,9 @@ export function createAuthRouter() {
     if (req.session.userId && req.session.userRole === "buyer") {
       try {
         const user = await usersRepository.getUser(req.session.userId);
-        if (user) {
-          res.json({ authenticated: true, user });
+        const sanitizedUser = serializeBuyer(user);
+        if (sanitizedUser) {
+          res.json({ authenticated: true, user: sanitizedUser });
         } else {
           res.status(401).json({ authenticated: false });
         }
@@ -215,26 +229,35 @@ export function createAuthRouter() {
           req.session.sessionId = anonymousSessionId;
         }
 
+        let sanitizedUser: SerializedBuyer | SerializedAdmin | SerializedInfluencer | null = null;
+
         switch (userType) {
           case "admin":
             req.session.adminId = result.user.id;
             req.session.userRole = "admin";
+            sanitizedUser = serializeAdmin(result.user);
             break;
           case "influencer":
             req.session.influencerId = result.user.id;
             req.session.userRole = "influencer";
+            sanitizedUser = serializeInfluencer(result.user);
             break;
           case "buyer":
             req.session.userId = result.user.id;
             req.session.userRole = "buyer";
+            sanitizedUser = serializeBuyer(result.user);
             break;
         }
 
         await saveSession(req);
 
+        if (!sanitizedUser) {
+          return res.status(500).json({ message: "Failed to verify OTP" });
+        }
+
         res.json({
           message: result.message,
-          user: result.user,
+          user: sanitizedUser,
           isNewUser: result.isNewUser,
         });
       } else {
@@ -318,9 +341,26 @@ export function createAuthRouter() {
 
       await saveSession(req);
 
+      let sanitizedUser: SerializedBuyer | SerializedAdmin | SerializedInfluencer | null = null;
+      switch (userType) {
+        case "admin":
+          sanitizedUser = serializeAdmin(user);
+          break;
+        case "influencer":
+          sanitizedUser = serializeInfluencer(user);
+          break;
+        case "buyer":
+          sanitizedUser = serializeBuyer(user);
+          break;
+      }
+
+      if (!sanitizedUser) {
+        return res.status(500).json({ message: "Login failed. Please try again." });
+      }
+
       res.json({
         message: "Login successful",
-        user,
+        user: sanitizedUser,
       });
     } catch (error) {
       console.error("Error during password login:", error);
