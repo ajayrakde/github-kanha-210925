@@ -374,6 +374,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     merchantRefundId: z.string().min(1, 'merchantRefundId is required'),
     reason: z.string().optional(),
     notes: z.string().optional(),
+    merchantRefundId: z.string().min(1).optional(),
+    originalMerchantOrderId: z.string().min(1).optional(),
   });
 
   const phonePeReturnSchema = z.object({
@@ -1148,6 +1150,33 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         return (amountMinor / 100).toFixed(2);
       };
 
+      const mapRefund = (refund: any, paymentProvider?: PaymentProvider) => {
+        const maskedRefundUtr = maskPhonePeIdentifier(paymentProvider, refund.upiUtr, {
+          type: 'utr',
+        });
+
+        return {
+          id: refund.id,
+          paymentId: refund.paymentId,
+          status: refund.status,
+          amountMinor: refund.amountMinor ?? 0,
+          amount: toCurrency(refund.amountMinor ?? 0),
+          reason: refund.reason ?? undefined,
+          providerRefundId: refund.providerRefundId ?? undefined,
+          merchantRefundId: refund.merchantRefundId ?? undefined,
+          originalMerchantOrderId: refund.originalMerchantOrderId ?? undefined,
+          upiUtr: maskedRefundUtr ?? undefined,
+          createdAt:
+            refund.createdAt instanceof Date
+              ? refund.createdAt.toISOString()
+              : refund.createdAt ?? undefined,
+          updatedAt:
+            refund.updatedAt instanceof Date
+              ? refund.updatedAt.toISOString()
+              : refund.updatedAt ?? undefined,
+        };
+      };
+
       const mapPayment = (payment: typeof sortedPayments[number]) => {
         const amountMinor = payment.amountCapturedMinor ?? payment.amountAuthorizedMinor ?? 0;
         const provider = payment.provider as PaymentProvider | undefined;
@@ -1159,6 +1188,9 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         const maskedUpiUtr = maskPhonePeIdentifier(provider, payment.upiUtr, {
           type: 'utr',
         });
+        const paymentRefunds = Array.isArray((payment as any).refunds)
+          ? (payment as any).refunds
+          : [];
 
         return {
           id: payment.id,
@@ -1176,6 +1208,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           upiInstrumentVariant: normalizedVariant ?? undefined,
           upiInstrumentLabel: upiInstrumentLabel ?? undefined,
           receiptUrl: payment.receiptUrl ?? undefined,
+          refunds: paymentRefunds.map((refund: any) => mapRefund(refund, provider)),
           createdAt: payment.createdAt instanceof Date ? payment.createdAt.toISOString() : payment.createdAt,
           updatedAt: payment.updatedAt instanceof Date ? payment.updatedAt.toISOString() : payment.updatedAt,
         };
@@ -1232,6 +1265,15 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       const taxableBase = subtotal - discount;
       const tax = Math.max(total - shipping - taxableBase, 0);
 
+      const refundsData = sortedPayments.flatMap((payment) => {
+        const paymentRefunds = Array.isArray((payment as any).refunds)
+          ? (payment as any).refunds
+          : [];
+        return paymentRefunds.map((refund: any) =>
+          mapRefund(refund, payment.provider as PaymentProvider | undefined)
+        );
+      });
+
       res.json({
         order: {
           id: order.id,
@@ -1271,6 +1313,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         },
         totalPaid: totalPaidMinor / 100,
         totalRefunded: totalRefundedMinor / 100,
+        refunds: refundsData,
         breakdown: {
           subtotal,
           discount,
@@ -1328,10 +1371,12 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         reason: validatedData.reason,
         notes: validatedData.notes,
         idempotencyKey: idempotencyKeyHeader.trim(),
+        merchantRefundId: validatedData.merchantRefundId,
+        originalMerchantOrderId: validatedData.originalMerchantOrderId,
       };
 
       const result = await paymentsService.createRefund(refundParams, tenantId);
-      
+
       res.json({
         success: true,
         data: {
@@ -1341,6 +1386,9 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           status: result.status,
           reason: result.reason,
           provider: result.provider,
+          merchantRefundId: result.merchantRefundId,
+          originalMerchantOrderId: result.originalMerchantOrderId,
+          upiUtr: result.upiUtr,
           createdAt: result.createdAt,
         }
       });
@@ -1561,6 +1609,174 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       });
     }
   });
+
+  router.get(
+    '/admin/phonepe/orders/:orderId',
+    requireAdmin,
+    async (req: SessionRequest, res) => {
+      const { orderId } = req.params;
+
+      if (!orderId || orderId.trim().length === 0) {
+        return res.status(400).json({ error: 'Order ID is required' });
+      }
+
+      try {
+        const order = await ordersRepository.getOrderWithPayments(orderId);
+
+        if (!order) {
+          return res.status(404).json({ error: 'Order not found' });
+        }
+
+        const phonePePayments = Array.isArray(order.payments)
+          ? order.payments.filter((payment) => payment.provider === 'phonepe')
+          : [];
+
+        if (phonePePayments.length === 0) {
+          return res.status(404).json({ error: 'No PhonePe payments recorded for this order' });
+        }
+
+        const toTimestamp = (value: unknown): number => {
+          if (value instanceof Date) {
+            return value.getTime();
+          }
+          if (typeof value === 'string' || typeof value === 'number') {
+            const parsed = new Date(value).getTime();
+            return Number.isNaN(parsed) ? 0 : parsed;
+          }
+          return 0;
+        };
+
+        const latestPayment = [...phonePePayments].sort(
+          (a, b) =>
+            toTimestamp(b.updatedAt ?? b.createdAt) - toTimestamp(a.updatedAt ?? a.createdAt)
+        )[0];
+
+        const merchantTransactionId = [
+          latestPayment.providerPaymentId,
+          latestPayment.providerReferenceId,
+          latestPayment.providerTransactionId,
+        ].find((candidate) => typeof candidate === 'string' && candidate.trim().length > 0);
+
+        if (!merchantTransactionId) {
+          return res.status(400).json({
+            error: 'Unable to determine PhonePe merchant transaction ID for this order',
+          });
+        }
+
+        const tenantId = order.tenantId || 'default';
+
+        const verificationResult = await paymentsService.verifyPayment(
+          {
+            paymentId: latestPayment.id,
+            providerPaymentId: latestPayment.providerPaymentId ?? undefined,
+            providerData: {
+              merchantTransactionId,
+              upiPayerHandle: latestPayment.upiPayerHandle ?? undefined,
+              payerVpa: latestPayment.upiPayerHandle ?? undefined,
+            },
+          },
+          tenantId,
+        );
+
+        const reconciliationJob = await phonePePollingStore.getLatestJobForOrder(orderId, tenantId);
+
+        const paymentInstrument = verificationResult.providerData?.paymentInstrument ?? null;
+        const resolvedUtr =
+          paymentInstrument?.utr || verificationResult.providerData?.utr || null;
+        const resolvedPayerHandle =
+          verificationResult.providerData?.upiPayerHandle ||
+          paymentInstrument?.vpa ||
+          paymentInstrument?.payerVpa ||
+          paymentInstrument?.payerAddress ||
+          null;
+
+        const normalizedVariant = normalizeUpiInstrumentVariant(
+          (paymentInstrument as any)?.instrumentType || paymentInstrument?.type
+        );
+        const variantLabel = formatUpiInstrumentVariantLabel(normalizedVariant);
+
+        const maskedUtr = maskPhonePeIdentifier('phonepe', resolvedUtr, { type: 'utr' });
+        const maskedHandle = maskPhonePeIdentifier('phonepe', resolvedPayerHandle, { type: 'vpa' });
+
+        const toIsoString = (value: unknown) => {
+          if (!value) {
+            return undefined;
+          }
+          if (value instanceof Date) {
+            return value.toISOString();
+          }
+          if (typeof value === 'string') {
+            const parsed = new Date(value);
+            return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+          }
+          if (typeof value === 'number') {
+            return new Date(value).toISOString();
+          }
+          return undefined;
+        };
+
+        const amountMinor = typeof verificationResult.amount === 'number'
+          ? verificationResult.amount
+          : latestPayment.amountCapturedMinor ?? latestPayment.amountAuthorizedMinor ?? 0;
+
+        res.json({
+          success: true,
+          data: {
+            orderId: order.id,
+            tenantId,
+            paymentId: latestPayment.id,
+            merchantTransactionId,
+            providerStatus: verificationResult.status,
+            phonePeState: verificationResult.providerData?.state ?? null,
+            responseCode: verificationResult.providerData?.responseCode ?? null,
+            amountMinor,
+            amount: amountMinor / 100,
+            currency: verificationResult.currency,
+            verifiedAt: toIsoString(verificationResult.updatedAt ?? new Date()),
+            instrument: {
+              type: paymentInstrument?.type ?? null,
+              utr: resolvedUtr,
+              utrMasked: maskedUtr ?? null,
+              payerHandle: resolvedPayerHandle,
+              payerHandleMasked: maskedHandle ?? null,
+              payerVpa: paymentInstrument?.payerVpa ?? null,
+              payerAddress: paymentInstrument?.payerAddress ?? null,
+              variant: normalizedVariant ?? null,
+              variantLabel: variantLabel ?? null,
+            },
+            rawInstrument: paymentInstrument,
+            recordedPayment: {
+              status: latestPayment.status,
+              providerPaymentId: latestPayment.providerPaymentId ?? undefined,
+              providerReferenceId: latestPayment.providerReferenceId ?? undefined,
+              upiPayerHandle: latestPayment.upiPayerHandle ?? undefined,
+              upiUtr: latestPayment.upiUtr ?? undefined,
+              updatedAt: toIsoString(latestPayment.updatedAt ?? latestPayment.createdAt) ?? null,
+            },
+            reconciliation: reconciliationJob
+              ? {
+                  status: reconciliationJob.status,
+                  attempt: reconciliationJob.attempt,
+                  nextPollAt: toIsoString(reconciliationJob.nextPollAt),
+                  expiresAt: toIsoString(reconciliationJob.expireAt),
+                  lastStatus: reconciliationJob.lastStatus ?? null,
+                  lastResponseCode: reconciliationJob.lastResponseCode ?? null,
+                  lastError: reconciliationJob.lastError ?? null,
+                  completedAt: toIsoString(reconciliationJob.completedAt),
+                  lastPolledAt: toIsoString(reconciliationJob.lastPolledAt),
+                }
+              : null,
+          },
+        });
+      } catch (error) {
+        console.error('PhonePe admin order status fetch failed:', error);
+        res.status(500).json({
+          error: 'Failed to fetch PhonePe order status',
+          message: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+  );
 
   // ===== UTILITY ENDPOINTS =====
 

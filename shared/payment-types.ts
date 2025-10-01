@@ -234,6 +234,8 @@ export interface CreateRefundParams {
   reason?: string;
   notes?: string;
   idempotencyKey?: string;
+  merchantRefundId?: string;
+  originalMerchantOrderId?: string;
 }
 
 /**
@@ -254,6 +256,7 @@ export interface RefundResult {
   paymentId: string;
   providerRefundId?: string;
   merchantRefundId?: string;
+  originalMerchantOrderId?: string;
 
   // Amount and status
   amount: number; // Amount in minor units
@@ -271,7 +274,10 @@ export interface RefundResult {
   
   // Provider-specific response data
   providerData?: Record<string, any>;
-  
+
+  // UPI identifiers
+  upiUtr?: string;
+
   // Error information (if failed)
   error?: {
     code: string;

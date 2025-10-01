@@ -1,5 +1,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Request, Response } from "express";
+import { refunds, payments } from "../../../shared/schema";
+import { phonePeIdentifierFixture } from "../../../shared/__fixtures__/upi";
 
 process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
 
@@ -252,6 +254,167 @@ describe("WebhookRouter.processWebhook", () => {
     expect(res.statusCode).toBe(404);
     expect(createAdapterMock).not.toHaveBeenCalled();
     expect(getEnabledProvidersMock).toHaveBeenCalledWith("test", "tenant-b");
+  });
+});
+
+describe("WebhookRouter refund reconciliation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    transactionMock.mockReset();
+  });
+
+  it("updates refund records and payment totals when a refund succeeds", async () => {
+    const router = createWebhookRouter("test");
+
+    const selectResults = [
+      [
+        {
+          paymentId: "pay_1",
+          provider: "phonepe",
+          upiUtr: null,
+        },
+      ],
+      [
+        {
+          totalSucceeded: 700,
+        },
+      ],
+    ];
+
+    const selectSpy = vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => {
+          const values = selectResults.shift() ?? [];
+          const promise: any = Promise.resolve(values);
+          promise.limit = vi.fn(async () => values);
+          return promise;
+        }),
+      })),
+    }));
+
+    const refundSetSpy = vi.fn(() => ({ where: vi.fn(async () => ({ rowCount: 1 })) }));
+    const paymentSetSpy = vi.fn(() => ({ where: vi.fn(async () => ({ rowCount: 1 })) }));
+    const updateSpy = vi.fn((table) => {
+      if (table === refunds) {
+        return { set: refundSetSpy };
+      }
+      if (table === payments) {
+        return { set: paymentSetSpy };
+      }
+      return { set: vi.fn() };
+    });
+
+    transactionMock.mockImplementation(async (callback) => {
+      await callback({
+        select: selectSpy,
+        update: updateSpy,
+      });
+      return true;
+    });
+
+    const data = {
+      amount: 300,
+      paymentInstrument: { utr: phonePeIdentifierFixture.utr },
+      merchantRefundId: "merchant_refund_1",
+      originalMerchantOrderId: "merchant_order_1",
+    };
+
+    const result = await (router as any).updateRefundStatus(
+      "refund_1",
+      "COMPLETED",
+      data,
+      "default"
+    );
+
+    expect(result).toBe(true);
+    expect(refundSetSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "COMPLETED",
+        upiUtr: phonePeIdentifierFixture.maskedUtr,
+        merchantRefundId: "merchant_refund_1",
+        originalMerchantOrderId: "merchant_order_1",
+        amountMinor: 300,
+      })
+    );
+    expect(paymentSetSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ amountRefundedMinor: 700 })
+    );
+  });
+
+  it("recalculates payment totals when a refund later fails", async () => {
+    const router = createWebhookRouter("test");
+
+    const selectResults = [
+      [
+        {
+          paymentId: "pay_1",
+          provider: "phonepe",
+          upiUtr: phonePeIdentifierFixture.maskedUtr,
+        },
+      ],
+      [
+        {
+          totalSucceeded: 400,
+        },
+      ],
+    ];
+
+    const selectSpy = vi.fn(() => ({
+      from: vi.fn(() => ({
+        where: vi.fn(() => {
+          const values = selectResults.shift() ?? [];
+          const promise: any = Promise.resolve(values);
+          promise.limit = vi.fn(async () => values);
+          return promise;
+        }),
+      })),
+    }));
+
+    const refundSetSpy = vi.fn(() => ({ where: vi.fn(async () => ({ rowCount: 1 })) }));
+    const paymentSetSpy = vi.fn(() => ({ where: vi.fn(async () => ({ rowCount: 1 })) }));
+    const updateSpy = vi.fn((table) => {
+      if (table === refunds) {
+        return { set: refundSetSpy };
+      }
+      if (table === payments) {
+        return { set: paymentSetSpy };
+      }
+      return { set: vi.fn() };
+    });
+
+    transactionMock.mockImplementation(async (callback) => {
+      await callback({
+        select: selectSpy,
+        update: updateSpy,
+      });
+      return true;
+    });
+
+    const data = {
+      amount: 300,
+      paymentInstrument: { utr: phonePeIdentifierFixture.utr },
+      merchantRefundId: "merchant_refund_3",
+    };
+
+    const result = await (router as any).updateRefundStatus(
+      "refund_3",
+      "FAILED",
+      data,
+      "default"
+    );
+
+    expect(result).toBe(true);
+    expect(refundSetSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "FAILED",
+        upiUtr: phonePeIdentifierFixture.maskedUtr,
+        merchantRefundId: "merchant_refund_3",
+        amountMinor: 300,
+      })
+    );
+    expect(paymentSetSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ amountRefundedMinor: 400 })
+    );
   });
 });
 

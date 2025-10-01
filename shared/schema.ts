@@ -232,11 +232,15 @@ export const refunds = pgTable("refunds", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull().default('default'),
   paymentId: varchar("payment_id").references(() => payments.id).notNull(),
-  merchantRefundId: varchar("merchant_refund_id", { length: 100 }).notNull(),
+
+  provider: varchar("provider", { length: 50 }).notNull(),
+  providerRefundId: varchar("provider_refund_id"),
+  merchantRefundId: varchar("merchant_refund_id", { length: 255 }),
+  originalMerchantOrderId: varchar("original_merchant_order_id", { length: 255 }),
   amountMinor: integer("amount_minor").notNull(),
-  status: varchar("status", { length: 20 }).notNull().default('pending'),
-  utrMasked: varchar("utr_masked", { length: 100 }),
-  providerTxnId: varchar("provider_txn_id", { length: 255 }),
+  status: varchar("status", { length: 50 }).notNull().default('pending'), // pending|succeeded|failed
+  reason: text("reason"),
+  upiUtr: varchar("upi_utr", { length: 100 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({

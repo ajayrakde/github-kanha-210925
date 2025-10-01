@@ -7,13 +7,24 @@ process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
 
 const selectResults: any[][] = [];
 const paymentInserts: any[] = [];
+const auditEventInserts: Array<{ table: any; values: any }> = [];
+
+/** Incoming branch used this queue name in many tests */
+const upiQueryResults: any[][] = [];
+
+/** Some tests enqueue custom transaction behaviors */
 const transactionQueue: Array<(callback: (trx: any) => Promise<any>) => Promise<any>> = [];
 
+/** Unified select mock: supports both incoming (upiQueryResults) and legacy (selectResults) queues */
 const selectMock = vi.fn(() => ({
   from: vi.fn(() => ({
-    where: vi.fn(() => ({
-      limit: vi.fn(async () => selectResults.shift() ?? []),
-    })),
+    where: vi.fn(() => {
+      const queue = upiQueryResults.length ? upiQueryResults : selectResults;
+      const values = queue.shift() ?? [];
+      const promise: any = Promise.resolve(values);
+      promise.limit = vi.fn(async () => values);
+      return promise;
+    }),
   })),
 }));
 
@@ -24,397 +35,22 @@ const insertValuesMock = vi.fn((values: any) => {
   };
 });
 
-describe("PaymentsService.createRefund", () => {
-  beforeEach(() => {
-    selectResults.length = 0;
-    transactionQueue.length = 0;
-    paymentInserts.length = 0;
-    insertValuesMock.mockClear();
-    transactionMock.mockClear();
-    transactionMock.mockImplementation(transactionImplementationWithQueue);
-    selectMock.mockClear();
-    adapter.createPayment.mockReset();
-    adapter.createRefund.mockReset();
-    executeWithIdempotencyMock.mockReset();
-    executeWithIdempotencyMock.mockImplementation(async (_key, _scope, operation) => {
-      return await operation();
-    });
-    generateKeyMock.mockReset();
-    generateKeyMock.mockReturnValue("generated-key");
-    createAdapterMock.mockReset();
-    createAdapterMock.mockResolvedValue(adapter);
-    (PaymentsServiceClass as unknown as { instances: Map<string, any> }).instances = new Map();
-  });
+/** Top-level db.insert(...).values(...) for audit events etc. */
+const directInsertMock = vi.fn((table: any) => ({
+  values: vi.fn(async (values: any) => {
+    auditEventInserts.push({ table, values });
+  }),
+}));
 
-  it("rejects refunds exceeding captured amount", async () => {
-    const paymentRecord = {
-      id: "pay_over",
-      tenantId: "default",
-      provider: "phonepe",
-      providerPaymentId: "txn_over",
-      providerOrderId: "ord_over",
-      amountCapturedMinor: 500,
-      amountRefundedMinor: 300,
-    };
-
-    selectResults.push([{ ...paymentRecord }], []);
-
-    const service = createPaymentsService({ environment: "test" });
-
-    await expect(
-      service.createRefund(
-        {
-          paymentId: paymentRecord.id,
-          amount: 250,
-          merchantRefundId: "ref-over",
-          idempotencyKey: "idem-over",
-        },
-        "default"
-      )
-    ).rejects.toMatchObject({ code: "REFUND_AMOUNT_EXCEEDS_CAPTURED" });
-
-    expect(adapter.createRefund).not.toHaveBeenCalled();
-  });
-
-  it("returns stored refund when merchantRefundId already exists", async () => {
-    const paymentRecord = {
-      id: "pay_dup",
-      tenantId: "default",
-      provider: "phonepe",
-      providerPaymentId: "txn_dup",
-      providerOrderId: "ord_dup",
-      amountCapturedMinor: 400,
-      amountRefundedMinor: 0,
-    };
-
-    const existingRefund = {
-      id: "refund_dup",
-      tenantId: "default",
-      paymentId: paymentRecord.id,
-      merchantRefundId: "ref-dup",
-      amountMinor: 150,
-      status: "completed",
-      providerTxnId: "txn_ref_dup",
-      utrMasked: "utr***1234",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    selectResults.push([{ ...paymentRecord }], [existingRefund]);
-
-    const service = createPaymentsService({ environment: "test" });
-
-    const result = await service.createRefund(
-      {
-        paymentId: paymentRecord.id,
-        amount: 150,
-        merchantRefundId: "ref-dup",
-        idempotencyKey: "idem-dup",
-      },
-      "default"
-    );
-
-    expect(createAdapterMock).not.toHaveBeenCalled();
-    expect(adapter.createRefund).not.toHaveBeenCalled();
-    expect(result.refundId).toBe(existingRefund.id);
-    expect(result.status).toBe("completed");
-    expect(result.utrMasked).toBe(existingRefund.utrMasked);
-  });
-
-  it("persists successful PhonePe refunds and aggregates totals", async () => {
-    const service = createPaymentsService({ environment: "test" });
-
-    const storedPayment = {
-      id: "pay_success",
-      tenantId: "default",
-      provider: "phonepe",
-      providerPaymentId: "txn_success",
-      providerOrderId: "ord_success",
-      amountCapturedMinor: 600,
-      amountRefundedMinor: 0,
-    };
-
-    const capturedPaymentUpdates: any[] = [];
-
-    const runSuccessfulRefund = async (
-      amount: number,
-      merchantRefundId: string,
-      providerTxnId: string,
-      utrMasked: string
-    ) => {
-      const paymentSnapshot = { ...storedPayment };
-      selectResults.push([paymentSnapshot], []);
-
-      const now = new Date();
-      const pendingRow = {
-        id: `${merchantRefundId}-row`,
-        tenantId: "default",
-        paymentId: storedPayment.id,
-        merchantRefundId,
-        amountMinor: amount,
-        status: "pending",
-        providerTxnId: null as string | null,
-        utrMasked: null as string | null,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      const completedRow = {
-        ...pendingRow,
-        status: "completed" as const,
-        providerTxnId,
-        utrMasked,
-      };
-
-      insertValuesMock.mockImplementationOnce((values: any) => {
-        paymentInserts.push(values);
-        return {
-          returning: vi.fn(async () => [pendingRow]),
-        };
-      });
-
-      transactionQueue.push(defaultTransactionImplementation);
-      transactionQueue.push(async (callback) => {
-        const refundUpdates: any[] = [];
-        const paymentUpdates: any[] = [];
-        const eventInserts: any[] = [];
-
-        const result = await callback({
-          update: vi.fn((table: any) => {
-            if (table === refunds) {
-              return {
-                set: vi.fn((values) => {
-                  refundUpdates.push(values);
-                  completedRow.status = values.status;
-                  completedRow.providerTxnId = values.providerTxnId ?? completedRow.providerTxnId;
-                  completedRow.utrMasked = values.utrMasked ?? completedRow.utrMasked;
-                  completedRow.updatedAt = values.updatedAt;
-                  return { where: vi.fn(async () => ({ rowCount: 1 })) };
-                }),
-              };
-            }
-
-            if (table === payments) {
-              return {
-                set: vi.fn((values) => {
-                  paymentUpdates.push(values);
-                  capturedPaymentUpdates.push(values);
-                  return { where: vi.fn(async () => ({ rowCount: 1 })) };
-                }),
-              };
-            }
-
-            throw new Error(`Unexpected update call for table: ${String(table)}`);
-          }),
-          insert: vi.fn((table: any) => {
-            if (table === paymentEvents) {
-              return {
-                values: vi.fn((values) => {
-                  eventInserts.push(values);
-                }),
-              };
-            }
-            throw new Error(`Unexpected insert call for table: ${String(table)}`);
-          }),
-          select: vi.fn(() => ({
-            from: vi.fn(() => ({
-              where: vi.fn(() => ({
-                limit: vi.fn(async () => [completedRow]),
-              })),
-            })),
-          })),
-        });
-
-        expect(refundUpdates).toHaveLength(1);
-        expect(refundUpdates[0]).toMatchObject({ status: "completed" });
-        expect(paymentUpdates).toHaveLength(1);
-        expect(eventInserts).toHaveLength(1);
-        expect(result).toEqual(completedRow);
-        return result;
-      });
-
-      adapter.createRefund.mockResolvedValueOnce({
-        refundId: `${merchantRefundId}-result`,
-        paymentId: storedPayment.id,
-        merchantRefundId,
-        amount,
-        status: "completed",
-        provider: "phonepe",
-        environment: "test",
-        providerTransactionId: providerTxnId,
-        utrMasked,
-        createdAt: now,
-      });
-
-      const result = await service.createRefund(
-        {
-          paymentId: storedPayment.id,
-          amount,
-          merchantRefundId,
-          idempotencyKey: `${merchantRefundId}-key`,
-        },
-        "default"
-      );
-
-      expect(result.status).toBe("completed");
-      expect(result.utrMasked).toBe(utrMasked);
-      expect(result.providerTransactionId).toBe(providerTxnId);
-      expect(selectResults).toHaveLength(0);
-    };
-
-    await runSuccessfulRefund(200, "ref-success-1", "txn-ref-1", "utr***1111");
-    await runSuccessfulRefund(150, "ref-success-2", "txn-ref-2", "utr***2222");
-
-    expect(capturedPaymentUpdates).toHaveLength(2);
-    expect(
-      capturedPaymentUpdates.map((update) => {
-        const chunks = (update.amountRefundedMinor as any)?.queryChunks;
-        if (Array.isArray(chunks)) {
-          const numericChunk = chunks.find((chunk: unknown) => typeof chunk === "number");
-          if (typeof numericChunk === "number") {
-            return numericChunk;
-          }
-        }
-        return update.amountRefundedMinor;
-      })
-    ).toEqual([200, 150]);
-    expect(adapter.createRefund).toHaveBeenCalledTimes(2);
-  });
-
-  it("records failed refunds without altering totals", async () => {
-    const service = createPaymentsService({ environment: "test" });
-
-    const storedPayment = {
-      id: "pay_failed",
-      tenantId: "default",
-      provider: "phonepe",
-      providerPaymentId: "txn_failed",
-      providerOrderId: "ord_failed",
-      amountCapturedMinor: 400,
-      amountRefundedMinor: 0,
-    };
-
-    selectResults.push([{ ...storedPayment }], []);
-
-    const now = new Date();
-    const pendingRow = {
-      id: "refund_failed_row",
-      tenantId: "default",
-      paymentId: storedPayment.id,
-      merchantRefundId: "ref-failed",
-      amountMinor: 200,
-      status: "pending",
-      providerTxnId: null as string | null,
-      utrMasked: null as string | null,
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    const failedRow = { ...pendingRow, status: "failed" as const };
-
-    insertValuesMock.mockImplementationOnce((values: any) => {
-      paymentInserts.push(values);
-      return {
-        returning: vi.fn(async () => [pendingRow]),
-      };
-    });
-
-    transactionQueue.push(defaultTransactionImplementation);
-    transactionQueue.push(async (callback) => {
-      const paymentUpdates: any[] = [];
-
-      const result = await callback({
-        update: vi.fn((table: any) => {
-          if (table === refunds) {
-            return {
-              set: vi.fn((values) => {
-                failedRow.status = values.status;
-                failedRow.providerTxnId = values.providerTxnId ?? failedRow.providerTxnId;
-                failedRow.utrMasked = values.utrMasked ?? failedRow.utrMasked;
-                failedRow.updatedAt = values.updatedAt;
-                return { where: vi.fn(async () => ({ rowCount: 1 })) };
-              }),
-            };
-          }
-
-          if (table === payments) {
-            return {
-              set: vi.fn((values) => {
-                paymentUpdates.push(values);
-                return { where: vi.fn(async () => ({ rowCount: 1 })) };
-              }),
-            };
-          }
-
-          throw new Error(`Unexpected update call for table: ${String(table)}`);
-        }),
-        insert: vi.fn((table: any) => {
-          if (table === paymentEvents) {
-            return {
-              values: vi.fn(() => undefined),
-            };
-          }
-          throw new Error(`Unexpected insert call for table: ${String(table)}`);
-        }),
-        select: vi.fn(() => ({
-          from: vi.fn(() => ({
-            where: vi.fn(() => ({
-              limit: vi.fn(async () => [failedRow]),
-            })),
-          })),
-        })),
-      });
-
-      expect(paymentUpdates).toHaveLength(0);
-      expect(result).toEqual(failedRow);
-      return result;
-    });
-
-    adapter.createRefund.mockResolvedValueOnce({
-      refundId: "refund-failed-result",
-      paymentId: storedPayment.id,
-      merchantRefundId: "ref-failed",
-      amount: 200,
-      status: "failed",
-      provider: "phonepe",
-      environment: "test",
-      createdAt: now,
-    });
-
-    const result = await service.createRefund(
-      {
-        paymentId: storedPayment.id,
-        amount: 200,
-        merchantRefundId: "ref-failed",
-        idempotencyKey: "idem-failed",
-      },
-      "default"
-    );
-
-    expect(result.status).toBe("failed");
-    expect(storedPayment.amountRefundedMinor).toBe(0);
-    expect(adapter.createRefund).toHaveBeenCalledTimes(1);
-  });
-});
-
-const defaultTransactionImplementation = async (callback: (trx: any) => Promise<any>) => {
-  const insertSpy = vi.fn(() => ({ values: insertValuesMock }));
-  const updateSpy = vi.fn(() => ({
-    set: vi.fn(() => ({
-      where: vi.fn(async () => ({ rowCount: 1 })),
-    })),
-  }));
-
-  return await callback({
-    insert: insertSpy,
-    update: updateSpy,
-    select: selectMock,
+/** Default trx impl used when a test didn’t push a custom impl into transactionQueue */
+const defaultTransactionImplementation = async (callback: (trx: any) => Promise<void>) => {
+  await callback({
+    insert: vi.fn(() => ({ values: insertValuesMock })),
+    update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
   });
 };
 
-const transactionImplementationWithQueue = async (
-  callback: (trx: any) => Promise<any>
-) => {
+const transactionImplementationWithQueue = async (callback: (trx: any) => Promise<any>) => {
   const impl = transactionQueue.shift();
   if (impl) {
     return await impl(callback);
@@ -429,6 +65,7 @@ vi.mock("../../db", () => ({
     transaction: transactionMock,
     select: selectMock,
     update: vi.fn(() => ({ set: vi.fn(() => ({ where: vi.fn() })) })),
+    insert: directInsertMock,
   },
 }));
 
@@ -473,19 +110,27 @@ beforeAll(async () => {
 describe("PaymentsService.createPayment", () => {
   beforeEach(() => {
     selectResults.length = 0;
+    upiQueryResults.length = 0;
     transactionQueue.length = 0;
     paymentInserts.length = 0;
+    auditEventInserts.length = 0;
+
     insertValuesMock.mockClear();
     transactionMock.mockClear();
     transactionMock.mockImplementation(transactionImplementationWithQueue);
     selectMock.mockClear();
+    directInsertMock.mockClear();
+
     adapter.createPayment.mockReset();
     adapter.createRefund.mockReset();
+
     executeWithIdempotencyMock.mockReset();
     generateKeyMock.mockReset();
     generateKeyMock.mockReturnValue("generated-key");
+
     createAdapterMock.mockReset();
     createAdapterMock.mockResolvedValue(adapter);
+
     (PaymentsServiceClass as unknown as { instances: Map<string, any> }).instances = new Map();
   });
 
@@ -901,6 +546,244 @@ describe("PaymentsService.updateStoredPayment lifecycle", () => {
   });
 });
 
+describe("PaymentsService.createRefund", () => {
+  const basePayment = {
+    id: "pay_1",
+    provider: "phonepe",
+    providerPaymentId: "prov_pay_1",
+    providerOrderId: "merchant_order_1",
+    orderId: "order_1",
+    amountCapturedMinor: 1000,
+    amountAuthorizedMinor: 1000,
+    amountRefundedMinor: 0,
+  };
+
+  beforeEach(() => {
+    upiQueryResults.length = 0;
+    paymentInserts.length = 0;
+    executeWithIdempotencyMock.mockImplementation(async (_key, _scope, operation) => {
+      return await operation();
+    });
+    createAdapterMock.mockResolvedValue(adapter);
+    directInsertMock.mockClear();
+    auditEventInserts.length = 0;
+    insertValuesMock.mockClear();
+    transactionMock.mockClear();
+    transactionMock.mockImplementation(defaultTransactionImplementation);
+    selectMock.mockClear();
+    adapter.createRefund.mockReset();
+  });
+
+  it("rejects refunds that would exceed the captured amount", async () => {
+    const service = createPaymentsService({ environment: "test" });
+
+    upiQueryResults.push([basePayment]);
+    upiQueryResults.push([{ totalNonFailed: 800, totalSucceeded: 600 }]);
+
+    await expect(
+      service.createRefund({ paymentId: "pay_1", amount: 300, idempotencyKey: "idempo" }, "default")
+    ).rejects.toMatchObject({ code: "REFUND_EXCEEDS_CAPTURED_AMOUNT" });
+
+    expect(adapter.createRefund).not.toHaveBeenCalled();
+    expect(auditEventInserts).toHaveLength(1);
+    expect(auditEventInserts[0]).toMatchObject({
+      table: paymentEvents,
+      values: expect.objectContaining({
+        type: "refund_attempt_failed",
+        data: expect.objectContaining({
+          reason: "REFUND_EXCEEDS_CAPTURED_AMOUNT",
+          requestedAmountMinor: 300,
+        }),
+      }),
+    });
+  });
+
+  it("stores successful refunds, masks identifiers, and updates totals", async () => {
+    const service = createPaymentsService({ environment: "test" });
+    const refundCreatedAt = new Date("2024-02-01T00:00:00Z");
+
+    upiQueryResults.push([{ ...basePayment, amountRefundedMinor: 200 }]);
+    upiQueryResults.push([{ totalNonFailed: 200, totalSucceeded: 200 }]);
+
+    const updateSetSpy = vi.fn(() => ({ where: vi.fn() }));
+    transactionMock.mockImplementation(async (callback) => {
+      await callback({
+        insert: vi.fn(() => ({ values: insertValuesMock })),
+        update: vi.fn(() => ({ set: updateSetSpy })),
+      });
+    });
+
+    adapter.createRefund.mockResolvedValue({
+      refundId: "refund_1",
+      paymentId: "pay_1",
+      providerRefundId: "provider_refund",
+      merchantRefundId: "merchant_refund_1",
+      originalMerchantOrderId: "merchant_order_1",
+      amount: 300,
+      status: "completed",
+      provider: "phonepe",
+      environment: "test",
+      upiUtr: phonePeIdentifierFixture.utr,
+      providerData: {
+        paymentInstrument: {
+          utr: phonePeIdentifierFixture.utr,
+        },
+      },
+      createdAt: refundCreatedAt,
+    });
+
+    const result = await service.createRefund(
+      { paymentId: "pay_1", amount: 300, idempotencyKey: "idempo" },
+      "default"
+    );
+
+    expect(adapter.createRefund).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amount: 300,
+        providerPaymentId: "prov_pay_1",
+        originalMerchantOrderId: "merchant_order_1",
+      })
+    );
+
+    expect(result.upiUtr).toBe(phonePeIdentifierFixture.maskedUtr);
+    expect(result.merchantRefundId).toBe("merchant_refund_1");
+
+    const refundInsert = paymentInserts.find((entry) => entry.id === "refund_1");
+    expect(refundInsert).toMatchObject({
+      merchantRefundId: "merchant_refund_1",
+      originalMerchantOrderId: "merchant_order_1",
+      upiUtr: phonePeIdentifierFixture.maskedUtr,
+      amountMinor: 300,
+    });
+
+    expect(updateSetSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ amountRefundedMinor: 500 })
+    );
+    expect(auditEventInserts).toHaveLength(0);
+  });
+
+  it("supports partial refunds and short-circuits duplicate merchantRefundId requests", async () => {
+    const service = createPaymentsService({ environment: "test" });
+
+    const firstCreatedAt = new Date("2024-03-01T00:00:00Z");
+    const secondCreatedAt = new Date("2024-03-02T00:00:00Z");
+
+    upiQueryResults.push([{ ...basePayment }]);
+    upiQueryResults.push([]);
+    upiQueryResults.push([{ totalNonFailed: 0, totalSucceeded: 0 }]);
+
+    adapter.createRefund.mockResolvedValueOnce({
+      refundId: "refund_1",
+      paymentId: "pay_1",
+      providerRefundId: "provider_refund_1",
+      merchantRefundId: "refund-1",
+      originalMerchantOrderId: "merchant_order_1",
+      amount: 400,
+      status: "completed",
+      provider: "phonepe",
+      environment: "test",
+      upiUtr: phonePeIdentifierFixture.utr,
+      providerData: {
+        paymentInstrument: {
+          utr: phonePeIdentifierFixture.utr,
+        },
+      },
+      createdAt: firstCreatedAt,
+    });
+
+    const first = await service.createRefund(
+      { paymentId: "pay_1", amount: 400, merchantRefundId: "refund-1", idempotencyKey: "id-1" },
+      "default"
+    );
+
+    expect(first.merchantRefundId).toBe("refund-1");
+    expect(adapter.createRefund).toHaveBeenCalledTimes(1);
+
+    upiQueryResults.push([{ ...basePayment, amountRefundedMinor: 400 }]);
+    upiQueryResults.push([]);
+    upiQueryResults.push([{ totalNonFailed: 400, totalSucceeded: 400 }]);
+
+    adapter.createRefund.mockResolvedValueOnce({
+      refundId: "refund_2",
+      paymentId: "pay_1",
+      providerRefundId: "provider_refund_2",
+      merchantRefundId: "refund-2",
+      originalMerchantOrderId: "merchant_order_1",
+      amount: 300,
+      status: "completed",
+      provider: "phonepe",
+      environment: "test",
+      upiUtr: phonePeIdentifierFixture.utr,
+      providerData: {
+        paymentInstrument: {
+          utr: phonePeIdentifierFixture.utr,
+        },
+      },
+      createdAt: secondCreatedAt,
+    });
+
+    const second = await service.createRefund(
+      { paymentId: "pay_1", amount: 300, merchantRefundId: "refund-2", idempotencyKey: "id-2" },
+      "default"
+    );
+
+    expect(second.merchantRefundId).toBe("refund-2");
+    expect(adapter.createRefund).toHaveBeenCalledTimes(2);
+
+    upiQueryResults.push([{ ...basePayment, amountRefundedMinor: 700 }]);
+    upiQueryResults.push([]);
+    upiQueryResults.push([{ totalNonFailed: 700, totalSucceeded: 700 }]);
+
+    await expect(
+      service.createRefund(
+        { paymentId: "pay_1", amount: 400, merchantRefundId: "refund-3", idempotencyKey: "id-3" },
+        "default"
+      )
+    ).rejects.toMatchObject({ code: "REFUND_EXCEEDS_CAPTURED_AMOUNT" });
+
+    expect(adapter.createRefund).toHaveBeenCalledTimes(2);
+    expect(auditEventInserts.length).toBeGreaterThan(0);
+    expect(auditEventInserts.at(-1)).toMatchObject({
+      table: paymentEvents,
+      values: expect.objectContaining({
+        data: expect.objectContaining({
+          merchantRefundId: "refund-3",
+          requestedAmountMinor: 400,
+        }),
+      }),
+    });
+
+    const storedRefund = {
+      id: "refund_2",
+      paymentId: "pay_1",
+      provider: "phonepe",
+      providerRefundId: "provider_refund_2",
+      merchantRefundId: "refund-2",
+      originalMerchantOrderId: "merchant_order_1",
+      amountMinor: 300,
+      status: "completed",
+      reason: "partial",
+      upiUtr: phonePeIdentifierFixture.maskedUtr,
+      createdAt: secondCreatedAt,
+      updatedAt: secondCreatedAt,
+    };
+
+    upiQueryResults.push([{ ...basePayment, amountRefundedMinor: 700 }]);
+    upiQueryResults.push([storedRefund]);
+
+    const duplicate = await service.createRefund(
+      { paymentId: "pay_1", amount: 300, merchantRefundId: "refund-2", idempotencyKey: "dup" },
+      "default"
+    );
+
+    expect(duplicate.refundId).toBe("refund_2");
+    expect(duplicate.amount).toBe(300);
+    expect(duplicate.merchantRefundId).toBe("refund-2");
+    expect(duplicate.upiUtr).toBe(phonePeIdentifierFixture.maskedUtr);
+    expect(adapter.createRefund).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("PaymentsService.cancelPayment", () => {
   beforeEach(() => {
     selectResults.length = 0;
@@ -1014,7 +897,7 @@ describe("PaymentsService.cancelPayment", () => {
       currency: "INR",
       method: { type: "upi" },
       providerData: {},
-      createdAt,
+      createdA,
     });
 
     await service.createPayment(

@@ -580,20 +580,97 @@ export class WebhookRouter {
     tenantId: string
   ): Promise<boolean> {
     try {
-      const result = await db
-        .update(refunds)
-        .set({
-          status: status,
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(refunds.id, refundId),
-            eq(refunds.tenantId, tenantId)
-          )
-        );
+      const normalizedStatus = typeof status === 'string' ? status.toLowerCase() : '';
+      const shouldRecalculate = ['completed', 'succeeded', 'success', 'captured', 'refunded', 'failed', 'cancelled'].includes(normalizedStatus);
 
-      return (result.rowCount || 0) > 0;
+      return await db.transaction(async (trx) => {
+        const [existing] = await trx
+          .select({
+            paymentId: refunds.paymentId,
+            provider: refunds.provider,
+            upiUtr: refunds.upiUtr,
+          })
+          .from(refunds)
+          .where(
+            and(
+              eq(refunds.id, refundId),
+              eq(refunds.tenantId, tenantId)
+            )
+          )
+          .limit(1);
+
+        if (!existing) {
+          return false;
+        }
+
+        const provider = existing.provider as PaymentProvider | undefined;
+        const incomingUtr = data?.paymentInstrument?.utr ?? data?.upiUtr ?? data?.utr ?? existing.upiUtr;
+        const maskedUtr = provider === 'phonepe'
+          ? maskPhonePeUtr(incomingUtr) ?? existing.upiUtr
+          : incomingUtr;
+
+        const updateData: Record<string, any> = {
+          status,
+          updatedAt: new Date(),
+        };
+
+        if (maskedUtr) {
+          updateData.upiUtr = maskedUtr;
+        }
+
+        if (typeof data?.amount === 'number') {
+          updateData.amountMinor = data.amount;
+        }
+
+        if (typeof data?.merchantRefundId === 'string' && data.merchantRefundId.trim().length > 0) {
+          updateData.merchantRefundId = data.merchantRefundId.trim();
+        }
+
+        if (typeof data?.originalMerchantOrderId === 'string' && data.originalMerchantOrderId.trim().length > 0) {
+          updateData.originalMerchantOrderId = data.originalMerchantOrderId.trim();
+        }
+
+        await trx
+          .update(refunds)
+          .set(updateData)
+          .where(
+            and(
+              eq(refunds.id, refundId),
+              eq(refunds.tenantId, tenantId)
+            )
+          );
+
+        if (existing.paymentId && shouldRecalculate) {
+          const [totals] = await trx
+            .select({
+              totalSucceeded: sql<number>`COALESCE(SUM(CASE WHEN ${refunds.status} IN ('succeeded','success','completed','captured','refunded') THEN ${refunds.amountMinor} ELSE 0 END), 0)`
+            })
+            .from(refunds)
+            .where(
+              and(
+                eq(refunds.paymentId, existing.paymentId),
+                eq(refunds.tenantId, tenantId)
+              )
+            );
+
+          const succeededMinor = totals?.totalSucceeded ?? 0;
+
+          await trx
+            .update(payments)
+            .set({
+              amountRefundedMinor: succeededMinor,
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(payments.id, existing.paymentId),
+                eq(payments.tenantId, tenantId)
+              )
+            );
+        }
+
+        return true;
+      });
     } catch (error) {
       console.error(`Failed to update refund ${refundId} status:`, error);
       return false;
