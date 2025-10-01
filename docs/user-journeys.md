@@ -75,6 +75,7 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - `/api/admin/login` handled in `server/routes/admin.ts`, backed by `usersRepository`.
    - `requireAdmin` middleware from `server/routes/index.ts` protects routes.
    - Admin passwords are now stored as bcrypt hashes. Legacy plaintext credentials are rehashed automatically on successful login, keeping the dashboard sign-in flow unchanged while hardening storage.
+   - Asset uploads via `POST /api/objects/upload` now rely on the same admin session guard, denying anonymous callers signed upload URLs.
 
 2. **Product & Offer Management**  
    - CRUD operations under `/api/products` and `/api/admin/offers`.  
