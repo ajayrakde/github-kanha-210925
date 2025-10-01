@@ -11,9 +11,9 @@ import {
   insertUserAddressSchema,
   insertUserSchema,
 } from "@shared/schema";
-import type { SessionRequest } from "./types";
+import type { RequireAdminMiddleware, SessionRequest } from "./types";
 
-export function createOrdersRouter() {
+export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
   const router = Router();
 
   const orderCreationSchema = z.object({
@@ -220,7 +220,7 @@ export function createOrdersRouter() {
     }
   });
 
-  router.get("/", async (req, res) => {
+  router.get("/", requireAdmin, async (req: SessionRequest, res) => {
     try {
       const filters = {
         status: req.query.status as string,
@@ -242,7 +242,7 @@ export function createOrdersRouter() {
     }
   });
 
-  router.get("/:id", async (req, res) => {
+  router.get("/:id", requireAdmin, async (req: SessionRequest, res) => {
     try {
       const order = await ordersRepository.getOrder(req.params.id);
       if (!order) {

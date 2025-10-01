@@ -78,9 +78,10 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - `/api/admin/shipping-rules` in `server/routes/shipping.ts`, validated via Zod.  
    - Backed by `shippingRepository`.
 
-4. **Orders & Analytics**  
-   - `/api/admin/orders` in `server/routes/admin.ts`, backed by `ordersRepository`.  
-   - `/api/analytics` in `server/routes/analytics.ts`.  
+4. **Orders & Analytics**
+   - `/api/admin/orders` in `server/routes/admin.ts`, backed by `ordersRepository`.
+   - `/api/orders` read endpoints now enforce `requireAdmin`, keeping buyer history available through `/api/auth/orders`.
+   - `/api/analytics` in `server/routes/analytics.ts`.
    - Returned datasets and dashboards unchanged.
 
 5. **Settings**
