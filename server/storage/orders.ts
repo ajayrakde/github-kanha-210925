@@ -3,6 +3,7 @@ import {
   orderItems,
   cartItems,
   products,
+  offers,
   type Order,
   type InsertOrder,
   type OrderItem,
@@ -16,7 +17,17 @@ import {
 } from "@shared/schema";
 import type { AbandonedCart } from "@/lib/types";
 import { db } from "../db";
-import { eq, and, desc, sql, gte, lt } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lt, inArray } from "drizzle-orm";
+
+export const MIN_CART_ITEM_QUANTITY = 1;
+export const MAX_CART_ITEM_QUANTITY = 10;
+
+export class CartQuantityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CartQuantityError";
+  }
+}
 
 export class OrdersRepository {
   async getOrders(filters?: {
@@ -95,6 +106,49 @@ export class OrdersRepository {
           payments: orderData.payments ?? [],
         }
       : undefined;
+  }
+
+  async getOrdersByInfluencer(
+    influencerId: string,
+  ): Promise<(Order & {
+    user: User;
+    items: (OrderItem & { product: Product })[];
+    offer?: Offer;
+    deliveryAddress: UserAddress;
+    payments: Payment[];
+  })[]> {
+    const influencerOffers = await db
+      .select({ id: offers.id })
+      .from(offers)
+      .where(eq(offers.influencerId, influencerId));
+
+    if (influencerOffers.length === 0) {
+      return [];
+    }
+
+    const offerIds = influencerOffers.map(offer => offer.id);
+
+    const ordersData = await db.query.orders.findMany({
+      where: inArray(orders.offerId, offerIds),
+      with: {
+        user: true,
+        items: {
+          with: {
+            product: true,
+          },
+        },
+        offer: true,
+        deliveryAddress: true,
+        payments: true,
+      },
+      orderBy: desc(orders.createdAt),
+    });
+
+    return ordersData.map(order => ({
+      ...order,
+      offer: order.offer || undefined,
+      payments: order.payments ?? [],
+    }));
   }
 
   async getOrderWithPayments(id: string): Promise<(Order & {
@@ -203,35 +257,53 @@ export class OrdersRepository {
   }
 
   async addToCart(sessionId: string, productId: string, quantity: number): Promise<CartItem> {
-    const existingItem = await db
-      .select()
-      .from(cartItems)
-      .where(and(eq(cartItems.sessionId, sessionId), eq(cartItems.productId, productId)));
+    const product = await this.requireActiveProduct(productId);
+    const existingItem = await this.findCartItem(sessionId, productId);
 
-    if (existingItem.length > 0) {
+    const desiredQuantity = (existingItem?.quantity ?? 0) + quantity;
+    const clampedQuantity = this.clampQuantity(desiredQuantity, product.stock);
+
+    if (existingItem) {
+      if (existingItem.quantity === clampedQuantity) {
+        return existingItem;
+      }
+
       const [updatedItem] = await db
         .update(cartItems)
         .set({
-          quantity: existingItem[0].quantity + quantity,
+          quantity: clampedQuantity,
           updatedAt: new Date(),
         })
-        .where(eq(cartItems.id, existingItem[0].id))
+        .where(eq(cartItems.id, existingItem.id))
         .returning();
       return updatedItem;
     }
 
     const [newItem] = await db
       .insert(cartItems)
-      .values({ sessionId, productId, quantity })
+      .values({ sessionId, productId, quantity: clampedQuantity })
       .returning();
     return newItem;
   }
 
   async updateCartItem(sessionId: string, productId: string, quantity: number): Promise<CartItem> {
+    const product = await this.requireActiveProduct(productId);
+    const existingItem = await this.findCartItem(sessionId, productId);
+
+    if (!existingItem) {
+      throw new CartQuantityError("Cart item not found");
+    }
+
+    const clampedQuantity = this.clampQuantity(quantity, product.stock);
+
+    if (existingItem.quantity === clampedQuantity) {
+      return existingItem;
+    }
+
     const [updatedItem] = await db
       .update(cartItems)
-      .set({ quantity, updatedAt: new Date() })
-      .where(and(eq(cartItems.sessionId, sessionId), eq(cartItems.productId, productId)))
+      .set({ quantity: clampedQuantity, updatedAt: new Date() })
+      .where(eq(cartItems.id, existingItem.id))
       .returning();
     return updatedItem;
   }
@@ -335,5 +407,43 @@ export class OrdersRepository {
       ordersCompleted: ordersCompleted || 0,
       conversionRate,
     };
+  }
+
+  private async requireActiveProduct(productId: string): Promise<Product> {
+    const [product] = await db
+      .select()
+      .from(products)
+      .where(and(eq(products.id, productId), eq(products.isActive, true)));
+
+    if (!product) {
+      throw new CartQuantityError("Product not available");
+    }
+
+    return product;
+  }
+
+  private async findCartItem(sessionId: string, productId: string): Promise<CartItem | undefined> {
+    const [cartItem] = await db
+      .select()
+      .from(cartItems)
+      .where(and(eq(cartItems.sessionId, sessionId), eq(cartItems.productId, productId)));
+
+    return cartItem;
+  }
+
+  private clampQuantity(requestedQuantity: number, productStock: number): number {
+    const maxAvailable = Math.min(productStock, MAX_CART_ITEM_QUANTITY);
+
+    if (maxAvailable < MIN_CART_ITEM_QUANTITY) {
+      throw new CartQuantityError("Product is out of stock");
+    }
+
+    const clamped = Math.min(Math.max(requestedQuantity, MIN_CART_ITEM_QUANTITY), maxAvailable);
+
+    if (clamped < MIN_CART_ITEM_QUANTITY) {
+      throw new CartQuantityError("Quantity must be at least 1");
+    }
+
+    return clamped;
   }
 }

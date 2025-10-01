@@ -19,18 +19,49 @@ import { createAnalyticsRouter, createCartAnalyticsRouter } from "./analytics";
 import { createAdminShippingRouter, createShippingRouter } from "./shipping";
 import { createSeedRouter } from "./seed";
 import { createPaymentsRouter } from "./payments";
-
-const sessionConfig = session({
-  secret: process.env.SESSION_SECRET || "your-secret-key",
-  resave: false,
-  saveUninitialized: true,
-  cookie: {
-    secure: false,
-    maxAge: 1000 * 60 * 60 * 24 * 7,
-  },
-});
+import {
+  EnvironmentSessionSecretsManager,
+  SessionSecretRotator,
+} from "../security/session-secret-manager";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  const rotationIntervalEnv = process.env.SESSION_SECRET_ROTATION_INTERVAL_MS;
+  const parsedRotationInterval = rotationIntervalEnv
+    ? Number.parseInt(rotationIntervalEnv, 10)
+    : undefined;
+
+  const sessionSecretRotator = new SessionSecretRotator(
+    new EnvironmentSessionSecretsManager(),
+    {
+      requireSecret: isProduction,
+      rotationIntervalMs:
+        parsedRotationInterval && !Number.isNaN(parsedRotationInterval) && parsedRotationInterval > 0
+          ? parsedRotationInterval
+          : undefined,
+      developmentFallbackSecret: "dev-insecure-session-secret",
+      logger: console,
+    }
+  );
+
+  const sessionSecrets = await sessionSecretRotator.initialize();
+
+  const sessionMaxAgeEnv = process.env.SESSION_COOKIE_MAX_AGE;
+  const parsedMaxAge = sessionMaxAgeEnv ? Number.parseInt(sessionMaxAgeEnv, 10) : NaN;
+  const sessionMaxAge = !Number.isNaN(parsedMaxAge) && parsedMaxAge > 0 ? parsedMaxAge : 1000 * 60 * 60 * 24 * 3;
+
+  const sessionConfig = session({
+    secret: sessionSecrets,
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+      secure: isProduction,
+      sameSite: "lax",
+      maxAge: sessionMaxAge,
+    },
+  });
+
   const generalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100,
@@ -104,12 +135,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/products", createProductsRouter(requireAdmin));
   app.use("/api/cart", createCartRouter());
   app.use("/api/offers", createOffersRouter(requireAdmin));
-  app.use("/api/orders", createOrdersRouter());
+  app.use("/api/orders", createOrdersRouter(requireAdmin));
   app.use("/api/auth", createAuthRouter());
   app.use("/api/otp", createLegacyOtpRouter());
-  app.use("/api/objects", createObjectStorageRouter(objectStorageService));
+  app.use("/api/objects", createObjectStorageRouter(requireAdmin, objectStorageService));
   app.use("/objects", createPublicObjectRouter(objectStorageService));
-  app.use("/api/influencers", createInfluencersRouter());
+  app.use("/api/influencers", createInfluencersRouter(requireAdmin));
   app.use("/api/influencer", createInfluencerAuthRouter());
   app.use("/api/admin", createAdminRouter(requireAdmin));
   app.use("/api/analytics", createAnalyticsRouter());
@@ -117,7 +148,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/admin/shipping-rules", createAdminShippingRouter(requireAdmin));
   app.use("/api/shipping", createShippingRouter());
   app.use("/api/payments", createPaymentsRouter(requireAdmin));
-  app.use("/api/seed-accounts", createSeedRouter());
+  app.use("/api/seed-accounts", createSeedRouter(requireAdmin));
 
   async function initializeDefaultSettings() {
     try {

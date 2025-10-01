@@ -37,7 +37,7 @@ export function createAdminRouter(requireAdmin: RequireAdminMiddleware) {
     res.json({ message: "Logged out successfully" });
   });
 
-  router.get("/orders/export", async (req, res) => {
+  router.get("/orders/export", requireAdmin, async (req, res) => {
     try {
       const filters = {
         status: req.query.status as string,
