@@ -73,7 +73,40 @@ describe("Thank-you page", () => {
         upiInstrumentVariant: phonePeIdentifierFixture.variant,
         upiInstrumentLabel: phonePeIdentifierFixture.label,
         receiptUrl: "https://phonepe.example/receipt/pay_test_123",
+        refunds: [
+          {
+            id: "refund_1",
+            paymentId: "pay_1",
+            status: "completed",
+            amount: "3.00",
+            amountMinor: 300,
+            merchantRefundId: "merchant_refund",
+            upiUtr: phonePeIdentifierFixture.maskedUtr,
+            createdAt: new Date().toISOString(),
+          },
+        ],
       },
+      transactions: [
+        {
+          id: "txn-captured",
+          status: "COMPLETED",
+          amount: "499.00",
+          amountMinor: 49900,
+          merchantTransactionId: "MERCHANT_TXN_123",
+          refunds: [
+            {
+              id: "refund_1",
+              paymentId: "pay_1",
+              status: "completed",
+              amount: "3.00",
+              amountMinor: 300,
+              merchantRefundId: "merchant_refund",
+              upiUtr: phonePeIdentifierFixture.maskedUtr,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      ],
       totalPaid: 499,
     };
 
@@ -88,9 +121,12 @@ describe("Thank-you page", () => {
     expect(screen.getByTestId("badge-payment-status")).toHaveTextContent(/Paid/i);
     expect(screen.getByTestId("text-transaction-id")).toHaveTextContent("MERCHANT_TXN_123");
     expect(screen.getByTestId("text-amount-paid")).toHaveTextContent("₹499.00");
-    expect(screen.getByText(phonePeIdentifierFixture.maskedUtr)).toBeInTheDocument();
-    expect(screen.getByText(phonePeIdentifierFixture.maskedVpa)).toBeInTheDocument();
+    expect(screen.getAllByText(phonePeIdentifierFixture.maskedUtr).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(phonePeIdentifierFixture.maskedVpa).length).toBeGreaterThan(0);
     expect(screen.getByText(phonePeIdentifierFixture.label)).toBeInTheDocument();
+    expect(screen.getByText("Refunds")).toBeInTheDocument();
+    expect(screen.getAllByText("₹3.00").length).toBeGreaterThan(0);
+    expect(screen.getByText(/merchant_refund/i)).toBeInTheDocument();
   });
 
   it("renders failure state with retry action when the latest attempt failed", async () => {

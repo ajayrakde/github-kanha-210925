@@ -99,7 +99,7 @@ describe("Payment page", () => {
     expect(apiRequestMock).toHaveBeenCalledWith(
       "POST",
       "/api/payments/token-url",
-      expect.objectContaining({ orderId: "order-1", instrumentPreference: "UPI_INTENT", payPageType: 'IFRAME', payPage: 'IFRAME' })
+      expect.objectContaining({ orderId: "order-1", instrumentPreference: "UPI_INTENT", payPageType: 'IFRAME' })
     );
 
     expect(window.PhonePeCheckout?.transact).toHaveBeenCalledWith(
@@ -133,7 +133,7 @@ describe("Payment page", () => {
       expect(apiRequestMock).toHaveBeenCalledWith(
         "POST",
         "/api/payments/token-url",
-        expect.objectContaining({ instrumentPreference: "UPI_QR", payPageType: 'IFRAME', payPage: 'IFRAME' })
+        expect.objectContaining({ instrumentPreference: "UPI_QR", payPageType: 'IFRAME' })
       );
     });
   });
@@ -234,56 +234,66 @@ describe("Payment page", () => {
   });
 
   it("continues polling while the payment is pending", async () => {
-    vi.useFakeTimers();
     const queryClient = new QueryClient();
     let statusCalls = 0;
-    apiRequestMock.mockImplementation((method, url) => {
-      if (method === "POST" && url === "/api/payments/token-url") {
-        return Promise.resolve({
-          json: async () => ({
-            data: {
-              tokenUrl: "https://phonepe.example/pay",
-              merchantTransactionId: "merchant-1",
-              paymentId: "pay_pending",
-            },
-          }),
-        } as any);
+    const originalSetTimeout = window.setTimeout;
+    const originalClearTimeout = window.clearTimeout;
+    window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: any[]) => {
+      if (typeof handler === "function" && timeout === 3000) {
+        handler(...args);
+        return 0 as unknown as number;
       }
-      if (method === "GET" && url === "/api/payments/status/pay_pending") {
-        statusCalls += 1;
-        if (statusCalls === 1) {
-          return Promise.resolve({ json: async () => ({ data: { status: "PENDING" } }) } as any);
+      return originalSetTimeout(handler as any, timeout as any, ...args) as unknown as number;
+    }) as typeof window.setTimeout;
+    window.clearTimeout = ((timeoutId: number) => originalClearTimeout(timeoutId)) as typeof window.clearTimeout;
+    try {
+      apiRequestMock.mockImplementation((method, url) => {
+        if (method === "POST" && url === "/api/payments/token-url") {
+          return Promise.resolve({
+            json: async () => ({
+              data: {
+                tokenUrl: "https://phonepe.example/pay",
+                merchantTransactionId: "merchant-1",
+                paymentId: "pay_pending",
+              },
+            }),
+          } as any);
         }
-        return Promise.resolve({ json: async () => ({ data: { status: "COMPLETED" } }) } as any);
-      }
-      throw new Error(`Unexpected request ${method} ${url}`);
-    });
+        if (method === "GET" && url === "/api/payments/status/pay_pending") {
+          statusCalls += 1;
+          if (statusCalls === 1) {
+            return Promise.resolve({ json: async () => ({ data: { status: "PENDING" } }) } as any);
+          }
+          return Promise.resolve({ json: async () => ({ data: { status: "COMPLETED" } }) } as any);
+        }
+        throw new Error(`Unexpected request ${method} ${url}`);
+      });
 
-    const user = userEvent.setup();
-    render(
-      <QueryClientProvider client={queryClient}>
-        <Payment />
-      </QueryClientProvider>
-    );
+      const user = userEvent.setup();
+      render(
+        <QueryClientProvider client={queryClient}>
+          <Payment />
+        </QueryClientProvider>
+      );
 
-    const payButton = await screen.findByTestId("button-initiate-payment");
-    await user.click(payButton);
+      const payButton = await screen.findByTestId("button-initiate-payment");
+      await user.click(payButton);
 
-    const transactMock = window.PhonePeCheckout?.transact as ReturnType<typeof vi.fn>;
-    const callback = transactMock.mock.calls[0]?.[0]?.callback as ((event: any) => void) | undefined;
-    callback?.({ status: "CONCLUDED" });
+      const transactMock = window.PhonePeCheckout?.transact as ReturnType<typeof vi.fn>;
+      const callback = transactMock.mock.calls[0]?.[0]?.callback as ((event: any) => void) | undefined;
+      callback?.({ status: "CONCLUDED" });
 
-    await waitFor(() => {
-      expect(apiRequestMock).toHaveBeenCalledWith("GET", "/api/payments/status/pay_pending");
-    });
+      await waitFor(() => {
+        expect(apiRequestMock).toHaveBeenCalledWith("GET", "/api/payments/status/pay_pending");
+      });
 
-    vi.advanceTimersByTime(3000);
-
-    await waitFor(() => {
-      expect(apiRequestMock).toHaveBeenCalledTimes(3); // token + two status calls
-    });
-
-    vi.useRealTimers();
+      await waitFor(() => {
+        expect(apiRequestMock).toHaveBeenCalledTimes(3); // token + two status calls
+      });
+    } finally {
+      window.setTimeout = originalSetTimeout;
+      window.clearTimeout = originalClearTimeout;
+    }
   });
 
   it("shows the retry UI when the status API reports failure", async () => {
