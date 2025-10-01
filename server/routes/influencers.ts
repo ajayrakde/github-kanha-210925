@@ -1,12 +1,12 @@
 import { Router } from "express";
 
 import { usersRepository } from "../storage";
-import type { SessionRequest } from "./types";
+import type { RequireAdminMiddleware, SessionRequest } from "./types";
 
-export function createInfluencersRouter() {
+export function createInfluencersRouter(requireAdmin: RequireAdminMiddleware) {
   const router = Router();
 
-  router.get("/", async (_req, res) => {
+  router.get("/", requireAdmin, async (_req, res) => {
     try {
       const influencers = await usersRepository.getInfluencers();
       res.json(influencers);
@@ -16,7 +16,7 @@ export function createInfluencersRouter() {
     }
   });
 
-  router.post("/", async (req, res) => {
+  router.post("/", requireAdmin, async (req, res) => {
     try {
       const newInfluencer = await usersRepository.createInfluencer(req.body);
       res.status(201).json(newInfluencer);
@@ -26,7 +26,7 @@ export function createInfluencersRouter() {
     }
   });
 
-  router.patch("/:id/deactivate", async (req, res) => {
+  router.patch("/:id/deactivate", requireAdmin, async (req, res) => {
     try {
       await usersRepository.deactivateInfluencer(req.params.id);
       res.json({ message: "Influencer deactivated successfully" });

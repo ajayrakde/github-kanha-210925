@@ -1,11 +1,13 @@
 # User Journey Reference
 
-This document summarizes the primary user journeys supported by the backend API.  
+This document summarizes the primary user journeys supported by the backend API.
 Two recent refactors were applied:
 1. **Storage Layer Refactor** – migrated to per-domain repositories (`productsRepository`, `ordersRepository`, `usersRepository`, etc.).
 2. **Route Modularization** – split Express routes into feature-specific routers (e.g., `server/routes/products.ts`, `server/routes/auth.ts`, etc.).
 
 Both refactors improved maintainability but did not change **endpoint URLs** or **response contracts**. Customer-facing behavior remains consistent.
+
+**Session security update (current change):** session cookies are now issued with `SameSite=Lax`, marked `secure` in production, and require the active secret to be sourced from a managed secrets provider. Rotation keeps prior secrets valid briefly, so buyer, admin, and influencer login flows continue working without interruption during key changes.
 
 ---
 
@@ -14,17 +16,21 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - `GET /api/products` and `GET /api/products/:id` now handled by `server/routes/products.ts`, backed by `productsRepository`.
    - API responses unchanged.
 
-2. **Manage Cart**  
-   - Endpoints:  
-     - `POST /api/cart/items`  
-     - `PATCH /api/cart/items/:id`  
-     - `DELETE /api/cart/items/:id`  
-   - Implemented in `server/routes/cart.ts`, using `ordersRepository` cart helpers.  
-   - Persistence, validation, and session handling unchanged.
+2. **Manage Cart**
+   - Endpoints:
+     - `GET /api/cart`
+     - `POST /api/cart/add`
+     - `PATCH /api/cart/:productId`
+     - `DELETE /api/cart/:productId`
+     - `DELETE /api/cart/clear`
+   - Implemented in `server/routes/cart.ts`, using `ordersRepository` cart helpers.
+   - The API now rejects non-integer or out-of-range quantities (`< 1` or `> 10`) with a `400` response before touching storage, ensuring storefront and admin flows receive immediate feedback on invalid updates.
+   - `ordersRepository` clamps persisted quantities to the lower of product stock and the per-order maximum, so concurrent updates never push cart lines past available inventory.
 
-3. **Authenticate with OTP**  
-   - `POST /api/auth/send-otp`, `POST /api/auth/login` in `server/routes/auth.ts`, backed by `usersRepository`.  
+3. **Authenticate with OTP**
+   - `POST /api/auth/send-otp`, `POST /api/auth/login` in `server/routes/auth.ts`, backed by `usersRepository`.
    - Successful login attaches buyer context to session.
+   - Password-based fallbacks (where configured for returning buyers) now hash credentials with bcrypt and transparently upgrade legacy plaintext entries the first time a buyer logs in, so there is no change to the checkout experience.
 
 4. **Manage Addresses**  
    - `/api/auth/addresses` endpoints (create/list/update/delete) in `server/routes/auth.ts`.  
@@ -65,9 +71,11 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
 ---
 
 ## Administrator Flow
-1. **Authentication**  
-   - `/api/admin/login` handled in `server/routes/admin.ts`, backed by `usersRepository`.  
+1. **Authentication**
+   - `/api/admin/login` handled in `server/routes/admin.ts`, backed by `usersRepository`.
    - `requireAdmin` middleware from `server/routes/index.ts` protects routes.
+   - Admin passwords are now stored as bcrypt hashes. Legacy plaintext credentials are rehashed automatically on successful login, keeping the dashboard sign-in flow unchanged while hardening storage.
+   - Asset uploads via `POST /api/objects/upload` now rely on the same admin session guard, denying anonymous callers signed upload URLs.
 
 2. **Product & Offer Management**  
    - CRUD operations under `/api/products` and `/api/admin/offers`.  
@@ -106,11 +114,14 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
 ---
 
 ## Influencer Flow
-1. **Authentication**  
+1. **Authentication**
    - Influencer login/profile handled by `server/routes/influencers.ts`, backed by `usersRepository`.
+   - Password authentication now verifies bcrypt hashes and upgrades any remaining plaintext passwords during the next successful login without altering the influencer portal UX.
+   - Self-serve influencer operations (login/logout/profile) live under `/api/influencer` and require an authenticated influencer session.
 
-2. **Lifecycle Management**  
-   - Admin creates/deactivates influencers using the same routes, now backed by `usersRepository`.
+2. **Lifecycle Management**
+   - Admin creates/deactivates influencers using `/api/influencers`, protected by the `requireAdmin` middleware.
+   - Anonymous calls to lifecycle routes receive `401` responses to ensure only admins manage influencer accounts.
 
 3. **Coupon & Analytics**  
    - Coupon redemption logic moved to `offersRepository`.  

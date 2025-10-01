@@ -1,13 +1,15 @@
 import { Router } from "express";
 
 import { ObjectStorageService } from "../objectStorage";
+import type { RequireAdminMiddleware } from "./types";
 
 export function createObjectStorageRouter(
+  requireAdmin: RequireAdminMiddleware,
   objectStorageService: ObjectStorageService = new ObjectStorageService(),
 ) {
   const router = Router();
 
-  router.post("/upload", async (req, res) => {
+  router.post("/upload", requireAdmin, async (req, res) => {
     try {
       const maxFileSize = 5 * 1024 * 1024;
       const contentLength = parseInt(req.headers["content-length"] || "0");
