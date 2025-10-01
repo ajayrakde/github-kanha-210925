@@ -1168,6 +1168,78 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           type: 'utr',
         });
 
+        const mapRefunds = () => {
+          type PaymentRefund = {
+            id?: string;
+            paymentId?: string;
+            status?: string | null;
+            amountMinor?: number | null;
+            reason?: string | null;
+            providerRefundId?: string | null;
+            merchantRefundId?: string | null;
+            originalMerchantOrderId?: string | null;
+            upiUtr?: string | null;
+            createdAt?: string | Date | null;
+            updatedAt?: string | Date | null;
+          };
+
+          const candidateRefunds = (payment as typeof payment & { refunds?: unknown }).refunds;
+          if (!Array.isArray(candidateRefunds) || candidateRefunds.length === 0) {
+            return [] as Array<{
+              id: string;
+              paymentId?: string;
+              status?: string | null;
+              amount: string;
+              amountMinor: number;
+              reason?: string | null;
+              providerRefundId?: string | null;
+              merchantRefundId?: string | null;
+              originalMerchantOrderId?: string | null;
+              upiUtr?: string | null;
+              createdAt?: string | Date | null;
+              updatedAt?: string | Date | null;
+            }>;
+          }
+
+          const normalizeDate = (value: unknown) => {
+            if (!value) return undefined;
+            if (value instanceof Date) {
+              return value.toISOString();
+            }
+            if (typeof value === 'string') {
+              const parsed = new Date(value);
+              return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+            }
+            return undefined;
+          };
+
+          return (candidateRefunds as PaymentRefund[]).map((refund) => {
+            const refundAmountMinor = typeof refund?.amountMinor === 'number' && Number.isFinite(refund.amountMinor)
+              ? refund.amountMinor
+              : 0;
+            const maskedRefundUtr = maskPhonePeIdentifier(provider, refund?.upiUtr, {
+              type: 'utr',
+            });
+
+            return {
+              id: refund?.id ?? randomUUID(),
+              paymentId: refund?.paymentId ?? payment.id,
+              status: refund?.status ?? undefined,
+              amount: toCurrency(refundAmountMinor),
+              amountMinor: refundAmountMinor,
+              reason: refund?.reason ?? undefined,
+              providerRefundId: refund?.providerRefundId ?? undefined,
+              merchantRefundId: refund?.merchantRefundId ?? undefined,
+              originalMerchantOrderId: refund?.originalMerchantOrderId ?? undefined,
+              upiUtr: maskedRefundUtr ?? undefined,
+              createdAt: normalizeDate(refund?.createdAt),
+              updatedAt: normalizeDate(refund?.updatedAt),
+            };
+          });
+        };
+
+        const refunds = mapRefunds();
+
         return {
           id: payment.id,
           status: payment.status,
@@ -1186,10 +1258,12 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           receiptUrl: payment.receiptUrl ?? undefined,
           createdAt: payment.createdAt instanceof Date ? payment.createdAt.toISOString() : payment.createdAt,
           updatedAt: payment.updatedAt instanceof Date ? payment.updatedAt.toISOString() : payment.updatedAt,
+          refunds,
         };
       };
 
       const transactions = sortedPayments.map(mapPayment);
+      const refunds = transactions.flatMap((txn) => txn.refunds ?? []);
       const upiTransactions = transactions.filter((txn) => txn.methodKind === 'upi');
       const latestTransaction = upiTransactions[0] ?? transactions[0] ?? undefined;
       const latestTransactionPayment = latestTransaction
@@ -1267,12 +1341,14 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
               upiInstrumentVariant: latestTransaction.upiInstrumentVariant,
               upiInstrumentLabel: latestTransaction.upiInstrumentLabel,
               receiptUrl: latestTransaction.receiptUrl,
+              refunds: latestTransaction.refunds,
             }
           : null,
         transactions,
         latestTransaction,
         latestTransactionFailed,
         latestTransactionFailureAt,
+        refunds,
         totals: {
           paidMinor: totalPaidMinor,
           refundedMinor: totalRefundedMinor,

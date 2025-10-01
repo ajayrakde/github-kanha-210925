@@ -897,7 +897,7 @@ describe("PaymentsService.cancelPayment", () => {
       currency: "INR",
       method: { type: "upi" },
       providerData: {},
-      createdA,
+      createdAt,
     });
 
     await service.createPayment(

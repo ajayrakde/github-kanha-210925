@@ -1029,11 +1029,20 @@ describe("payments router", () => {
         originalMerchantOrderId: "merchant_order",
         upiUtr: phonePeIdentifierFixture.maskedUtr,
       });
+      expect(res.jsonPayload.latestTransaction.refunds[0]).toMatchObject({
+        id: "refund_1",
+        amountMinor: 300,
+      });
+      expect(res.jsonPayload.payment.refunds[0]).toMatchObject({
+        providerRefundId: "provider_refund",
+        amount: "3.00",
+      });
       expect(res.jsonPayload.refunds[0]).toMatchObject({
         paymentId: "pay_with_refund",
         amountMinor: 300,
         upiUtr: phonePeIdentifierFixture.maskedUtr,
       });
+      expect(res.jsonPayload.refunds).toHaveLength(1);
       expect(res.jsonPayload.totals.refundedMinor).toBe(300);
     });
 
