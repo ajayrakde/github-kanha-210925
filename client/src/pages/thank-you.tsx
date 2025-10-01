@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useState, type ComponentProps } from "react";
 import { Separator } from "@/components/ui/separator";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
@@ -156,6 +156,39 @@ const formatIdentifier = (value: string, max: number = 18) => {
   return value.length > max ? `${value.slice(0, max)}…` : value;
 };
 
+export interface AuthorizationFailureHandlers {
+  setAuthorizationError: (message: string) => void;
+  setReconciliationStatus: (status: 'idle' | 'processing' | 'complete') => void;
+  setReconciliationMessage: (message: string | null) => void;
+  setRetryError: (message: string | null) => void;
+  setShouldStartPolling: (value: boolean) => void;
+}
+
+export function applyAuthorizationFailure(
+  status: number,
+  handlers: AuthorizationFailureHandlers,
+): boolean {
+  if (status === 401) {
+    handlers.setAuthorizationError('Please sign in to view the latest payment status.');
+    handlers.setReconciliationStatus('complete');
+    handlers.setReconciliationMessage(null);
+    handlers.setRetryError(null);
+    handlers.setShouldStartPolling(false);
+    return true;
+  }
+
+  if (status === 403) {
+    handlers.setAuthorizationError("You do not have permission to view this order's payment details.");
+    handlers.setReconciliationStatus('complete');
+    handlers.setReconciliationMessage(null);
+    handlers.setRetryError(null);
+    handlers.setShouldStartPolling(false);
+    return true;
+  }
+
+  return false;
+}
+
 export default function ThankYou() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -166,6 +199,7 @@ export default function ThankYou() {
   const [reconciliationMessage, setReconciliationMessage] = useState<string | null>(null);
   const [isRetryingPhonePe, setIsRetryingPhonePe] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
+  const [authorizationError, setAuthorizationError] = useState<string | null>(null);
   const [orderDate] = useState(new Date().toLocaleDateString('en-IN', {
     year: 'numeric',
     month: 'long',
@@ -189,6 +223,24 @@ export default function ThankYou() {
     }
   }, []);
 
+  const handleAuthorizationFailure = useCallback(
+    (status: number) =>
+      applyAuthorizationFailure(status, {
+        setAuthorizationError,
+        setReconciliationStatus,
+        setReconciliationMessage,
+        setRetryError,
+        setShouldStartPolling,
+      }),
+    [
+      setAuthorizationError,
+      setReconciliationStatus,
+      setReconciliationMessage,
+      setRetryError,
+      setShouldStartPolling,
+    ],
+  );
+
   useEffect(() => {
     if (!orderId || shouldStartPolling) {
       return;
@@ -206,6 +258,8 @@ export default function ThankYou() {
     }
 
     let cancelled = false;
+    let unauthorized = false;
+
     const probe = async () => {
       try {
         setReconciliationStatus('processing');
@@ -220,6 +274,11 @@ export default function ThankYou() {
         const response = await fetch(`/api/payments/phonepe/return?${query.toString()}`, {
           headers: { Accept: 'application/json' },
         });
+
+        if (handleAuthorizationFailure(response.status)) {
+          unauthorized = true;
+          return;
+        }
 
         if (!response.ok) {
           throw new Error(`Return probe failed with status ${response.status}`);
@@ -242,12 +301,12 @@ export default function ThankYou() {
         }
       } catch (error) {
         console.error('Failed to record PhonePe return:', error);
-        if (!cancelled) {
+        if (!cancelled && !unauthorized) {
           setReconciliationStatus('processing');
           setReconciliationMessage('We are waiting for PhonePe to confirm your payment. This usually takes a few moments.');
         }
       } finally {
-        if (!cancelled) {
+        if (!cancelled && !unauthorized) {
           setShouldStartPolling(true);
         }
       }
@@ -258,12 +317,31 @@ export default function ThankYou() {
     return () => {
       cancelled = true;
     };
-  }, [orderId, orderData?.paymentMethod, shouldStartPolling]);
+  }, [orderId, orderData?.paymentMethod, shouldStartPolling, handleAuthorizationFailure]);
+
+  const fetchOrderInfo = useCallback(async (): Promise<PaymentStatusInfo | null> => {
+    const response = await fetch(`/api/payments/order-info/${orderId}`, {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+
+    if (handleAuthorizationFailure(response.status)) {
+      return null;
+    }
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch order info: ${response.status}`);
+    }
+
+    setAuthorizationError(null);
+    return await response.json();
+  }, [orderId, handleAuthorizationFailure]);
 
   // Fetch real-time payment status information
-  const { data: paymentInfo, isLoading: isLoadingPayment } = useQuery<PaymentStatusInfo>({
+  const { data: paymentInfo, isLoading: isLoadingPayment } = useQuery<PaymentStatusInfo | null>({
     queryKey: ["/api/payments/order-info", orderId],
     enabled: Boolean(orderId) && shouldStartPolling,
+    queryFn: fetchOrderInfo,
     refetchInterval: (queryData) => {
       // Stop polling on terminal states
       const data = queryData?.state?.data as PaymentStatusInfo | undefined;
@@ -392,6 +470,10 @@ export default function ThankYou() {
         },
         body: JSON.stringify({ orderId }),
       });
+
+      if (handleAuthorizationFailure(response.status)) {
+        return;
+      }
 
       const payload = await response.json().catch(() => null);
 
@@ -561,6 +643,21 @@ export default function ThankYou() {
         <h2 className={`text-3xl font-bold ${headerInfo.titleColor} mb-2`}>{headerInfo.title}</h2>
         <p className="text-gray-600">{headerInfo.subtitle}</p>
       </div>
+
+      {authorizationError && (
+        <div
+          className="mb-6 rounded-md border border-amber-200 bg-amber-50 p-4 text-amber-900"
+          data-testid="authorization-error"
+        >
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 mt-0.5" />
+            <div>
+              <p className="font-medium">Unable to load live payment updates</p>
+              <p className="text-sm leading-relaxed">{authorizationError}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Payment Receipt */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-6">
