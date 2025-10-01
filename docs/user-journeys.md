@@ -14,13 +14,16 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - `GET /api/products` and `GET /api/products/:id` now handled by `server/routes/products.ts`, backed by `productsRepository`.
    - API responses unchanged.
 
-2. **Manage Cart**  
-   - Endpoints:  
-     - `POST /api/cart/items`  
-     - `PATCH /api/cart/items/:id`  
-     - `DELETE /api/cart/items/:id`  
-   - Implemented in `server/routes/cart.ts`, using `ordersRepository` cart helpers.  
-   - Persistence, validation, and session handling unchanged.
+2. **Manage Cart**
+   - Endpoints:
+     - `GET /api/cart`
+     - `POST /api/cart/add`
+     - `PATCH /api/cart/:productId`
+     - `DELETE /api/cart/:productId`
+     - `DELETE /api/cart/clear`
+   - Implemented in `server/routes/cart.ts`, using `ordersRepository` cart helpers.
+   - The API now rejects non-integer or out-of-range quantities (`< 1` or `> 10`) with a `400` response before touching storage, ensuring storefront and admin flows receive immediate feedback on invalid updates.
+   - `ordersRepository` clamps persisted quantities to the lower of product stock and the per-order maximum, so concurrent updates never push cart lines past available inventory.
 
 3. **Authenticate with OTP**  
    - `POST /api/auth/send-otp`, `POST /api/auth/login` in `server/routes/auth.ts`, backed by `usersRepository`.  
