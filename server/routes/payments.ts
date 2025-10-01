@@ -6,7 +6,9 @@
  */
 
 import { createHash, randomUUID } from 'crypto';
+import rateLimit from 'express-rate-limit';
 import { Router } from 'express';
+import type { RequestHandler } from 'express';
 import { z } from 'zod';
 import type { SessionRequest, RequireAdminMiddleware } from './types';
 import { createPaymentsService } from '../services/payments-service';
@@ -24,7 +26,7 @@ import type {
 import type { PaymentResult } from '../../shared/payment-types';
 import type { PaymentProvider, Environment } from '../../shared/payment-providers';
 import { db } from '../db';
-import { paymentEvents, orders } from '../../shared/schema';
+import { paymentEvents, orders, payments as paymentsTable } from '../../shared/schema';
 import {
   formatUpiInstrumentVariantLabel,
   maskPhonePeIdentifier,
@@ -35,7 +37,82 @@ import { and, eq } from 'drizzle-orm';
 
 export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   const router = Router();
-  
+
+  const resolveTenantId = (req: SessionRequest): string => {
+    const header = req.headers['x-tenant-id'];
+    if (typeof header === 'string' && header.trim().length > 0) {
+      return header.trim();
+    }
+    return 'default';
+  };
+
+  const resolveSessionContext = (req: SessionRequest) => {
+    const role = req.session?.userRole;
+    const isAdmin = role === 'admin' && Boolean(req.session?.adminId);
+    const buyerId = role === 'buyer' && typeof req.session?.userId === 'string'
+      ? req.session.userId
+      : null;
+
+    return {
+      isAdmin,
+      buyerId,
+      adminId: isAdmin ? req.session?.adminId ?? null : null,
+    };
+  };
+
+  const requireAuthenticatedSession: RequestHandler = (req, res, next) => {
+    const sessionReq = req as SessionRequest;
+    const { isAdmin, buyerId } = resolveSessionContext(sessionReq);
+
+    if (isAdmin || buyerId) {
+      return next();
+    }
+
+    return res.status(401).json({ message: 'Authentication required' });
+  };
+
+  const buildLimiterKey = (req: SessionRequest): string => {
+    const tenantKey = resolveTenantId(req);
+    const { isAdmin, buyerId, adminId } = resolveSessionContext(req);
+
+    if (isAdmin) {
+      return `${tenantKey}:admin:${adminId ?? 'unknown'}`;
+    }
+
+    if (buyerId) {
+      return `${tenantKey}:buyer:${buyerId}`;
+    }
+
+    const sessionId = req.session?.sessionId;
+    return `${tenantKey}:anon:${sessionId ?? req.ip ?? 'unknown'}`;
+  };
+
+  const sensitiveActionLimiter = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => buildLimiterKey(req as SessionRequest),
+    handler: (_req, res) => {
+      res.status(429).json({
+        error: 'Too many payment management attempts. Please try again later.',
+      });
+    },
+  });
+
+  const phonePeRetryLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 3,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => buildLimiterKey(req as SessionRequest),
+    handler: (_req, res) => {
+      res.status(429).json({
+        error: 'Too many PhonePe retry attempts. Please try again later.',
+      });
+    },
+  });
+
   // Initialize services
   const environment = (process.env.NODE_ENV === 'production' ? 'live' : 'test') as Environment;
   const paymentsService = createPaymentsService({ environment });
@@ -835,10 +912,45 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     }
   });
 
-  router.post('/cancel', async (req, res) => {
+  router.post('/cancel', requireAuthenticatedSession, sensitiveActionLimiter, async (req: SessionRequest, res) => {
+    const sessionReq = req as SessionRequest;
+    const { isAdmin, buyerId } = resolveSessionContext(sessionReq);
+
+    if (!isAdmin && !buyerId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
     try {
       const validatedData = cancelPaymentSchema.parse(req.body);
-      const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+      const tenantId = resolveTenantId(sessionReq);
+
+      const order = await ordersRepository.getOrderWithPayments(validatedData.orderId);
+
+      if (!order) {
+        return res.status(404).json({ error: 'Order not found' });
+      }
+
+      const orderTenantId = typeof order.tenantId === 'string' && order.tenantId.trim().length > 0
+        ? order.tenantId.trim()
+        : 'default';
+
+      if (orderTenantId !== tenantId) {
+        return res.status(403).json({ error: 'Order not accessible' });
+      }
+
+      if (!isAdmin && buyerId && order.userId !== buyerId) {
+        return res.status(403).json({ error: 'Order not accessible' });
+      }
+
+      const payment = order.payments.find((item) => item.id === validatedData.paymentId);
+
+      if (!payment) {
+        return res.status(404).json({ error: 'Payment not found for order' });
+      }
+
+      if (typeof payment.tenantId === 'string' && payment.tenantId.trim().length > 0 && payment.tenantId.trim() !== tenantId) {
+        return res.status(403).json({ error: 'Order not accessible' });
+      }
 
       await paymentsService.cancelPayment(
         {
@@ -873,7 +985,14 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     }
   });
 
-  router.post('/phonepe/retry', async (req, res) => {
+  router.post('/phonepe/retry', requireAuthenticatedSession, phonePeRetryLimiter, async (req: SessionRequest, res) => {
+    const sessionReq = req as SessionRequest;
+    const { isAdmin, buyerId } = resolveSessionContext(sessionReq);
+
+    if (!isAdmin && !buyerId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
     const parsed = phonePeRetrySchema.safeParse(req.body);
 
     if (!parsed.success) {
@@ -883,7 +1002,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       });
     }
 
-    const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+    const tenantId = resolveTenantId(sessionReq);
     const { orderId } = parsed.data;
 
     try {
@@ -894,6 +1013,18 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
 
       if (!order) {
         return res.status(404).json({ error: 'Order not found' });
+      }
+
+      const orderTenantId = typeof order.tenantId === 'string' && order.tenantId.trim().length > 0
+        ? order.tenantId.trim()
+        : 'default';
+
+      if (orderTenantId !== tenantId) {
+        return res.status(403).json({ error: 'Order not accessible' });
+      }
+
+      if (!isAdmin && buyerId && order.userId !== buyerId) {
+        return res.status(403).json({ error: 'Order not accessible' });
       }
 
       if (!latestJob || latestJob.status !== 'expired') {
@@ -1474,7 +1605,14 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
    * Create a refund
    * POST /api/payments/refunds
    */
-  router.post('/refunds', async (req, res) => {
+  router.post('/refunds', requireAuthenticatedSession, sensitiveActionLimiter, async (req: SessionRequest, res) => {
+    const sessionReq = req as SessionRequest;
+    const { isAdmin, buyerId } = resolveSessionContext(sessionReq);
+
+    if (!isAdmin && !buyerId) {
+      return res.status(401).json({ message: 'Authentication required' });
+    }
+
     try {
       const idempotencyKeyHeader = req.headers['idempotency-key'];
       if (typeof idempotencyKeyHeader !== 'string' || idempotencyKeyHeader.trim().length === 0) {
@@ -1485,7 +1623,35 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
 
       const validatedData = createRefundSchema.parse(req.body);
 
-      const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+      const tenantId = resolveTenantId(sessionReq);
+
+      const paymentRecord = await db.query.payments.findFirst({
+        where: and(
+          eq(paymentsTable.id, validatedData.paymentId),
+          eq(paymentsTable.tenantId, tenantId),
+        ),
+        with: { order: true },
+      });
+
+      if (!paymentRecord) {
+        return res.status(404).json({ error: 'Payment not found' });
+      }
+
+      if (!paymentRecord.order) {
+        return res.status(404).json({ error: 'Order not found for payment' });
+      }
+
+      const orderTenantId = typeof paymentRecord.order.tenantId === 'string' && paymentRecord.order.tenantId.trim().length > 0
+        ? paymentRecord.order.tenantId.trim()
+        : 'default';
+
+      if (orderTenantId !== tenantId) {
+        return res.status(403).json({ error: 'Order not accessible' });
+      }
+
+      if (!isAdmin && buyerId && paymentRecord.order.userId !== buyerId) {
+        return res.status(403).json({ error: 'Order not accessible' });
+      }
 
       const refundParams: CreateRefundParams = {
         paymentId: validatedData.paymentId,
