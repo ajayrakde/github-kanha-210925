@@ -232,7 +232,6 @@ export const refunds = pgTable("refunds", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   tenantId: varchar("tenant_id").notNull().default('default'),
   paymentId: varchar("payment_id").references(() => payments.id).notNull(),
-
   provider: varchar("provider", { length: 50 }).notNull(),
   providerRefundId: varchar("provider_refund_id"),
   merchantRefundId: varchar("merchant_refund_id", { length: 255 }),
@@ -244,8 +243,9 @@ export const refunds = pgTable("refunds", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
-  uniqueMerchantRefundPerPayment: uniqueIndex("refunds_payment_merchant_refund_unique")
-    .on(table.paymentId, table.merchantRefundId),
+  uniqueProviderRefund: uniqueIndex("refunds_provider_refund_unique")
+    .on(table.provider, table.providerRefundId)
+    .where(sql`${table.providerRefundId} IS NOT NULL`),
 }));
 
 // Payment events table - audit trail for all payment-related events

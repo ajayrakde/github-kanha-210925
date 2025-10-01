@@ -144,4 +144,38 @@ describe('PhonePeTokenManager', () => {
     expect(renewedToken).toBe('token-2');
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('honors expiresAt timestamp strings when caching tokens', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ accessToken: 'token-1', expiresAt: '2024-01-01T00:10:00.000Z' }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ accessToken: 'token-2', expiresAt: '2024-01-01T00:20:00.000Z' }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
+
+    const manager = new PhonePeTokenManager({
+      config: baseConfig,
+      environment: 'test',
+      fetchFn: fetchMock,
+    });
+
+    const firstToken = await manager.getAccessToken();
+    expect(firstToken).toBe('token-1');
+
+    vi.setSystemTime(new Date('2024-01-01T00:09:59.000Z'));
+    const cachedToken = await manager.getAccessToken();
+    expect(cachedToken).toBe('token-1');
+
+    vi.setSystemTime(new Date('2024-01-01T00:10:01.000Z'));
+    const refreshedToken = await manager.getAccessToken();
+    expect(refreshedToken).toBe('token-2');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });
