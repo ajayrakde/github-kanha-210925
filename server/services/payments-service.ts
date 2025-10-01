@@ -79,10 +79,13 @@ export class PaymentsService {
   public async createPayment(
     params: CreatePaymentParams,
     tenantId: string,
-    preferredProvider?: PaymentProvider
+    preferredProvider?: PaymentProvider,
+    options?: { idempotencyKeyOverride?: string }
   ): Promise<PaymentResult> {
     // Generate idempotency key if not provided
-    const idempotencyKey = params.idempotencyKey || idempotencyService.generateKey('payment');
+    const idempotencyKey = options?.idempotencyKeyOverride
+      || params.idempotencyKey
+      || idempotencyService.generateKey('payment');
 
     const resolvedTenantId = tenantId || params.tenantId || 'default';
     

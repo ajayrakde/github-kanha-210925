@@ -449,12 +449,14 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         orderAmountMinor,
         orderCurrency
       );
-      const paymentCreationIdempotencyKey = derivePaymentCreationIdempotencyKey(
+      const originalPaymentCreationIdempotencyKey = derivePaymentCreationIdempotencyKey(
         tenantId,
         validatedData.orderId,
         orderAmountMinor,
         orderCurrency
       );
+      let paymentCreationIdempotencyKey = originalPaymentCreationIdempotencyKey;
+      let refreshedPaymentIdempotencyKey: string | undefined;
       const now = new Date();
 
       const [existingJob, cachedResult] = await Promise.all([
@@ -490,7 +492,14 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       }
 
       if (shouldInvalidateKey) {
-        await idempotencyService.invalidateKey(tokenUrlIdempotencyKey, TOKEN_URL_SCOPE);
+        const nextPaymentKey = idempotencyService.generateKey('phonepe_payment_refresh');
+        refreshedPaymentIdempotencyKey = nextPaymentKey;
+        paymentCreationIdempotencyKey = nextPaymentKey;
+
+        await Promise.all([
+          idempotencyService.invalidateKey(tokenUrlIdempotencyKey, TOKEN_URL_SCOPE),
+          idempotencyService.invalidateKey(originalPaymentCreationIdempotencyKey, 'create_payment'),
+        ]);
       }
 
       const payload = await idempotencyService.executeWithIdempotency(
@@ -519,7 +528,10 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           const result = await paymentsService.createPayment(
             paymentParams,
             tenantId,
-            'phonepe'
+            'phonepe',
+            refreshedPaymentIdempotencyKey
+              ? { idempotencyKeyOverride: refreshedPaymentIdempotencyKey }
+              : undefined
           );
 
           if (!result.redirectUrl) {

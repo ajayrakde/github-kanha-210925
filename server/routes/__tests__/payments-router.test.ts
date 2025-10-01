@@ -355,11 +355,63 @@ describe("payments router", () => {
           attempt: 3,
         })
       );
-      expect(invalidateKeyMock).toHaveBeenCalledWith(expectedKey, "phonepe_token_url");
-      expect(mockPaymentsService.createPayment).toHaveBeenCalledTimes(1);
+      expect(invalidateKeyMock).toHaveBeenNthCalledWith(1, expectedKey, "phonepe_token_url");
+      expect(invalidateKeyMock).toHaveBeenNthCalledWith(2, computeKey("phonepe-payment", "tenant-a", "order-123", amountMinor, "INR"), "create_payment");
+      expect(mockPaymentsService.createPayment).toHaveBeenCalledWith(
+        expect.objectContaining({ idempotencyKey: "generated-key" }),
+        "tenant-a",
+        "phonepe",
+        { idempotencyKeyOverride: "generated-key" }
+      );
       expect(mockPhonePePollingWorker.registerJob).toHaveBeenCalledTimes(1);
       expect(res.jsonPayload.success).toBe(true);
       expect(res.jsonPayload.data.tokenUrl).toBe(paymentResult.redirectUrl);
+    });
+
+    it("refreshes the payment idempotency key when retrying an expired token URL", async () => {
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValue(buildOrderRecord());
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/token-url");
+
+      const firstResult = {
+        ...buildPaymentResult(),
+        redirectUrl: "https://phonepe.example/initial",
+        paymentId: "pay_initial",
+      };
+      const refreshedResult = {
+        ...buildPaymentResult(),
+        redirectUrl: "https://phonepe.example/refreshed",
+        paymentId: "pay_refreshed",
+      };
+
+      mockPaymentsService.createPayment
+        .mockResolvedValueOnce(firstResult)
+        .mockResolvedValueOnce(refreshedResult);
+
+      const request = buildTokenRequest();
+      const firstResponse = createMockResponse();
+      await handler(request, firstResponse, () => {});
+
+      expect(firstResponse.jsonPayload.data.tokenUrl).toBe("https://phonepe.example/initial");
+      const amountMinor = 1000;
+      const expectedTokenKey = computeKey("phonepe-token", "tenant-a", "order-123", amountMinor, "INR");
+      const expectedPaymentKey = computeKey("phonepe-payment", "tenant-a", "order-123", amountMinor, "INR");
+
+      const cachedPayload = idempotencyCache.get(`phonepe_token_url:${expectedTokenKey}`);
+      cachedPayload.data.expiresAt = new Date(Date.now() - 1).toISOString();
+      idempotencyCache.set(`phonepe_token_url:${expectedTokenKey}`, cachedPayload);
+      idempotencyCache.set(`create_payment:${expectedPaymentKey}`, { success: true });
+
+      const secondResponse = createMockResponse();
+      await handler(buildTokenRequest(), secondResponse, () => {});
+
+      expect(mockPaymentsService.createPayment).toHaveBeenCalledTimes(2);
+      const secondCall = mockPaymentsService.createPayment.mock.calls[1];
+      expect(secondCall[0].idempotencyKey).toBe("generated-key");
+      expect(secondCall[3]).toEqual({ idempotencyKeyOverride: "generated-key" });
+      expect(secondResponse.jsonPayload.data.paymentId).toBe("pay_refreshed");
+      expect(secondResponse.jsonPayload.data.tokenUrl).toBe("https://phonepe.example/refreshed");
+      expect(invalidateKeyMock).toHaveBeenCalledWith(expectedPaymentKey, "create_payment");
     });
 
     it("derives a deterministic idempotency key from the tenant, order, and amount", async () => {
@@ -387,7 +439,8 @@ describe("payments router", () => {
           currency: "USD",
         }),
         "tenant-a",
-        "phonepe"
+        "phonepe",
+        undefined
       );
       expect(executeWithIdempotencyMock).toHaveBeenCalledWith(
         expectedTokenKey,

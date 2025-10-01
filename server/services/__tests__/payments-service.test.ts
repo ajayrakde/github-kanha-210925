@@ -206,6 +206,40 @@ describe("PaymentsService.createPayment", () => {
     expect(paymentInserts[0]?.status).toBe("COMPLETED");
   });
 
+  it("uses a refreshed idempotency key override when provided", async () => {
+    executeWithIdempotencyMock.mockImplementation(async (_key, _scope, operation) => {
+      return await operation();
+    });
+
+    const paymentResult: PaymentResult = {
+      paymentId: "pay_2",
+      status: "created",
+      amount: 1000,
+      currency: "INR",
+      provider: "phonepe",
+      environment: "test",
+      createdAt: new Date(),
+      providerData: {},
+    };
+
+    adapter.createPayment.mockResolvedValue(paymentResult);
+
+    const service = createPaymentsService({ environment: "test" });
+
+    upiQueryResults.push([]);
+
+    await service.createPayment(baseParams, "default", undefined, { idempotencyKeyOverride: "override-key" });
+
+    expect(executeWithIdempotencyMock).toHaveBeenCalledWith(
+      "override-key",
+      "create_payment",
+      expect.any(Function)
+    );
+    expect(adapter.createPayment).toHaveBeenCalledWith(
+      expect.objectContaining({ idempotencyKey: "override-key" })
+    );
+  });
+
   it("masks PhonePe identifiers and persists the instrument variant", async () => {
     executeWithIdempotencyMock.mockImplementation(async (_key, _scope, operation) => {
       return await operation();
