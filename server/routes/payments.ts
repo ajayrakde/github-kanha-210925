@@ -157,7 +157,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   };
 
   const logAuditEvent = async (
-    provider: PaymentProvider,
+    provider: PaymentProvider | 'unknown',
     tenantId: string,
     type: string,
     details: Record<string, unknown>,
@@ -414,6 +414,34 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
    * Create a new payment
    * POST /api/payments/create
    */
+  const sanitizePaymentResult = (result: PaymentResult) => {
+    const sanitized: Record<string, unknown> = {
+      paymentId: result.paymentId,
+      providerPaymentId: result.providerPaymentId,
+      providerOrderId: result.providerOrderId,
+      status: result.status,
+      amount: result.amount,
+      currency: result.currency,
+      provider: result.provider,
+      redirectUrl: result.redirectUrl,
+      qrCodeData: result.qrCodeData,
+      createdAt: result.createdAt,
+      updatedAt: result.updatedAt,
+    };
+
+    if (result.method) {
+      sanitized.method = {
+        type: result.method.type,
+        brand: result.method.brand,
+        last4: result.method.last4,
+      };
+    }
+
+    return Object.fromEntries(
+      Object.entries(sanitized).filter(([, value]) => value !== undefined && value !== null)
+    );
+  };
+
   router.post('/create', async (req, res) => {
     try {
       const idempotencyKeyHeader = req.headers['idempotency-key'];
@@ -427,11 +455,59 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
 
       const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
 
+      const order = await ordersRepository.getOrderWithPayments(validatedData.orderId);
+      if (!order) {
+        return res.status(404).json({ error: 'Order not found' });
+      }
+
+      const expectedAmountMinor = Number(order.amountMinor);
+      if (!Number.isFinite(expectedAmountMinor) || expectedAmountMinor <= 0) {
+        return res.status(400).json({ error: 'Order amount unavailable' });
+      }
+
+      const supportedCurrencies = ['INR', 'USD', 'EUR', 'GBP'] as const;
+      type SupportedCurrency = typeof supportedCurrencies[number];
+      const storedCurrency = typeof order.currency === 'string'
+        ? order.currency.trim().toUpperCase()
+        : undefined;
+
+      if (!storedCurrency || !supportedCurrencies.includes(storedCurrency as SupportedCurrency)) {
+        return res.status(400).json({ error: 'Order currency unsupported' });
+      }
+
+      const expectedCurrency = storedCurrency as SupportedCurrency;
+      const requestAmountMinor = Math.round(validatedData.amount * 100);
+      const amountMismatch = requestAmountMinor !== expectedAmountMinor;
+      const requestCurrency = validatedData.currency;
+      const currencyMismatch = requestCurrency !== expectedCurrency;
+
+      if (amountMismatch || currencyMismatch) {
+        const auditProvider: PaymentProvider | 'unknown' = validatedData.provider || 'unknown';
+
+        try {
+          await logAuditEvent(auditProvider, tenantId, 'payment.create.payload_mismatch', {
+            orderId: validatedData.orderId,
+            tenantId,
+            amountMismatch,
+            currencyMismatch,
+            expectedAmountMinor,
+            expectedCurrency,
+            receivedAmountMinor: requestAmountMinor,
+            receivedCurrency: requestCurrency,
+            idempotencyKey: idempotencyKeyHeader.trim(),
+          });
+        } catch (auditError) {
+          console.error('Failed to log payment creation audit event:', auditError);
+        }
+
+        return res.status(403).json({ error: 'Order amount or currency mismatch' });
+      }
+
       // Convert to our payment params format
       const paymentParams: CreatePaymentParams = {
         orderId: validatedData.orderId,
-        orderAmount: Math.round(validatedData.amount * 100), // Convert to minor units (paise/cents)
-        currency: validatedData.currency,
+        orderAmount: expectedAmountMinor, // Stored in minor units (paise/cents)
+        currency: expectedCurrency,
         customer: validatedData.customer,
         billing: validatedData.billing,
         successUrl: validatedData.successUrl || `${process.env.BASE_URL || 'http://localhost:3000'}/payment-success`,
@@ -454,23 +530,29 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       );
 
       await enqueuePhonePePollingJob(result, paymentParams.orderId, tenantId);
-      
-      res.json({
-        success: true,
-        data: {
+
+      try {
+        await logAuditEvent(result.provider, tenantId, 'payment.create.succeeded', {
+          orderId: paymentParams.orderId,
           paymentId: result.paymentId,
           providerPaymentId: result.providerPaymentId,
-          status: result.status,
-          amount: result.amount,
+          providerOrderId: result.providerOrderId,
+          amountMinor: result.amount,
           currency: result.currency,
-          provider: result.provider,
+          environment: result.environment,
           redirectUrl: result.redirectUrl,
-          qrCodeData: result.qrCodeData,
+          hasQrCodeData: Boolean(result.qrCodeData),
           providerData: result.providerData,
-          createdAt: result.createdAt,
-        }
+        });
+      } catch (auditError) {
+        console.error('Failed to log payment creation success event:', auditError);
+      }
+
+      res.json({
+        success: true,
+        data: sanitizePaymentResult(result)
       });
-      
+
     } catch (error) {
       console.error('Payment creation error:', error);
 

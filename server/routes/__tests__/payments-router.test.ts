@@ -220,6 +220,7 @@ describe("payments router", () => {
     it("passes sanitized idempotency key to the payments service", async () => {
       const router = await buildRouter();
       const handler = getRouteHandler(router, "post", "/create");
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValueOnce(buildOrderRecord());
       mockPaymentsService.createPayment.mockResolvedValue({
         paymentId: "pay_1",
         status: "created",
@@ -228,7 +229,9 @@ describe("payments router", () => {
         provider: "phonepe",
         providerPaymentId: "mtid",
         redirectUrl: "https://example.com",
-        providerData: {},
+        providerOrderId: "order-merchant",
+        environment: "test",
+        providerData: { token: "sensitive" },
         createdAt: new Date(),
       });
 
@@ -245,7 +248,11 @@ describe("payments router", () => {
       await handler(req, res, () => {});
 
       expect(mockPaymentsService.createPayment).toHaveBeenCalledWith(
-        expect.objectContaining({ idempotencyKey: "key-123" }),
+        expect.objectContaining({
+          idempotencyKey: "key-123",
+          orderAmount: 1000,
+          currency: "INR",
+        }),
         "default",
         undefined
       );
@@ -258,6 +265,59 @@ describe("payments router", () => {
           merchantTransactionId: "mtid",
         })
       );
+      expect(insertMock).toHaveBeenCalledWith(paymentEvents);
+      expect(insertValuesMock).toHaveBeenCalledWith(expect.objectContaining({
+        id: expect.any(String),
+        provider: "phonepe",
+        type: "payment.create.succeeded",
+        data: expect.objectContaining({ providerData: { token: "sensitive" } }),
+      }));
+      expect(res.jsonPayload).toEqual({
+        success: true,
+        data: expect.objectContaining({
+          paymentId: "pay_1",
+          providerPaymentId: "mtid",
+          providerOrderId: "order-merchant",
+          status: "created",
+          amount: 1000,
+          currency: "INR",
+          provider: "phonepe",
+          redirectUrl: "https://example.com",
+        }),
+      });
+      expect(res.jsonPayload.data).not.toHaveProperty("providerData");
+    });
+
+    it("rejects payloads that do not match the stored order totals", async () => {
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/create");
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValueOnce(buildOrderRecord({ amountMinor: 1000, currency: "INR" }));
+
+      const req = {
+        headers: { "idempotency-key": "key-123" },
+        body: {
+          orderId: "order-123",
+          amount: 12, // does not match stored amount of 1000 minor units (10 major)
+          currency: "USD",
+        },
+      } as unknown as Request;
+      const res = createMockResponse();
+
+      await handler(req, res, () => {});
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ error: "Order amount or currency mismatch" });
+      expect(mockPaymentsService.createPayment).not.toHaveBeenCalled();
+      expect(insertMock).toHaveBeenCalledWith(paymentEvents);
+      expect(insertValuesMock).toHaveBeenCalledWith(expect.objectContaining({
+        provider: "unknown",
+        type: "payment.create.payload_mismatch",
+        data: expect.objectContaining({
+          expectedAmountMinor: 1000,
+          expectedCurrency: "INR",
+          receivedCurrency: "USD",
+        }),
+      }));
     });
   });
 
