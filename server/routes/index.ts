@@ -117,7 +117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/admin/shipping-rules", createAdminShippingRouter(requireAdmin));
   app.use("/api/shipping", createShippingRouter());
   app.use("/api/payments", createPaymentsRouter(requireAdmin));
-  app.use("/api/seed-accounts", createSeedRouter());
+  app.use("/api/seed-accounts", createSeedRouter(requireAdmin));
 
   async function initializeDefaultSettings() {
     try {

@@ -99,6 +99,10 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - The endpoint re-queries PhonePe's order status API through the adapter, returning the latest gateway state, response code, and raw UPI instrument payload alongside masked identifiers stored on the order.
    - The UI surfaces the active reconciliation job (status, attempt, next poll, errors) so teams can confirm whether polling is still progressing or has reached a terminal state before retrying a payment.
 
+8. **Developer Account Seeding**
+   - `POST /api/seed-accounts` now requires an authenticated admin session and is only enabled in development or automated test environments.
+   - Successful calls return a confirmation message without exposing plaintext credentials, aligning with the tightened admin export safeguards.
+
 ---
 
 ## Influencer Flow
