@@ -5,7 +5,7 @@
  * provider adapters, and unified interfaces for all 8 providers.
  */
 
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import type { SessionRequest, RequireAdminMiddleware } from './types';
@@ -189,6 +189,34 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     metadata: z.record(z.any()).optional(),
   });
 
+  const TOKEN_URL_SCOPE = 'phonepe_token_url';
+
+  const derivePhonePeIdempotencyKey = (
+    prefix: 'phonepe-token' | 'phonepe-payment',
+    tenant: string,
+    orderId: string,
+    amountMinor: number,
+    currency: string
+  ): string => {
+    const hash = createHash('sha256');
+    hash.update([tenant, orderId, amountMinor.toString(), currency].join(':'));
+    return `${prefix}:${hash.digest('hex')}`;
+  };
+
+  const deriveTokenUrlIdempotencyKey = (
+    tenant: string,
+    orderId: string,
+    amountMinor: number,
+    currency: string
+  ): string => derivePhonePeIdempotencyKey('phonepe-token', tenant, orderId, amountMinor, currency);
+
+  const derivePaymentCreationIdempotencyKey = (
+    tenant: string,
+    orderId: string,
+    amountMinor: number,
+    currency: string
+  ): string => derivePhonePeIdempotencyKey('phonepe-payment', tenant, orderId, amountMinor, currency);
+
   const cancelPaymentSchema = z.object({
     paymentId: z.string().min(1, 'Payment ID is required'),
     orderId: z.string().min(1, 'Order ID is required'),
@@ -333,52 +361,113 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
 
       const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
       const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
-
       const successUrl = validatedData.redirectUrl || `${baseUrl}/payment/success`;
       const failureUrl = validatedData.redirectUrl || `${baseUrl}/payment/failed`;
       const cancelUrl = validatedData.redirectUrl || `${baseUrl}/payment/failed`;
-
-      const paymentParams: CreatePaymentParams = {
-        orderId: validatedData.orderId,
-        orderAmount: Math.round(validatedData.amount * 100),
-        currency: validatedData.currency,
-        customer: {
-          ...validatedData.customer,
-          phone: validatedData.mobileNumber || validatedData.customer.phone,
-        },
-        successUrl,
-        failureUrl,
-        cancelUrl,
-        metadata: {
-          ...validatedData.metadata,
-          phonepeCallbackUrl: validatedData.callbackUrl,
-          createdVia: 'token-url',
-        },
-        idempotencyKey: randomUUID(),
-      };
-
-      const result = await paymentsService.createPayment(
-        paymentParams,
+      const orderAmountMinor = Math.round(validatedData.amount * 100);
+      const tokenUrlIdempotencyKey = deriveTokenUrlIdempotencyKey(
         tenantId,
-        'phonepe'
+        validatedData.orderId,
+        orderAmountMinor,
+        validatedData.currency
       );
+      const paymentCreationIdempotencyKey = derivePaymentCreationIdempotencyKey(
+        tenantId,
+        validatedData.orderId,
+        orderAmountMinor,
+        validatedData.currency
+      );
+      const now = new Date();
 
-      await enqueuePhonePePollingJob(result, paymentParams.orderId, tenantId);
+      const [existingJob, cachedResult] = await Promise.all([
+        phonePePollingStore.getLatestJobForOrder(validatedData.orderId, tenantId),
+        idempotencyService.checkKey(tokenUrlIdempotencyKey, TOKEN_URL_SCOPE),
+      ]);
 
-      if (!result.redirectUrl) {
-        return res.status(502).json({
-          error: 'PhonePe token URL not available from provider response',
-        });
+      let shouldInvalidateKey = false;
+
+      if (cachedResult.exists) {
+        const expiresAtValue = cachedResult.response?.data?.expiresAt;
+        const expiresAt = typeof expiresAtValue === 'string' ? new Date(expiresAtValue) : undefined;
+
+        if (expiresAt && !Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() > now.getTime()) {
+          return res.json(cachedResult.response);
+        }
+        shouldInvalidateKey = true;
       }
 
-      res.json({
-        success: true,
-        data: {
-          tokenUrl: result.redirectUrl,
-          paymentId: result.paymentId,
-          merchantTransactionId: result.providerPaymentId || result.providerOrderId || '',
-        },
-      });
+      if (existingJob && existingJob.status === 'pending') {
+        const expireAt = existingJob.expireAt instanceof Date
+          ? existingJob.expireAt
+          : new Date(existingJob.expireAt);
+        if (!Number.isNaN(expireAt.getTime()) && expireAt.getTime() <= now.getTime()) {
+          await phonePePollingStore.markExpired(existingJob.id, {
+            polledAt: now,
+            attempt: existingJob.attempt ?? 0,
+            lastStatus: 'expired',
+            lastError: 'Token URL expired before reuse',
+          });
+          shouldInvalidateKey = true;
+        }
+      }
+
+      if (shouldInvalidateKey) {
+        await idempotencyService.invalidateKey(tokenUrlIdempotencyKey, TOKEN_URL_SCOPE);
+      }
+
+      const payload = await idempotencyService.executeWithIdempotency(
+        tokenUrlIdempotencyKey,
+        TOKEN_URL_SCOPE,
+        async () => {
+          const paymentParams: CreatePaymentParams = {
+            orderId: validatedData.orderId,
+            orderAmount: orderAmountMinor,
+            currency: validatedData.currency,
+            customer: {
+              ...validatedData.customer,
+              phone: validatedData.mobileNumber || validatedData.customer.phone,
+            },
+            successUrl,
+            failureUrl,
+            cancelUrl,
+            metadata: {
+              ...validatedData.metadata,
+              phonepeCallbackUrl: validatedData.callbackUrl,
+              createdVia: 'token-url',
+            },
+            idempotencyKey: paymentCreationIdempotencyKey,
+          };
+
+          const result = await paymentsService.createPayment(
+            paymentParams,
+            tenantId,
+            'phonepe'
+          );
+
+          if (!result.redirectUrl) {
+            throw new PaymentError('PhonePe token URL not available from provider response', 'TOKEN_URL_UNAVAILABLE', 'phonepe');
+          }
+
+          await enqueuePhonePePollingJob(result, paymentParams.orderId, tenantId);
+
+          const expireAfterSeconds = resolveExpireAfterSeconds(result);
+          const createdAt = resolveDate(result.createdAt);
+          const expiresAt = new Date(createdAt.getTime() + expireAfterSeconds * 1000);
+          const merchantTransactionId = resolveMerchantTransactionId(result) || '';
+
+          return {
+            success: true,
+            data: {
+              tokenUrl: result.redirectUrl,
+              paymentId: result.paymentId,
+              merchantTransactionId,
+              expiresAt: expiresAt.toISOString(),
+            },
+          };
+        }
+      );
+
+      res.json(payload);
     } catch (error) {
       console.error('PhonePe token URL error:', error);
 
@@ -390,7 +479,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       }
 
       if (error instanceof PaymentError) {
-        return res.status(400).json({
+        const statusCode = error.code === 'TOKEN_URL_UNAVAILABLE' ? 502 : 400;
+        return res.status(statusCode).json({
           error: error.message,
           code: error.code,
         });

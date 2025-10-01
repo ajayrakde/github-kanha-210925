@@ -468,6 +468,8 @@ export interface IdempotencyService {
   generateKey(scope: string): string;
   checkKey(key: string, scope: string): Promise<{ exists: boolean; response?: any }>;
   storeResponse(key: string, scope: string, response: any): Promise<void>;
+  executeWithIdempotency<T>(key: string, scope: string, operation: () => Promise<T>): Promise<T>;
+  invalidateKey(key: string, scope: string): Promise<void>;
   cleanupExpired(): Promise<number>; // Returns number of cleaned up keys
 }
 
