@@ -104,7 +104,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use("/api/products", createProductsRouter(requireAdmin));
   app.use("/api/cart", createCartRouter());
   app.use("/api/offers", createOffersRouter(requireAdmin));
-  app.use("/api/orders", createOrdersRouter());
+  app.use("/api/orders", createOrdersRouter(requireAdmin));
   app.use("/api/auth", createAuthRouter());
   app.use("/api/otp", createLegacyOtpRouter());
   app.use("/api/objects", createObjectStorageRouter(objectStorageService));
