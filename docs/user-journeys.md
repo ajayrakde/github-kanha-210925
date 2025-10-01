@@ -88,6 +88,10 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - PhonePe now sources its client credentials (`client_id`, `client_secret`, `client_version`), webhook basic-auth pair, redirect URL, and API hosts from the PAYAPP_* secret bundle while keeping the merchant ID in admin-managed database config, preventing drift between environments.
    - PhonePe API traffic now reuses a shared OAuth token manager that refreshes access tokens a few minutes before expiry and retries once on authentication failures, ensuring checkout, refund, and status checks remain seamless for buyers and support staff even during sustained traffic.
    - Host switching, sandbox VPAs, and simulator fixtures are documented in the [PhonePe Sandbox & Simulator guide](../README.md#phonepe-sandbox--simulator).
+7. **PhonePe Reconciliation Console**
+   - Support agents can open `/admin/phonepe-reconciliation?orderId={orderId}` to access a dedicated console backed by `GET /api/payments/admin/phonepe/orders/:orderId`.
+   - The endpoint re-queries PhonePe's order status API through the adapter, returning the latest gateway state, response code, and raw UPI instrument payload alongside masked identifiers stored on the order.
+   - The UI surfaces the active reconciliation job (status, attempt, next poll, errors) so teams can confirm whether polling is still progressing or has reached a terminal state before retrying a payment.
 
 ---
 
