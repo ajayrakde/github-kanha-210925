@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Request, Response } from "express";
 import type { Router } from "express";
-import { paymentEvents } from "../../../shared/schema";
+import { orders, paymentEvents } from "../../../shared/schema";
 import { phonePeIdentifierFixture } from "../../../shared/__fixtures__/upi";
 
 process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
@@ -86,6 +86,51 @@ const updateMock = vi.fn(() => ({
   })),
 }));
 
+const buildOrderRecord = (overrides: Record<string, any> = {}) => ({
+  id: "order-123",
+  tenantId: "tenant-a",
+  userId: "user-1",
+  amountMinor: 1000,
+  currency: "INR",
+  status: "pending",
+  paymentStatus: "pending",
+  paymentFailedAt: null,
+  paymentMethod: "upi",
+  subtotal: "10.00",
+  discountAmount: "0.00",
+  shippingCharge: "0.00",
+  total: "10.00",
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  payments: [],
+  user: {},
+  deliveryAddress: {},
+  ...overrides,
+});
+
+const buildPhonePeJob = (overrides: Record<string, any> = {}) => {
+  const now = new Date();
+  return {
+    id: "job-1",
+    tenantId: "tenant-a",
+    orderId: "order-123",
+    paymentId: "pay_1",
+    merchantTransactionId: "merchant-1",
+    status: "pending",
+    attempt: 0,
+    nextPollAt: new Date(now.getTime() + 1000),
+    expireAt: new Date(now.getTime() + 600000),
+    lastPolledAt: null,
+    lastStatus: "created",
+    lastResponseCode: null,
+    lastError: null,
+    completedAt: null,
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  };
+};
+
 vi.mock("../../db", () => ({
   db: {
     insert: insertMock,
@@ -117,18 +162,26 @@ describe("payments router", () => {
     return layer.route.stack[0].handle as (req: Request, res: Response, next: () => void) => Promise<void> | void;
   };
 
-  const createMockResponse = () => {
-    const res: Partial<Response> & { statusCode?: number; jsonPayload?: any } = {};
-    res.status = vi.fn(function (this: any, code: number) {
+  const buildResponse = (overrides: Record<string, any> = {}) => {
+    const res: Partial<Response> & { statusCode?: number; jsonPayload?: any } = {
+      statusCode: undefined,
+      jsonPayload: undefined,
+      ...overrides,
+    };
+
+    res.status = vi.fn((code: number) => {
       res.statusCode = code;
-      return this;
+      return res as Response;
     }) as any;
-    res.json = vi.fn(function (this: any, payload: any) {
+    res.json = vi.fn((payload: any) => {
       res.jsonPayload = payload;
-      return this;
+      return res as Response;
     }) as any;
+
     return res as Response & { statusCode?: number; jsonPayload?: any };
   };
+
+  const createMockResponse = () => buildResponse();
 
   describe("POST /api/payments/create", () => {
     it("rejects requests without an Idempotency-Key header", async () => {
@@ -216,51 +269,6 @@ describe("payments router", () => {
         headers: { "x-tenant-id": "tenant-a", ...(overrides.headers ?? {}) },
         body: { ...baseBody, ...(overrides.body ?? {}) },
       } as unknown as Request;
-    };
-
-    const buildOrderRecord = (overrides: Record<string, any> = {}) => ({
-      id: "order-123",
-      tenantId: "tenant-a",
-      userId: "user-1",
-      amountMinor: 1000,
-      currency: "INR",
-      status: "pending",
-      paymentStatus: "pending",
-      paymentFailedAt: null,
-      paymentMethod: "upi",
-      subtotal: "10.00",
-      discountAmount: "0.00",
-      shippingCharge: "0.00",
-      total: "10.00",
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      payments: [],
-      user: {},
-      deliveryAddress: {},
-      ...overrides,
-    });
-
-    const buildPhonePeJob = (overrides: Record<string, any> = {}) => {
-      const now = new Date();
-      return {
-        id: "job-1",
-        tenantId: "tenant-a",
-        orderId: "order-123",
-        paymentId: "pay_1",
-        merchantTransactionId: "merchant-1",
-        status: "pending",
-        attempt: 0,
-        nextPollAt: new Date(now.getTime() + 1000),
-        expireAt: new Date(now.getTime() + 600000),
-        lastPolledAt: null,
-        lastStatus: "created",
-        lastResponseCode: null,
-        lastError: null,
-        completedAt: null,
-        createdAt: now,
-        updatedAt: now,
-        ...overrides,
-      };
     };
 
     const buildPaymentResult = () => ({
@@ -447,6 +455,116 @@ describe("payments router", () => {
           }),
         })
       );
+    });
+  });
+
+  describe("POST /api/payments/phonepe/retry", () => {
+    it("validates payload shape", async () => {
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/phonepe/retry");
+      const req = { body: {}, headers: { 'x-tenant-id': 'tenant-a' } } as unknown as Request;
+      const res = createMockResponse();
+
+      await handler(req, res, () => {});
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: "Invalid request data" }));
+    });
+
+    it("returns 404 when order is missing", async () => {
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/phonepe/retry");
+      const req = { body: { orderId: "missing" }, headers: { 'x-tenant-id': 'tenant-a' } } as unknown as Request;
+      const res = createMockResponse();
+
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValueOnce(null);
+
+      await handler(req, res, () => {});
+
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: "Order not found" });
+    });
+
+    it("rejects when the latest job has not expired", async () => {
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/phonepe/retry");
+      const req = { body: { orderId: "order-123" }, headers: { 'x-tenant-id': 'tenant-a' } } as unknown as Request;
+      const res = createMockResponse();
+
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValueOnce(buildOrderRecord());
+      mockPhonePePollingStore.getLatestJobForOrder.mockResolvedValueOnce(buildPhonePeJob({ status: "pending" }));
+
+      await handler(req, res, () => {});
+
+      expect(res.status).toHaveBeenCalledWith(409);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "PHONEPE_RETRY_NOT_ALLOWED" }));
+      expect(mockPaymentsService.createPayment).not.toHaveBeenCalled();
+    });
+
+    it("creates a new PhonePe payment when the previous job expired", async () => {
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/phonepe/retry");
+
+      const retryOrder = buildOrderRecord({
+        paymentStatus: "failed",
+        user: { name: "Retry User", email: "retry@example.com", phone: "9999999999" },
+      });
+      const expiredJob = buildPhonePeJob({ status: "expired", attempt: 5 });
+      const scheduledJob = buildPhonePeJob({ status: "pending", attempt: 0, paymentId: "pay_new" });
+
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValueOnce(retryOrder);
+      mockPhonePePollingStore.getLatestJobForOrder.mockResolvedValueOnce(expiredJob);
+      mockPaymentsService.createPayment.mockResolvedValueOnce({
+        paymentId: "pay_new",
+        providerPaymentId: "merchant_new",
+        status: "created",
+        amount: retryOrder.amountMinor,
+        currency: retryOrder.currency,
+        provider: "phonepe",
+        providerData: {},
+        createdAt: new Date(),
+      });
+      mockPhonePePollingWorker.registerJob.mockResolvedValueOnce(scheduledJob);
+
+      const whereSpy = vi.fn(async () => ({ rowCount: 1 }));
+      const setSpy = vi.fn(() => ({ where: whereSpy }));
+      updateMock.mockReturnValueOnce({ set: setSpy });
+
+      const res = buildResponse();
+      const req = { body: { orderId: "order-123" }, headers: { 'x-tenant-id': 'tenant-a' } } as unknown as Request;
+
+      await handler(req, res, () => {});
+
+      expect(mockPaymentsService.createPayment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderId: "order-123",
+          metadata: expect.objectContaining({
+            createdVia: "phonepe-retry",
+            previousPaymentId: expiredJob.paymentId,
+            previousMerchantTransactionId: expiredJob.merchantTransactionId,
+          }),
+        }),
+        "tenant-a",
+        "phonepe"
+      );
+      expect(mockPhonePePollingWorker.registerJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paymentId: "pay_new",
+          orderId: "order-123",
+        })
+      );
+      expect(updateMock).toHaveBeenCalledWith(orders);
+      expect(setSpy).toHaveBeenCalledWith(expect.objectContaining({ paymentStatus: "processing" }));
+      expect(whereSpy).toHaveBeenCalled();
+
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        success: true,
+        data: expect.objectContaining({
+          paymentId: "pay_new",
+          order: expect.objectContaining({ paymentStatus: "processing" }),
+          reconciliation: expect.objectContaining({ status: "pending" }),
+        }),
+      }));
     });
   });
 

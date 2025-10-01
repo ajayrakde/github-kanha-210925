@@ -24,12 +24,14 @@ import type {
 import type { PaymentResult } from '../../shared/payment-types';
 import type { PaymentProvider, Environment } from '../../shared/payment-providers';
 import { db } from '../db';
-import { paymentEvents } from '../../shared/schema';
+import { paymentEvents, orders } from '../../shared/schema';
 import {
   formatUpiInstrumentVariantLabel,
   maskPhonePeIdentifier,
   normalizeUpiInstrumentVariant,
 } from '../../shared/upi';
+import type { PhonePePollingJob } from '../storage/phonepe-polling';
+import { and, eq } from 'drizzle-orm';
 
 export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   const router = Router();
@@ -125,18 +127,22 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     return 900;
   };
 
-  const enqueuePhonePePollingJob = async (result: PaymentResult, orderId: string, tenantId: string) => {
+  const enqueuePhonePePollingJob = async (
+    result: PaymentResult,
+    orderId: string,
+    tenantId: string,
+  ): Promise<PhonePePollingJob | undefined> => {
     if (result.provider !== 'phonepe') {
-      return;
+      return undefined;
     }
 
     const merchantTransactionId = resolveMerchantTransactionId(result);
     if (!merchantTransactionId) {
-      return;
+      return undefined;
     }
 
     try {
-      await phonePePollingWorker.registerJob({
+      return await phonePePollingWorker.registerJob({
         tenantId,
         orderId,
         paymentId: result.paymentId,
@@ -146,6 +152,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       });
     } catch (error) {
       console.error('Failed to enqueue PhonePe polling job:', error);
+      return undefined;
     }
   };
 
@@ -263,6 +270,10 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     state: z.string().optional(),
     code: z.string().optional(),
     checksum: z.string().optional(),
+  });
+
+  const phonePeRetrySchema = z.object({
+    orderId: z.string().min(1, 'Order ID is required'),
   });
 
   const providerConfigSchema = z.object({
@@ -593,6 +604,172 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       console.error('Payment cancellation error:', error);
       res.status(500).json({
         error: 'Failed to cancel payment',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  router.post('/phonepe/retry', async (req, res) => {
+    const parsed = phonePeRetrySchema.safeParse(req.body);
+
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: 'Invalid request data',
+        details: parsed.error.flatten(),
+      });
+    }
+
+    const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+    const { orderId } = parsed.data;
+
+    try {
+      const [order, latestJob] = await Promise.all([
+        ordersRepository.getOrderWithPayments(orderId),
+        phonePePollingStore.getLatestJobForOrder(orderId, tenantId),
+      ]);
+
+      if (!order) {
+        return res.status(404).json({ error: 'Order not found' });
+      }
+
+      if (!latestJob || latestJob.status !== 'expired') {
+        return res.status(409).json({
+          error: 'Latest PhonePe attempt is not expired yet',
+          code: 'PHONEPE_RETRY_NOT_ALLOWED',
+        });
+      }
+
+      const orderAmountMinor = Number(order.amountMinor);
+      if (!Number.isFinite(orderAmountMinor) || orderAmountMinor <= 0) {
+        return res.status(400).json({ error: 'Order amount unavailable' });
+      }
+
+      const supportedCurrencies = ['INR', 'USD', 'EUR', 'GBP'] as const;
+      type SupportedCurrency = typeof supportedCurrencies[number];
+      const currencyCandidate = typeof order.currency === 'string' ? order.currency.trim().toUpperCase() : undefined;
+
+      if (!currencyCandidate || !supportedCurrencies.includes(currencyCandidate as SupportedCurrency)) {
+        return res.status(400).json({ error: 'Order currency unsupported' });
+      }
+
+      const orderCurrency = currencyCandidate as SupportedCurrency;
+
+      const normalizedPaymentMethod = typeof order.paymentMethod === 'string'
+        ? order.paymentMethod.trim().toLowerCase()
+        : '';
+      if (!['upi', 'phonepe'].includes(normalizedPaymentMethod)) {
+        return res.status(409).json({
+          error: 'Order is not configured for PhonePe payments',
+          code: 'PHONEPE_METHOD_MISMATCH',
+        });
+      }
+
+      const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+      const successUrl = `${baseUrl}/payment/success`;
+      const failureUrl = `${baseUrl}/payment/failed`;
+      const cancelUrl = failureUrl;
+
+      const customer = {
+        name: order.user?.name ?? undefined,
+        email: order.user?.email ?? undefined,
+        phone: order.user?.phone ?? undefined,
+      };
+
+      const metadata = {
+        createdVia: 'phonepe-retry',
+        previousPaymentId: latestJob.paymentId,
+        previousMerchantTransactionId: latestJob.merchantTransactionId,
+      } as Record<string, unknown>;
+
+      const paymentParams: CreatePaymentParams = {
+        orderId,
+        orderAmount: orderAmountMinor,
+        currency: orderCurrency,
+        customer,
+        successUrl,
+        failureUrl,
+        cancelUrl,
+        metadata,
+      };
+
+      const result = await paymentsService.createPayment(paymentParams, tenantId, 'phonepe');
+
+      const job = await enqueuePhonePePollingJob(result, orderId, tenantId);
+
+      try {
+        await logAuditEvent('phonepe', tenantId, 'phonepe.retry.initiated', {
+          orderId,
+          tenantId,
+          newPaymentId: result.paymentId,
+          previousPaymentId: latestJob.paymentId,
+          previousJobId: latestJob.id,
+        });
+      } catch (auditError) {
+        console.error('Failed to log PhonePe retry audit event:', auditError);
+      }
+
+      const now = new Date();
+      const normalizedStatus = typeof order.paymentStatus === 'string' ? order.paymentStatus.toLowerCase() : '';
+      if (normalizedStatus !== 'paid') {
+        await db
+          .update(orders)
+          .set({
+            paymentStatus: 'processing',
+            paymentFailedAt: null,
+            updatedAt: now,
+          })
+          .where(
+            and(eq(orders.id, orderId), eq(orders.tenantId, tenantId))
+          );
+      }
+
+      const expireAfterSeconds = resolveExpireAfterSeconds(result);
+      const createdAt = resolveDate(result.createdAt);
+      const expiresAt = new Date(createdAt.getTime() + expireAfterSeconds * 1000);
+      const reconciliationJob = job ?? null;
+
+      res.json({
+        success: true,
+        data: {
+          paymentId: result.paymentId,
+          providerPaymentId: result.providerPaymentId,
+          merchantTransactionId: resolveMerchantTransactionId(result) ?? null,
+          status: result.status,
+          order: {
+            id: order.id,
+            paymentStatus: normalizedStatus === 'paid' ? order.paymentStatus : 'processing',
+          },
+          reconciliation: reconciliationJob
+            ? {
+                status: reconciliationJob.status,
+                attempt: reconciliationJob.attempt,
+                nextPollAt: reconciliationJob.nextPollAt.toISOString(),
+                expiresAt: reconciliationJob.expireAt.toISOString(),
+                lastStatus: reconciliationJob.lastStatus ?? undefined,
+                lastResponseCode: reconciliationJob.lastResponseCode ?? undefined,
+                lastError: reconciliationJob.lastError ?? undefined,
+                completedAt: reconciliationJob.completedAt?.toISOString(),
+              }
+            : {
+                status: 'pending' as const,
+                attempt: 0,
+                nextPollAt: new Date(createdAt.getTime() + 5000).toISOString(),
+                expiresAt: expiresAt.toISOString(),
+              },
+        },
+      });
+    } catch (error) {
+      console.error('PhonePe retry initiation error:', error);
+
+      if (error instanceof PaymentError) {
+        return res.status(400).json({
+          error: error.message,
+          code: error.code,
+        });
+      }
+
+      res.status(500).json({
+        error: 'Failed to start a new PhonePe payment attempt',
         message: error instanceof Error ? error.message : 'Unknown error',
       });
     }
