@@ -218,6 +218,28 @@ describe("payments router", () => {
       } as unknown as Request;
     };
 
+    const buildOrderRecord = (overrides: Record<string, any> = {}) => ({
+      id: "order-123",
+      tenantId: "tenant-a",
+      userId: "user-1",
+      amountMinor: 1000,
+      currency: "INR",
+      status: "pending",
+      paymentStatus: "pending",
+      paymentFailedAt: null,
+      paymentMethod: "upi",
+      subtotal: "10.00",
+      discountAmount: "0.00",
+      shippingCharge: "0.00",
+      total: "10.00",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      payments: [],
+      user: {},
+      deliveryAddress: {},
+      ...overrides,
+    });
+
     const buildPhonePeJob = (overrides: Record<string, any> = {}) => {
       const now = new Date();
       return {
@@ -255,6 +277,7 @@ describe("payments router", () => {
     });
 
     it("reuses the pending token URL for rapid double submissions", async () => {
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValue(buildOrderRecord());
       const router = await buildRouter();
       const handler = getRouteHandler(router, "post", "/token-url");
 
@@ -284,6 +307,7 @@ describe("payments router", () => {
     });
 
     it("invalidates and recreates the token URL when the cached attempt expired", async () => {
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValue(buildOrderRecord());
       const router = await buildRouter();
       const handler = getRouteHandler(router, "post", "/token-url");
 
@@ -331,22 +355,29 @@ describe("payments router", () => {
     });
 
     it("derives a deterministic idempotency key from the tenant, order, and amount", async () => {
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValue(
+        buildOrderRecord({ amountMinor: 2599, currency: "USD" })
+      );
       const router = await buildRouter();
       const handler = getRouteHandler(router, "post", "/token-url");
 
       const paymentResult = buildPaymentResult();
       mockPaymentsService.createPayment.mockResolvedValue(paymentResult);
 
-      const req = buildTokenRequest({ body: { amount: 25.5 } });
+      const req = buildTokenRequest({ body: { amount: 25.99, currency: "USD" } });
       const res = createMockResponse();
       await handler(req, res, () => {});
 
-      const expectedAmountMinor = Math.round(25.5 * 100);
-      const expectedTokenKey = computeKey("phonepe-token", "tenant-a", "order-123", expectedAmountMinor, "INR");
-      const expectedPaymentKey = computeKey("phonepe-payment", "tenant-a", "order-123", expectedAmountMinor, "INR");
+      const expectedAmountMinor = 2599;
+      const expectedTokenKey = computeKey("phonepe-token", "tenant-a", "order-123", expectedAmountMinor, "USD");
+      const expectedPaymentKey = computeKey("phonepe-payment", "tenant-a", "order-123", expectedAmountMinor, "USD");
 
       expect(mockPaymentsService.createPayment).toHaveBeenCalledWith(
-        expect.objectContaining({ idempotencyKey: expectedPaymentKey, orderAmount: expectedAmountMinor }),
+        expect.objectContaining({
+          idempotencyKey: expectedPaymentKey,
+          orderAmount: expectedAmountMinor,
+          currency: "USD",
+        }),
         "tenant-a",
         "phonepe"
       );
@@ -356,6 +387,66 @@ describe("payments router", () => {
         expect.any(Function)
       );
       expect(res.jsonPayload.data.expiresAt).toBeTruthy();
+    });
+
+    it("rejects tampered amount payloads and logs an audit event", async () => {
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValue(buildOrderRecord());
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/token-url");
+
+      const req = buildTokenRequest({ body: { amount: 12 } });
+      const res = createMockResponse();
+
+      await handler(req, res, () => {});
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ error: "Order amount or currency mismatch" });
+      expect(mockPaymentsService.createPayment).not.toHaveBeenCalled();
+      expect(insertMock).toHaveBeenCalledWith(paymentEvents);
+      expect(insertValuesMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "token_url.payload_mismatch",
+          data: expect.objectContaining({
+            orderId: "order-123",
+            amountMismatch: true,
+            currencyMismatch: false,
+            expectedAmountMinor: 1000,
+            expectedCurrency: "INR",
+            receivedAmountMinor: 1200,
+            receivedCurrency: "INR",
+          }),
+        })
+      );
+    });
+
+    it("rejects tampered currency payloads and logs an audit event", async () => {
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValue(buildOrderRecord());
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/token-url");
+
+      const req = buildTokenRequest({ body: { currency: "USD" } });
+      const res = createMockResponse();
+
+      await handler(req, res, () => {});
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith({ error: "Order amount or currency mismatch" });
+      expect(mockPaymentsService.createPayment).not.toHaveBeenCalled();
+      expect(insertMock).toHaveBeenCalledWith(paymentEvents);
+      expect(insertValuesMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "token_url.payload_mismatch",
+          data: expect.objectContaining({
+            orderId: "order-123",
+            amountMismatch: false,
+            currencyMismatch: true,
+            expectedAmountMinor: 1000,
+            expectedCurrency: "INR",
+            receivedAmountMinor: 1000,
+            receivedCurrency: "USD",
+          }),
+        })
+      );
     });
   });
 
