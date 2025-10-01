@@ -398,7 +398,9 @@ export class PhonePeAdapter implements PaymentsAdapter {
         throw new RefundError('Missing PhonePe transaction identifier', 'MISSING_PROVIDER_PAYMENT_ID', 'phonepe');
       }
 
-      const merchantRefundId = params.merchantRefundId
+      const normalizedMerchantRefundId = params.merchantRefundId?.trim();
+
+      const merchantRefundId = normalizedMerchantRefundId
         || params.idempotencyKey
         || `REF_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
 

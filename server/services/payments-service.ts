@@ -385,6 +385,30 @@ export class PaymentsService {
             );
           }
 
+          const normalizedMerchantRefundId = params.merchantRefundId?.trim() || undefined;
+
+          if (normalizedMerchantRefundId) {
+            const existingRefunds = await db
+              .select()
+              .from(refunds)
+              .where(
+                and(
+                  eq(refunds.paymentId, params.paymentId),
+                  eq(refunds.tenantId, resolvedTenantId),
+                  eq(refunds.merchantRefundId, normalizedMerchantRefundId)
+                )
+              )
+              .limit(1);
+
+            const existingRefund = existingRefunds[0];
+            if (existingRefund) {
+              return this.mapStoredRefundToResult(
+                existingRefund,
+                payment.provider as PaymentProvider | undefined
+              );
+            }
+          }
+
           const [existingTotals] = await db
             .select({
               totalNonFailed: sql<number>`COALESCE(SUM(CASE WHEN ${refunds.status} <> 'failed' THEN ${refunds.amountMinor} ELSE 0 END), 0)`,
@@ -412,6 +436,23 @@ export class PaymentsService {
 
           const projectedRefundedMinor = currentRefundedMinor + requestedAmountMinor;
           if (projectedRefundedMinor > capturedAmountMinor) {
+            await db.insert(paymentEvents).values({
+              id: crypto.randomUUID(),
+              tenantId: resolvedTenantId,
+              paymentId: payment.id,
+              provider: payment.provider as PaymentProvider,
+              type: 'refund_attempt_failed',
+              data: {
+                reason: 'REFUND_EXCEEDS_CAPTURED_AMOUNT',
+                requestedAmountMinor,
+                capturedAmountMinor,
+                currentRefundedMinor,
+                projectedRefundedMinor,
+                merchantRefundId: normalizedMerchantRefundId ?? null,
+              },
+              occurredAt: new Date(),
+            });
+
             throw new RefundError(
               'Refund amount exceeds captured amount',
               'REFUND_EXCEEDS_CAPTURED_AMOUNT',
@@ -432,7 +473,7 @@ export class PaymentsService {
             idempotencyKey,
             providerPaymentId: payment.providerPaymentId,
             amount: requestedAmountMinor,
-            merchantRefundId: params.merchantRefundId,
+            merchantRefundId: normalizedMerchantRefundId,
             originalMerchantOrderId:
               params.originalMerchantOrderId
               || payment.providerOrderId
@@ -1097,7 +1138,41 @@ export class PaymentsService {
 
     return result[0] || null;
   }
-  
+
+  private mapStoredRefundToResult(
+    storedRefund: typeof refunds.$inferSelect,
+    fallbackProvider?: PaymentProvider
+  ): RefundResult {
+    const provider = (storedRefund.provider as PaymentProvider | undefined) ?? fallbackProvider;
+
+    if (!provider) {
+      throw new RefundError(
+        'Stored refund is missing provider metadata',
+        'REFUND_PROVIDER_UNKNOWN'
+      );
+    }
+
+    const maskedUtr = provider === 'phonepe'
+      ? maskPhonePeUtr(storedRefund.upiUtr ?? undefined) ?? undefined
+      : storedRefund.upiUtr ?? undefined;
+
+    return {
+      refundId: storedRefund.id,
+      paymentId: storedRefund.paymentId,
+      providerRefundId: storedRefund.providerRefundId ?? undefined,
+      merchantRefundId: storedRefund.merchantRefundId ?? undefined,
+      originalMerchantOrderId: storedRefund.originalMerchantOrderId ?? undefined,
+      amount: storedRefund.amountMinor ?? 0,
+      status: storedRefund.status as RefundResult['status'],
+      provider,
+      environment: this.config.environment,
+      reason: storedRefund.reason ?? undefined,
+      upiUtr: maskedUtr,
+      createdAt: storedRefund.createdAt ?? new Date(),
+      updatedAt: storedRefund.updatedAt ?? storedRefund.createdAt ?? new Date(),
+    };
+  }
+
   /**
    * Store refund in database
    */
