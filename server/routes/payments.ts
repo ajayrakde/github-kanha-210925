@@ -201,6 +201,13 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     metadata: z.record(z.any()).default({}),
   });
 
+  const phonePeInstrumentPreferenceSchema = z.enum([
+    'UPI_INTENT',
+    'UPI_COLLECT',
+    'UPI_QR',
+    'PAY_PAGE',
+  ]);
+
   const tokenUrlSchema = z.object({
     orderId: z.string().min(1, 'Order ID is required'),
     amount: z.number().min(1, 'Amount must be greater than 0'),
@@ -214,6 +221,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     redirectUrl: z.string().url().optional(),
     callbackUrl: z.string().url().optional(),
     metadata: z.record(z.any()).optional(),
+    instrumentPreference: phonePeInstrumentPreferenceSchema.default('UPI_COLLECT'),
   });
 
   const TOKEN_URL_SCOPE = 'phonepe_token_url';
@@ -521,6 +529,11 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
               ...validatedData.metadata,
               phonepeCallbackUrl: validatedData.callbackUrl,
               createdVia: 'token-url',
+            },
+            providerOptions: {
+              phonepe: {
+                instrumentPreference: validatedData.instrumentPreference,
+              },
             },
             idempotencyKey: paymentCreationIdempotencyKey,
           };

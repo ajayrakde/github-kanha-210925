@@ -509,6 +509,23 @@ describe("payments router", () => {
         })
       );
     });
+
+    it("threads the requested PhonePe instrument into the provider options", async () => {
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValue(buildOrderRecord());
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/token-url");
+
+      const paymentResult = buildPaymentResult();
+      mockPaymentsService.createPayment.mockResolvedValue(paymentResult);
+
+      const req = buildTokenRequest({ body: { instrumentPreference: "UPI_QR" } });
+      const res = createMockResponse();
+      await handler(req, res, () => {});
+
+      const [params] = mockPaymentsService.createPayment.mock.calls.at(-1) ?? [];
+      expect(params?.providerOptions?.phonepe?.instrumentPreference).toBe("UPI_QR");
+      expect(res.jsonPayload.success).toBe(true);
+    });
   });
 
   describe("POST /api/payments/phonepe/retry", () => {

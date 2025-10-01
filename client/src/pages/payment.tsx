@@ -31,6 +31,34 @@ declare global {
 
 const PHONEPE_CHECKOUT_SRC = "https://checkout.phonepe.com/v3/checkout.js";
 
+type PhonePeInstrumentPreference = "UPI_INTENT" | "UPI_COLLECT" | "UPI_QR";
+
+const PHONEPE_INSTRUMENT_OPTIONS: Array<{
+  value: PhonePeInstrumentPreference;
+  label: string;
+  description: string;
+  testId: string;
+}> = [
+  {
+    value: "UPI_INTENT",
+    label: "UPI Intent",
+    description: "Launches your preferred UPI app to approve the payment",
+    testId: "button-select-upi_intent",
+  },
+  {
+    value: "UPI_COLLECT",
+    label: "UPI Collect",
+    description: "We send a collect request to your UPI app for approval",
+    testId: "button-select-upi_collect",
+  },
+  {
+    value: "UPI_QR",
+    label: "UPI QR",
+    description: "Scan a QR code from any UPI app to complete payment",
+    testId: "button-select-upi_qr",
+  },
+];
+
 interface PhonePeTokenResponse {
   tokenUrl?: string;
   merchantTransactionId?: string;
@@ -56,6 +84,7 @@ export default function Payment() {
   const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [orderId, setOrderId] = useState<string>("");
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'processing' | 'completed' | 'failed'>('pending');
+  const [instrumentPreference, setInstrumentPreference] = useState<PhonePeInstrumentPreference>("UPI_INTENT");
   const { toast } = useToast();
   const checkoutLoaderRef = useRef<Promise<PhonePeCheckoutInstance> | null>(null);
   const latestPaymentIdRef = useRef<string | null>(null);
@@ -161,6 +190,7 @@ export default function Payment() {
         redirectUrl: `${window.location.origin}/payment/success?orderId=${orderId}`,
         callbackUrl: `${window.location.origin}/api/payments/webhook/phonepe`,
         mobileNumber: currentOrderData.userInfo.phone,
+        instrumentPreference,
       });
 
       const payload = await response.json();
@@ -409,7 +439,28 @@ export default function Payment() {
                   The PhonePe checkout will open in a secure iframe to complete your payment.
                 </p>
               </div>
-              <Button 
+              <div className="space-y-3 mb-6">
+                <p className="text-sm font-medium text-gray-900">Choose how you want to pay with UPI</p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {PHONEPE_INSTRUMENT_OPTIONS.map((option) => (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      variant={instrumentPreference === option.value ? "default" : "outline"}
+                      className="h-auto w-full flex-col items-start justify-start gap-1 py-3"
+                      onClick={() => setInstrumentPreference(option.value)}
+                      data-testid={option.testId}
+                      aria-pressed={instrumentPreference === option.value}
+                    >
+                      <span className="text-sm font-semibold text-gray-900">{option.label}</span>
+                      <span className="text-xs text-gray-500 text-left">
+                        {option.description}
+                      </span>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              <Button
                 onClick={handleInitiatePayment}
                 disabled={isLoading}
                 size="lg"

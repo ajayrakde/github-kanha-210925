@@ -99,7 +99,7 @@ describe("Payment page", () => {
     expect(apiRequestMock).toHaveBeenCalledWith(
       "POST",
       "/api/payments/token-url",
-      expect.objectContaining({ orderId: "order-1" })
+      expect.objectContaining({ orderId: "order-1", instrumentPreference: "UPI_INTENT" })
     );
 
     expect(window.PhonePeCheckout?.transact).toHaveBeenCalledWith(
@@ -108,6 +108,34 @@ describe("Payment page", () => {
         type: 'IFRAME',
       })
     );
+  });
+
+  it("uses the shopper's selected UPI instrument when initiating payment", async () => {
+    const queryClient = new QueryClient();
+    apiRequestMock.mockResolvedValue({
+      json: async () => ({ data: { tokenUrl: "https://phonepe.example/pay", merchantTransactionId: "merchant-1" } }),
+    } as any);
+
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Payment />
+      </QueryClientProvider>
+    );
+
+    const qrButton = await screen.findByTestId("button-select-upi_qr");
+    await user.click(qrButton);
+
+    const payButton = await screen.findByTestId("button-initiate-payment");
+    await user.click(payButton);
+
+    await waitFor(() => {
+      expect(apiRequestMock).toHaveBeenCalledWith(
+        "POST",
+        "/api/payments/token-url",
+        expect.objectContaining({ instrumentPreference: "UPI_QR" })
+      );
+    });
   });
 
   it("records cancellation when the PhonePe iframe reports USER_CANCEL", async () => {
