@@ -376,8 +376,13 @@ export default function Checkout() {
       };
     },
     onSuccess: async ({ result, orderUserInfo }) => {
-      // Clear the cart after successful order
-      clearCart.mutate();
+      const isUpiPayment = paymentMethod === 'upi';
+
+      // Clear the cart immediately only for non-UPI payments.
+      // For UPI we keep the cart until the payment succeeds so buyers can retry without losing items.
+      if (!isUpiPayment) {
+        clearCart.mutate();
+      }
       // Invalidate orders cache to show the new order
       queryClient.invalidateQueries({ queryKey: ["/api/auth/orders"] });
       queryClient.setQueryData(["checkout", "selectedOffer"], null);
@@ -393,7 +398,7 @@ export default function Checkout() {
       }));
 
       // Redirect based on payment method
-      if (paymentMethod === 'upi') {
+      if (isUpiPayment) {
         setLocation(`/payment?orderId=${result.order.id}`);
       } else {
         setLocation("/thank-you");
