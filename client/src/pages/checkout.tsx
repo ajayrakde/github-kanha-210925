@@ -35,7 +35,7 @@ const EMPTY_USER_INFO: UserInfo = {
 export default function Checkout() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const { cartItems, subtotal, clearCart } = useCart();
+  const { cartItems, subtotal, clearCart, isLoading: isCartLoading } = useCart();
   const [step, setStep] = useState<"phone" | "otp" | "details">("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -57,7 +57,17 @@ export default function Checkout() {
 
   // Function to calculate shipping charges
   const calculateShipping = useCallback(async (pincode: string) => {
-    if (!validatePincode(pincode) || cartItems.length === 0) {
+    if (!validatePincode(pincode)) {
+      setShippingCharge(50); // Default fallback
+      setIsPincodeValid(false);
+      return;
+    }
+
+    if (cartItems.length === 0) {
+      if (isCartLoading) {
+        return;
+      }
+
       setShippingCharge(50); // Default fallback
       setIsPincodeValid(false);
       return;
@@ -80,7 +90,7 @@ export default function Checkout() {
     } finally {
       setIsCalculatingShipping(false);
     }
-  }, [cartItems, subtotal, validatePincode]);
+  }, [cartItems, isCartLoading, subtotal, validatePincode]);
 
   // Check if user is already logged in
   const { data: authData } = useQuery<{ authenticated: boolean; user?: any }>({
