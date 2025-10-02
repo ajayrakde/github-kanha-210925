@@ -6,6 +6,7 @@ import { Loader2, CreditCard, ArrowLeft, AlertCircle } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useCart } from "@/hooks/use-cart";
 
 type PhonePeCheckoutEvent = {
   status?: string;
@@ -86,6 +87,7 @@ export default function Payment() {
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'processing' | 'completed' | 'failed'>('pending');
   const [instrumentPreference, setInstrumentPreference] = useState<PhonePeInstrumentPreference>("UPI_INTENT");
   const { toast } = useToast();
+  const { clearCart } = useCart();
   const checkoutLoaderRef = useRef<Promise<PhonePeCheckoutInstance> | null>(null);
   const latestPaymentIdRef = useRef<string | null>(null);
   const pollTimeoutRef = useRef<number | null>(null);
@@ -300,6 +302,7 @@ export default function Payment() {
           title: "Payment Successful",
           description: "Your payment has been completed successfully!",
         });
+        clearCart.mutate();
         const thankYouPath = orderId ? `/thank-you?orderId=${orderId}` : '/thank-you';
         setLocation(thankYouPath);
         return;

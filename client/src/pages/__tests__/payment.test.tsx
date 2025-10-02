@@ -9,6 +9,7 @@ import { apiRequest } from "@/lib/queryClient";
 const setLocationMock = vi.fn();
 const originalLocation = window.location;
 const originalCheckout = window.PhonePeCheckout;
+const clearCartMutateMock = vi.fn();
 
 vi.mock("wouter", () => ({
   useLocation: () => ["", setLocationMock],
@@ -18,12 +19,19 @@ vi.mock("@/lib/queryClient", () => ({
   apiRequest: vi.fn(),
 }));
 
+vi.mock("@/hooks/use-cart", () => ({
+  useCart: () => ({
+    clearCart: { mutate: clearCartMutateMock },
+  }),
+}));
+
 const apiRequestMock = vi.mocked(apiRequest);
 
 describe("Payment page", () => {
   beforeEach(() => {
     setLocationMock.mockReset();
     apiRequestMock.mockReset();
+    clearCartMutateMock.mockReset();
     sessionStorage.clear();
     global.fetch = vi.fn();
     window.PhonePeCheckout = { transact: vi.fn() } as any;
@@ -231,6 +239,10 @@ describe("Payment page", () => {
     await waitFor(() => {
       expect(setLocationMock).toHaveBeenCalledWith("/thank-you?orderId=order-1");
     });
+
+    await waitFor(() => {
+      expect(clearCartMutateMock).toHaveBeenCalled();
+    });
   });
 
   it("continues polling while the payment is pending", async () => {
@@ -337,5 +349,6 @@ describe("Payment page", () => {
     });
 
     expect(setLocationMock).not.toHaveBeenCalledWith("/thank-you?orderId=order-1");
+    expect(clearCartMutateMock).not.toHaveBeenCalled();
   });
 });
