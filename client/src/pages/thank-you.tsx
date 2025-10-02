@@ -1,10 +1,11 @@
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { useCallback, useEffect, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
 import { Separator } from "@/components/ui/separator";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
+import { useCart } from "@/hooks/use-cart";
 
 interface OrderData {
   orderId: string;
@@ -205,6 +206,8 @@ export default function ThankYou() {
     month: 'long',
     day: 'numeric'
   }));
+  const { clearCart } = useCart();
+  const hasClearedCartRef = useRef(false);
 
   useEffect(() => {
     // Get order data from session storage or URL parameters
@@ -373,6 +376,21 @@ export default function ThankYou() {
     },
     retry: false
   });
+
+  useEffect(() => {
+    if (!paymentInfo || hasClearedCartRef.current) {
+      return;
+    }
+
+    const orderPaymentStatus = normalizeStatus(paymentInfo.order?.paymentStatus);
+    const latestPaymentStatus = normalizeStatus(paymentInfo.latestTransaction?.status);
+    const paymentFailed = paymentInfo.latestTransactionFailed || latestPaymentStatus === 'failed';
+
+    if (!paymentFailed && (orderPaymentStatus === 'paid' || latestPaymentStatus === 'completed')) {
+      clearCart.mutate();
+      hasClearedCartRef.current = true;
+    }
+  }, [paymentInfo, clearCart]);
 
   useEffect(() => {
     const normalized = normalizeStatus(paymentInfo?.order?.paymentStatus);
