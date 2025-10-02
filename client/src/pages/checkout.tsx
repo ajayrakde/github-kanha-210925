@@ -257,25 +257,69 @@ export default function Checkout() {
       const response = await apiRequest("POST", "/api/auth/addresses", addressData);
       return await response.json();
     },
-    onSuccess: () => {
+    onSuccess: (newAddress: any) => {
+      const addressLines = newAddress?.address?.split("\n") ?? [];
+
+      setSelectedAddressId(newAddress?.id ?? "");
+      setUserInfo(prev => ({
+        ...prev,
+        addressLine1: addressLines[0] ?? "",
+        addressLine2: addressLines[1] ?? "",
+        addressLine3: addressLines[2] ?? "",
+        landmark: "",
+        city: newAddress?.city ?? "",
+        pincode: newAddress?.pincode ?? "",
+      }));
+
+      const isValid = newAddress?.pincode ? validatePincode(newAddress.pincode) : false;
+      setIsPincodeValid(isValid);
+      if (isValid) {
+        calculateShipping(newAddress.pincode);
+      } else {
+        setShippingCharge(50);
+      }
+
       setShowNewAddressForm(false);
       setPreviousSelectedAddressId(null);
       setMakePreferred(false);
+
       toast({
         title: "Address saved",
         description: "Your new address has been saved successfully",
       });
+
+      queryClient.setQueryData(["/api/auth/addresses"], (existing: any[] | undefined) => {
+        if (!existing) {
+          return newAddress ? [newAddress] : existing;
+        }
+
+        const index = existing.findIndex(addr => addr.id === newAddress?.id);
+        if (index !== -1) {
+          const updated = [...existing];
+          updated[index] = newAddress;
+          return updated;
+        }
+
+        return newAddress ? [...existing, newAddress] : existing;
+      });
+
       queryClient.invalidateQueries({ queryKey: ["/api/auth/addresses"] });
     },
   });
 
   const placeOrderMutation = useMutation({
     mutationFn: async () => {
+      const orderUserInfoSnapshot = {
+        ...userInfo,
+        ...(showNewAddressForm ? { makePreferred } : {}),
+      };
+      let addressIdToUse = selectedAddressId || null;
+
       // If user selected an existing address, save it if marked as preferred
       if (selectedAddressId && makePreferred) {
         await apiRequest("PUT", `/api/auth/addresses/${selectedAddressId}/preferred`, {});
       }
-      
+
       // If user is adding a new address, create it first
       if (showNewAddressForm && authData?.authenticated) {
         const addressData = {
@@ -285,9 +329,10 @@ export default function Checkout() {
           pincode: userInfo.pincode,
           isPreferred: makePreferred,
         };
-        await createAddressMutation.mutateAsync(addressData);
+        const newAddress = await createAddressMutation.mutateAsync(addressData);
+        addressIdToUse = newAddress?.id ?? addressIdToUse;
       }
-      
+
       // For logged-in users with no saved addresses, automatically save the current address
       if (authData?.authenticated && (!addresses || addresses.length === 0) && !selectedAddressId && !showNewAddressForm) {
         const addressData = {
@@ -297,7 +342,8 @@ export default function Checkout() {
           pincode: userInfo.pincode,
           isPreferred: true, // First address becomes preferred automatically
         };
-        await createAddressMutation.mutateAsync(addressData);
+        const newAddress = await createAddressMutation.mutateAsync(addressData);
+        addressIdToUse = newAddress?.id ?? addressIdToUse;
       }
 
       const selectedOffer = queryClient.getQueryData<{ id: string; code: string } | null>([
@@ -307,13 +353,19 @@ export default function Checkout() {
 
       const response = await apiRequest("POST", "/api/orders", {
         userId: user.id,
-        userInfo,
+        userInfo: orderUserInfoSnapshot,
         paymentMethod,
         offerCode: selectedOffer?.code ?? null,
+        selectedAddressId: addressIdToUse,
       });
-      return await response.json();
+      const result = await response.json();
+
+      return {
+        result,
+        orderUserInfo: orderUserInfoSnapshot,
+      };
     },
-    onSuccess: async (data) => {
+    onSuccess: async ({ result, orderUserInfo }) => {
       // Clear the cart after successful order
       clearCart.mutate();
       // Invalidate orders cache to show the new order
@@ -321,18 +373,18 @@ export default function Checkout() {
       queryClient.setQueryData(["checkout", "selectedOffer"], null);
       // Store order data in session storage
       sessionStorage.setItem('lastOrder', JSON.stringify({
-        orderId: data.order.id,
-        total: data.order.total,
-        subtotal: data.order.subtotal,
-        discountAmount: data.order.discountAmount,
-        paymentMethod: data.order.paymentMethod,
-        deliveryAddress: data.order.deliveryAddress,
-        userInfo: userInfo
+        orderId: result.order.id,
+        total: result.order.total,
+        subtotal: result.order.subtotal,
+        discountAmount: result.order.discountAmount,
+        paymentMethod: result.order.paymentMethod,
+        deliveryAddress: result.order.deliveryAddress,
+        userInfo: orderUserInfo
       }));
-      
+
       // Redirect based on payment method
       if (paymentMethod === 'upi') {
-        setLocation(`/payment?orderId=${data.order.id}`);
+        setLocation(`/payment?orderId=${result.order.id}`);
       } else {
         setLocation("/thank-you");
       }
