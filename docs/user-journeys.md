@@ -45,6 +45,7 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - `POST /api/orders` handled by `server/routes/orders.ts`.
    - Enriches order with addresses, offers, and shipping rules using domain repositories.
    - Orders now persist the selected `paymentMethod` while defaulting both `status` and `paymentStatus` to `pending` until the gateway confirms payment, allowing retries without losing cart context.
+   - The checkout UI automatically selects the buyer's preferred address, recalculates shipping for that PIN code, and keeps the preferred record untouched when shoppers add a fresh address during the flow.
    - Payment capture events atomically mark orders as confirmed/paid and store gateway identifiers (PhonePe merchant transaction ID, provider transaction ID, UTR, payer handle, and a receipt link) so post-checkout experiences surface accurate payment evidence.
    - Incoming PhonePe callbacks/webhooks now reconcile the captured amount against the original authorization, logging and suppressing mismatched payloads while still acknowledging replays so buyers never see duplicate confirmations from tampered notifications.
    - PhonePe webhook verification now preserves provider terminal states like `CANCELLED`, `EXPIRED`, and `TIMEDOUT` as cancelled payments so buyer-initiated aborts or timeouts don't surface as failed orders in downstream journeys.

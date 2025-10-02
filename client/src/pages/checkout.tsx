@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useCart } from "@/hooks/use-cart";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +22,16 @@ interface UserInfo {
   pincode: string;
 }
 
+const EMPTY_USER_INFO: UserInfo = {
+  name: "",
+  addressLine1: "",
+  addressLine2: "",
+  addressLine3: "",
+  landmark: "",
+  city: "",
+  pincode: "",
+};
+
 export default function Checkout() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -29,15 +39,7 @@ export default function Checkout() {
   const [step, setStep] = useState<"phone" | "otp" | "details">("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
-  const [userInfo, setUserInfo] = useState<UserInfo>({
-    name: "",
-    addressLine1: "",
-    addressLine2: "",
-    addressLine3: "",
-    landmark: "",
-    city: "",
-    pincode: "",
-  });
+  const [userInfo, setUserInfo] = useState<UserInfo>(EMPTY_USER_INFO);
   const [user, setUser] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState("upi");
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
@@ -46,14 +48,15 @@ export default function Checkout() {
   const [shippingCharge, setShippingCharge] = useState(50); // Default shipping
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
   const [isPincodeValid, setIsPincodeValid] = useState(false);
+  const [previousSelectedAddressId, setPreviousSelectedAddressId] = useState<string | null>(null);
 
   // Function to validate pincode (6 digits)
-  const validatePincode = (pincode: string): boolean => {
+  const validatePincode = useCallback((pincode: string): boolean => {
     return /^\d{6}$/.test(pincode);
-  };
+  }, []);
 
   // Function to calculate shipping charges
-  const calculateShipping = async (pincode: string) => {
+  const calculateShipping = useCallback(async (pincode: string) => {
     if (!validatePincode(pincode) || cartItems.length === 0) {
       setShippingCharge(50); // Default fallback
       setIsPincodeValid(false);
@@ -77,7 +80,7 @@ export default function Checkout() {
     } finally {
       setIsCalculatingShipping(false);
     }
-  };
+  }, [cartItems, subtotal, validatePincode]);
 
   // Check if user is already logged in
   const { data: authData } = useQuery<{ authenticated: boolean; user?: any }>({
@@ -111,28 +114,65 @@ export default function Checkout() {
           name: authData.user.name
         }));
       }
-      
-      // Pre-select preferred address if available
-      if (addresses && addresses.length > 0) {
-        const preferred = addresses.find(addr => addr.isPreferred);
+
+      if (!selectedAddressId && addresses && addresses.length > 0) {
+        const preferred = addresses.find(addr => addr.isPreferred) ?? addresses[0];
         if (preferred) {
           setSelectedAddressId(preferred.id);
-          // Parse address back to lines (temporary - we'll improve this later)
-          const addressParts = preferred.address.split('\n');
-          setUserInfo(prev => ({
-            ...prev,
-            name: authData.user.name || prev.name, // Keep existing name if user already filled it
-            addressLine1: addressParts[0] || "",
-            addressLine2: addressParts[1] || "",
-            addressLine3: addressParts[2] || "",
-            landmark: "", // Will be empty for existing addresses
-            city: preferred.city,
-            pincode: preferred.pincode,
-          }));
         }
       }
     }
-  }, [authData, addresses]);
+  }, [authData, addresses, selectedAddressId, userInfo.name]);
+
+  useEffect(() => {
+    if (!addresses || addresses.length === 0 || showNewAddressForm) {
+      return;
+    }
+
+    let effectiveSelectedId = selectedAddressId;
+
+    if (!effectiveSelectedId) {
+      const preferred = addresses.find(addr => addr.isPreferred) ?? addresses[0];
+      if (preferred) {
+        setSelectedAddressId(preferred.id);
+        effectiveSelectedId = preferred.id;
+      }
+    }
+
+    if (!effectiveSelectedId) {
+      return;
+    }
+
+    const selectedAddress = addresses.find(addr => addr.id === effectiveSelectedId);
+
+    if (!selectedAddress) {
+      const fallback = addresses[0];
+      if (fallback) {
+        setSelectedAddressId(fallback.id);
+      }
+      return;
+    }
+
+    const addressParts = selectedAddress.address.split("\n");
+    setUserInfo(prev => ({
+      ...prev,
+      addressLine1: addressParts[0] || "",
+      addressLine2: addressParts[1] || "",
+      addressLine3: addressParts[2] || "",
+      landmark: "",
+      city: selectedAddress.city,
+      pincode: selectedAddress.pincode,
+    }));
+
+    const isValid = validatePincode(selectedAddress.pincode);
+    setIsPincodeValid(isValid);
+
+    if (isValid) {
+      calculateShipping(selectedAddress.pincode);
+    } else {
+      setShippingCharge(50);
+    }
+  }, [addresses, calculateShipping, selectedAddressId, showNewAddressForm, validatePincode]);
 
   const sendOtpMutation = useMutation({
     mutationFn: async (): Promise<{ message: string }> => {
@@ -219,10 +259,13 @@ export default function Checkout() {
     },
     onSuccess: () => {
       setShowNewAddressForm(false);
+      setPreviousSelectedAddressId(null);
+      setMakePreferred(false);
       toast({
         title: "Address saved",
         description: "Your new address has been saved successfully",
       });
+      queryClient.invalidateQueries({ queryKey: ["/api/auth/addresses"] });
     },
   });
 
@@ -448,17 +491,8 @@ export default function Checkout() {
                                 : 'border-gray-200 hover:border-gray-300'
                             }`}
                             onClick={() => {
+                              setShowNewAddressForm(false);
                               setSelectedAddressId(preferredAddress.id);
-                              const addressParts = preferredAddress.address.split('\n');
-                              setUserInfo({
-                                ...userInfo,
-                                addressLine1: addressParts[0] || "",
-                                addressLine2: addressParts[1] || "",
-                                addressLine3: addressParts[2] || "",
-                                landmark: "",
-                                city: preferredAddress.city,
-                                pincode: preferredAddress.pincode,
-                              });
                             }}
                             data-testid={`preferred-address-${preferredAddress.id}`}
                           >
@@ -494,7 +528,18 @@ export default function Checkout() {
                       <div className="space-y-3">
                         <Button
                           variant="outline"
-                          onClick={() => setShowNewAddressForm(true)}
+                          onClick={() => {
+                            setPreviousSelectedAddressId(selectedAddressId || null);
+                            setSelectedAddressId("");
+                            setShowNewAddressForm(true);
+                            setMakePreferred(false);
+                            setUserInfo(prev => ({
+                              ...EMPTY_USER_INFO,
+                              name: prev.name,
+                            }));
+                            setIsPincodeValid(false);
+                            setShippingCharge(50);
+                          }}
                           className="w-full"
                           data-testid="button-use-different-address"
                         >
@@ -516,19 +561,10 @@ export default function Checkout() {
                                       ? 'border-blue-500 bg-blue-50'
                                       : 'border-gray-200 hover:border-gray-300'
                                   }`}
-                                  onClick={() => {
-                                    setSelectedAddressId(address.id);
-                                    const addressParts = address.address.split('\n');
-                                    setUserInfo({
-                                      ...userInfo,
-                                      addressLine1: addressParts[0] || "",
-                                      addressLine2: addressParts[1] || "",
-                                      addressLine3: addressParts[2] || "",
-                                      landmark: "",
-                                      city: address.city,
-                                      pincode: address.pincode,
-                                    });
-                                  }}
+                                    onClick={() => {
+                                      setShowNewAddressForm(false);
+                                      setSelectedAddressId(address.id);
+                                    }}
                                   data-testid={`address-option-${address.id}`}
                                 >
                                   <div className="flex items-start justify-between">
@@ -567,7 +603,14 @@ export default function Checkout() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setShowNewAddressForm(false)}
+                          onClick={() => {
+                            setShowNewAddressForm(false);
+                            setMakePreferred(false);
+                            if (previousSelectedAddressId) {
+                              setSelectedAddressId(previousSelectedAddressId);
+                              setPreviousSelectedAddressId(null);
+                            }
+                          }}
                           data-testid="button-cancel-new-address"
                         >
                           Cancel
