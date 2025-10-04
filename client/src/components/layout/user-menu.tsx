@@ -53,6 +53,7 @@ export default function UserMenu() {
           size="sm"
           onClick={() => setShowLoginModal(true)}
           className="flex items-center gap-2"
+          noWrap
           data-testid="button-login"
         >
           <User className="h-4 w-4" />
@@ -72,7 +73,13 @@ export default function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="flex items-center gap-2" data-testid="button-user-menu">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="flex items-center gap-2"
+          data-testid="button-user-menu"
+          noWrap
+        >
           <User className="h-4 w-4" />
           <span className="hidden sm:inline">{user?.name || user?.phone || 'User'}</span>
         </Button>
