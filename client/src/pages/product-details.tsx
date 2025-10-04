@@ -194,7 +194,7 @@ export default function ProductDetails() {
       )}
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-6xl">
         {/* Back Button & Header */}
-        <div className="mb-4 sm:mb-6 flex w-full flex-wrap items-center gap-x-3 gap-y-2">
+        <div className="mb-4 sm:mb-6 flex items-start gap-3 sm:gap-4">
           <Button
             onClick={handleBack}
             variant="ghost"
@@ -207,20 +207,18 @@ export default function ProductDetails() {
           </Button>
 
           <div className="min-w-0 flex-1">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
-              <h1 className="text-lg font-semibold text-gray-900 leading-snug line-clamp-2 sm:text-2xl sm:font-bold" data-testid="product-details-title">
-                {product.name}
-              </h1>
-              {product.isActive ? (
-                <Badge className="bg-green-500 text-white" data-testid="badge-in-stock">
-                  Available
-                </Badge>
-              ) : (
-                <Badge variant="secondary" data-testid="badge-out-of-stock">
-                  Unavailable
-                </Badge>
-              )}
-            </div>
+            <h1 className="text-lg font-semibold text-gray-900 leading-snug line-clamp-2 sm:text-2xl sm:font-bold" data-testid="product-details-title">
+              {product.name}
+            </h1>
+            {product.isActive ? (
+              <Badge className="mt-1 w-fit bg-green-500 text-white text-[11px] font-medium px-2 py-0.5" data-testid="badge-in-stock">
+                Available
+              </Badge>
+            ) : (
+              <Badge className="mt-1 w-fit text-[11px] font-medium px-2 py-0.5" variant="secondary" data-testid="badge-out-of-stock">
+                Unavailable
+              </Badge>
+            )}
           </div>
         </div>
 
