@@ -204,14 +204,14 @@ export default function ProductDetails() {
           Back
         </Button>
 
-        <div className="grid md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 items-start">
           {/* Image Section */}
           <div className="space-y-4">
             <div className="relative group">
               <img
                 src={productImages[currentImageIndex]}
                 alt={product.name}
-                className="w-full h-[500px] object-contain rounded-lg cursor-pointer bg-gray-50"
+                className="w-full h-64 sm:h-[500px] object-contain rounded-lg cursor-pointer bg-gray-50"
                 onClick={handleImageClick}
                 data-testid="product-main-image"
               />
@@ -262,7 +262,7 @@ export default function ProductDetails() {
           </div>
           
           {/* Product Info Section */}
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 mb-2" data-testid="product-details-title">
                 {product.name}
