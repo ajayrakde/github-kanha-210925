@@ -192,26 +192,46 @@ export default function ProductDetails() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(productStructuredData) }}
         />
       )}
-      <div className="container mx-auto px-4 py-6 max-w-6xl">
+      <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-6xl">
         {/* Back Button */}
-        <Button 
-          onClick={handleBack}
-          variant="ghost" 
-          className="mb-4 -ml-2 hover:bg-gray-100"
-          data-testid="button-back-to-products"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back
-        </Button>
+        <div className="mb-4 sm:mb-6 flex items-start gap-3">
+          <Button
+            onClick={handleBack}
+            variant="ghost"
+            className="-ml-1 sm:-ml-2 hover:bg-gray-100 shrink-0"
+            size="sm"
+            data-testid="button-back-to-products"
+          >
+            <ArrowLeft className="mr-1.5 h-4 w-4" />
+            <span className="sr-only sm:not-sr-only">Back</span>
+          </Button>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 items-start">
+          <div className="flex-1 min-w-0 sm:hidden">
+            <h1 className="text-lg font-semibold text-gray-900 leading-snug line-clamp-2">
+              {product.name}
+            </h1>
+            <div className="mt-1">
+              {product.isActive ? (
+                <Badge className="bg-green-500 text-white" data-testid="badge-in-stock-mobile-header">
+                  Available
+                </Badge>
+              ) : (
+                <Badge variant="secondary" data-testid="badge-out-of-stock-mobile-header">
+                  Unavailable
+                </Badge>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)] gap-5 sm:gap-8 items-start">
           {/* Image Section */}
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <div className="relative group">
               <img
                 src={productImages[currentImageIndex]}
                 alt={product.name}
-                className="w-full h-64 sm:h-[500px] object-contain rounded-lg cursor-pointer bg-gray-50"
+                className="w-full h-60 sm:h-[480px] object-contain rounded-lg cursor-pointer bg-gray-50"
                 onClick={handleImageClick}
                 data-testid="product-main-image"
               />
@@ -238,14 +258,14 @@ export default function ProductDetails() {
             
             {/* Thumbnail Images */}
             {productImages.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto">
+              <div className="flex gap-2 overflow-x-auto pb-1">
                 {productImages.map((image, index) => (
                   <button
                     key={index}
                     onClick={() => setCurrentImageIndex(index)}
-                    className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
-                      index === currentImageIndex 
-                        ? 'border-blue-600' 
+                    className={`flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                      index === currentImageIndex
+                        ? 'border-blue-600'
                         : 'border-gray-200 hover:border-gray-400'
                     }`}
                     data-testid={`thumbnail-${index}`}
@@ -263,8 +283,8 @@ export default function ProductDetails() {
           
           {/* Product Info Section */}
           <div className="space-y-4 sm:space-y-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2" data-testid="product-details-title">
+            <div className="hidden sm:block">
+              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2" data-testid="product-details-title">
                 {product.name}
               </h1>
               {product.isActive ? (
@@ -278,15 +298,15 @@ export default function ProductDetails() {
               )}
             </div>
             
-            <div className="space-y-2">
-              <div className="text-3xl font-bold text-gray-900" data-testid="product-price">
+            <div className="space-y-1 sm:space-y-2">
+              <div className="hidden sm:block text-2xl lg:text-3xl font-bold text-gray-900" data-testid="product-price">
                 ₹{parseFloat(product.price).toFixed(2)}
               </div>
               {/* Original price display removed as not in schema */}
             </div>
-            
+
             {/* Cart Controls */}
-            <div className="space-y-3">
+            <div className="space-y-3 sm:space-y-4">
               {isInCart ? (
                 <div className="space-y-3">
                   <div className="flex items-center gap-4">
@@ -325,21 +345,26 @@ export default function ProductDetails() {
                   )}
                 </div>
               ) : (
-                <Button
-                  onClick={() => addToCartMutation.mutate()}
-                  disabled={addToCartMutation.isPending || !product.isActive}
-                  className="w-full md:w-auto bg-blue-600 hover:bg-blue-700"
-                  size="lg"
-                  data-testid="button-add-to-cart"
-                >
-                  {addToCartMutation.isPending ? "Adding..." : "Add to Cart"}
-                </Button>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                  <div className="sm:hidden mb-2 text-xl font-semibold text-gray-900" data-testid="product-price">
+                    ₹{parseFloat(product.price).toFixed(2)}
+                  </div>
+                  <Button
+                    onClick={() => addToCartMutation.mutate()}
+                    disabled={addToCartMutation.isPending || !product.isActive}
+                    className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700"
+                    size="lg"
+                    data-testid="button-add-to-cart"
+                  >
+                    {addToCartMutation.isPending ? "Adding..." : "Add to Cart"}
+                  </Button>
+                </div>
               )}
             </div>
-            
+
             {product.description && (
-              <div className="border-t pt-6">
-                <h3 className="font-semibold text-lg text-gray-900 mb-3">Description</h3>
+              <div className="border-t pt-5 sm:pt-6">
+                <h3 className="font-semibold text-base sm:text-lg text-gray-900 mb-3">Description</h3>
                 <div data-testid="product-description" className="prose prose-sm max-w-none">
                   <MarkdownRenderer content={product.description} />
                 </div>
