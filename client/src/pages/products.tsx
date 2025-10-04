@@ -58,12 +58,12 @@ export default function Products() {
       {/* Checkout Proceed Element - appears at top when cart has items */}
       {itemCount > 0 && (
         <div className="sticky top-20 z-10 bg-gradient-to-r from-green-500 to-green-600 text-white p-4 rounded-lg shadow-lg border-2 border-green-400">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 w-full sm:w-auto">
               <div className="bg-white bg-opacity-20 p-2 rounded-full">
                 <ShoppingCart size={20} />
               </div>
-              <div>
+              <div className="text-sm sm:text-base">
                 <div className="font-semibold">
                   {itemCount} {itemCount === 1 ? 'item' : 'items'} in cart
                 </div>
@@ -74,7 +74,7 @@ export default function Products() {
             </div>
             <Button
               onClick={() => setLocation("/checkout")}
-              className="bg-white text-green-600 hover:bg-green-50 font-semibold px-6 py-2 rounded-lg shadow-sm transition-all duration-200 hover:scale-105"
+              className="bg-white text-green-600 hover:bg-green-50 font-semibold px-6 py-2 rounded-lg shadow-sm transition-all duration-200 hover:scale-105 w-full sm:w-auto"
               data-testid="button-proceed-checkout"
             >
               Proceed to Checkout
