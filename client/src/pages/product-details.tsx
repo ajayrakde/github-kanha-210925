@@ -193,8 +193,8 @@ export default function ProductDetails() {
         />
       )}
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 max-w-6xl">
-        {/* Back Button */}
-        <div className="mb-4 sm:mb-6 flex items-start gap-3">
+        {/* Back Button & Header */}
+        <div className="mb-4 sm:mb-6 flex w-full flex-wrap items-center gap-x-3 gap-y-2">
           <Button
             onClick={handleBack}
             variant="ghost"
@@ -206,17 +206,17 @@ export default function ProductDetails() {
             <span className="sr-only sm:not-sr-only">Back</span>
           </Button>
 
-          <div className="flex-1 min-w-0 sm:hidden">
-            <h1 className="text-lg font-semibold text-gray-900 leading-snug line-clamp-2">
-              {product.name}
-            </h1>
-            <div className="mt-1">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+              <h1 className="text-lg font-semibold text-gray-900 leading-snug line-clamp-2 sm:text-2xl sm:font-bold" data-testid="product-details-title">
+                {product.name}
+              </h1>
               {product.isActive ? (
-                <Badge className="bg-green-500 text-white" data-testid="badge-in-stock-mobile-header">
+                <Badge className="bg-green-500 text-white" data-testid="badge-in-stock">
                   Available
                 </Badge>
               ) : (
-                <Badge variant="secondary" data-testid="badge-out-of-stock-mobile-header">
+                <Badge variant="secondary" data-testid="badge-out-of-stock">
                   Unavailable
                 </Badge>
               )}
@@ -283,21 +283,6 @@ export default function ProductDetails() {
           
           {/* Product Info Section */}
           <div className="space-y-4 sm:space-y-6">
-            <div className="hidden sm:block">
-              <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2" data-testid="product-details-title">
-                {product.name}
-              </h1>
-              {product.isActive ? (
-                <Badge className="bg-green-500 text-white" data-testid="badge-in-stock">
-                  Available
-                </Badge>
-              ) : (
-                <Badge variant="secondary" data-testid="badge-out-of-stock">
-                  Unavailable
-                </Badge>
-              )}
-            </div>
-            
             <div className="space-y-1 sm:space-y-2">
               <div className="hidden sm:block text-2xl lg:text-3xl font-bold text-gray-900" data-testid="product-price">
                 ₹{parseFloat(product.price).toFixed(2)}
