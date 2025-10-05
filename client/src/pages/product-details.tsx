@@ -193,35 +193,33 @@ export default function ProductDetails() {
         />
       )}
       <div className="w-full mx-auto pb-3 sm:max-w-6xl">
-        {/* Back Button */}
-        <div className="px-2 sm:px-4 mb-3">
-          <Button 
-            onClick={handleBack}
-            variant="ghost" 
-            className="flex-shrink-0 -ml-2 h-9 w-9 p-0 hover:bg-gray-100"
-            data-testid="button-back-to-products"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </div>
-
         {/* Main Product Container - Mobile: Flex Column, Desktop: Grid */}
-        <section className="w-full px-4 sm:px-6 flex flex-col sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)] gap-4 sm:gap-8">
+        <section className="w-full px-4 sm:px-6 flex flex-col sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)] gap-2 sm:gap-8">
           
-          {/* Product Title & Badge - Mobile Only (Full Width) */}
-          <header className="sm:hidden">
-            <h1 className="text-xl font-bold text-gray-900 leading-tight mb-2" data-testid="product-details-title">
-              {product.name}
-            </h1>
-            {product.isActive ? (
-              <Badge className="bg-green-500 text-white text-xs" data-testid="badge-in-stock">
-                Available
-              </Badge>
-            ) : (
-              <Badge variant="secondary" className="text-xs" data-testid="badge-out-of-stock">
-                Unavailable
-              </Badge>
-            )}
+          {/* Back Button & Title - Mobile Only (Side by Side) */}
+          <header className="sm:hidden flex items-start gap-2">
+            <Button 
+              onClick={handleBack}
+              variant="ghost" 
+              className="flex-shrink-0 -ml-2 h-9 w-9 p-0 hover:bg-gray-100"
+              data-testid="button-back-to-products"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-xl font-bold text-gray-900 leading-tight mb-1" data-testid="product-details-title">
+                {product.name}
+              </h1>
+              {product.isActive ? (
+                <Badge className="bg-green-500 text-white text-xs" data-testid="badge-in-stock">
+                  Available
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-xs" data-testid="badge-out-of-stock">
+                  Unavailable
+                </Badge>
+              )}
+            </div>
           </header>
 
           {/* Image Container with Aspect Ratio */}
@@ -298,21 +296,33 @@ export default function ProductDetails() {
           </div>
           
           {/* Product Info & CTA Section */}
-          <div className="w-full space-y-3 sm:space-y-5">
-            {/* Title & Badge - Desktop Only */}
+          <div className="w-full space-y-2 sm:space-y-5">
+            {/* Back Button & Title - Desktop Only */}
             <header className="hidden sm:block">
-              <h1 className="text-2xl font-bold text-gray-900 leading-tight mb-2" data-testid="product-details-title">
-                {product.name}
-              </h1>
-              {product.isActive ? (
-                <Badge className="bg-green-500 text-white text-xs" data-testid="badge-in-stock">
-                  Available
-                </Badge>
-              ) : (
-                <Badge variant="secondary" className="text-xs" data-testid="badge-out-of-stock">
-                  Unavailable
-                </Badge>
-              )}
+              <div className="flex items-start gap-2 mb-3">
+                <Button 
+                  onClick={handleBack}
+                  variant="ghost" 
+                  className="flex-shrink-0 -ml-2 h-9 w-9 p-0 hover:bg-gray-100"
+                  data-testid="button-back-to-products"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                </Button>
+                <div className="flex-1 min-w-0">
+                  <h1 className="text-2xl font-bold text-gray-900 leading-tight mb-2" data-testid="product-details-title">
+                    {product.name}
+                  </h1>
+                  {product.isActive ? (
+                    <Badge className="bg-green-500 text-white text-xs" data-testid="badge-in-stock">
+                      Available
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-xs" data-testid="badge-out-of-stock">
+                      Unavailable
+                    </Badge>
+                  )}
+                </div>
+              </div>
             </header>
 
             {/* Price */}
@@ -321,7 +331,7 @@ export default function ProductDetails() {
             </div>
             
             {/* Cart Controls */}
-            <div className="space-y-2">
+            <div className="space-y-1">
               {isInCart ? (
                 <div className="space-y-2">
                   <div className="flex items-center gap-4">
