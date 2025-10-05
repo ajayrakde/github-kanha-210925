@@ -482,7 +482,7 @@ export class CashfreeAdapter implements PaymentsAdapter {
       "Content-Type": "application/json",
       "x-client-id": this.appId,
       "x-client-secret": this.secretKey,
-      "x-api-version": "2022-09-01",
+      "x-api-version": "2025-01-01",
       "User-Agent": "PaymentApp/1.0",
     };
 
