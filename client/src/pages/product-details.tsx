@@ -248,8 +248,8 @@ export default function ProductDetails() {
                     <ChevronRight size={20} />
                   </button>
                   
-                  {/* Dots Indicator */}
-                  <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex gap-1.5">
+                  {/* Dots Indicator - Mobile Only */}
+                  <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex gap-1.5 sm:hidden">
                     {productImages.map((_, index) => (
                       <button
                         key={index}
@@ -267,6 +267,30 @@ export default function ProductDetails() {
                 </>
               )}
             </div>
+            
+            {/* Thumbnail Images - Desktop Only */}
+            {productImages.length > 1 && (
+              <div className="hidden sm:flex gap-2 overflow-x-auto">
+                {productImages.map((image, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentImageIndex(index)}
+                    className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                      index === currentImageIndex 
+                        ? 'border-blue-600' 
+                        : 'border-gray-200 hover:border-gray-400'
+                    }`}
+                    data-testid={`thumbnail-${index}`}
+                  >
+                    <img
+                      src={image}
+                      alt={`Product thumbnail ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           
           {/* Product Info Section */}
