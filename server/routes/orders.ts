@@ -301,23 +301,36 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
         return res.status(404).json({ message: "Order not found" });
       }
 
-      if (session.adminId && session.userRole === "admin") {
-        return res.json(order);
+      const hasAccess = 
+        (session.adminId && session.userRole === "admin") ||
+        (session.userId && session.userRole === "buyer" && order.userId === session.userId) ||
+        (session.influencerId && session.userRole === "influencer" && order.offer?.influencerId === session.influencerId);
+
+      if (!hasAccess) {
+        return res.status(403).json({ message: "Access denied" });
       }
 
-      if (session.userId && session.userRole === "buyer" && order.userId === session.userId) {
-        return res.json(order);
-      }
+      const deliveryAddressString = [
+        order.deliveryAddress.address,
+        `${order.deliveryAddress.city}, ${order.deliveryAddress.pincode}`
+      ].join('\n');
 
-      if (
-        session.influencerId &&
-        session.userRole === "influencer" &&
-        order.offer?.influencerId === session.influencerId
-      ) {
-        return res.json(order);
-      }
+      const orderDataForPayment = {
+        orderId: order.id,
+        total: order.total,
+        subtotal: order.subtotal,
+        discountAmount: order.discountAmount,
+        paymentMethod: order.paymentMethod,
+        deliveryAddress: deliveryAddressString,
+        userInfo: {
+          name: order.user.name,
+          email: order.user.email,
+          phone: order.user.phone,
+        },
+        rawOrder: order,
+      };
 
-      return res.status(403).json({ message: "Access denied" });
+      return res.json(orderDataForPayment);
     } catch (error) {
       console.error("Error fetching order:", error);
       return res.status(500).json({ message: "Failed to fetch order" });
