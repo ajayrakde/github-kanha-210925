@@ -149,7 +149,10 @@ export class CashfreeAdapter implements PaymentsAdapter {
         request.order_meta = orderMeta;
       }
 
-      const response = await this.makeApiCall<CashfreeOrderResponse>("/orders", "POST", request);
+      // Generate idempotency key (use provided key or generate UUID)
+      const idempotencyKey = params.idempotencyKey || crypto.randomUUID();
+
+      const response = await this.makeApiCall<CashfreeOrderResponse>("/orders", "POST", request, idempotencyKey);
 
       const checkoutBaseUrl = this.environment === "live"
         ? "https://payments.cashfree.com/order"
@@ -511,7 +514,7 @@ export class CashfreeAdapter implements PaymentsAdapter {
     return { valid: errors.length === 0, errors };
   }
 
-  private async makeApiCall<T>(endpoint: string, method: "GET" | "POST" | "PUT" | "DELETE", data?: any): Promise<T> {
+  private async makeApiCall<T>(endpoint: string, method: "GET" | "POST" | "PUT" | "DELETE", data?: any, idempotencyKey?: string): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
 
     const headers: Record<string, string> = {
@@ -521,6 +524,11 @@ export class CashfreeAdapter implements PaymentsAdapter {
       "x-api-version": "2025-01-01",
       "User-Agent": "PaymentApp/1.0",
     };
+
+    // Add idempotency key if provided (required for POST requests in latest API)
+    if (idempotencyKey) {
+      headers["x-idempotency-key"] = idempotencyKey;
+    }
 
     const response = await fetch(url, {
       method,
