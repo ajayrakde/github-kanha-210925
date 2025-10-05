@@ -86,7 +86,7 @@ export default function Payment() {
   const [orderId, setOrderId] = useState<string>("");
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'processing' | 'completed' | 'failed'>('pending');
   const [instrumentPreference, setInstrumentPreference] = useState<PhonePeInstrumentPreference>("UPI_INTENT");
-  const { toast } = useToast();
+  const { toast} = useToast();
   const { clearCart } = useCart();
   const checkoutLoaderRef = useRef<Promise<PhonePeCheckoutInstance> | null>(null);
   const latestPaymentIdRef = useRef<string | null>(null);
@@ -129,6 +129,10 @@ export default function Payment() {
     enabled: Boolean(orderId) && !orderData,
     retry: false
   });
+
+  // Determine if we're using Cashfree or PhonePe
+  const paymentMethod = orderData?.paymentMethod || order?.paymentMethod;
+  const isCashfree = paymentMethod?.toLowerCase() === 'cashfree';
 
   const loadPhonePeCheckout = async () => {
     if (window.PhonePeCheckout) {
@@ -186,6 +190,63 @@ export default function Payment() {
         variant: "destructive"
       });
     },
+  });
+
+  const createCashfreePaymentMutation = useMutation({
+    mutationFn: async () => {
+      const currentOrderData = orderData || order;
+      if (!currentOrderData) throw new Error('No order data available');
+
+      setPaymentStatus('processing');
+
+      const response = await apiRequest("POST", "/api/payments/create", {
+        orderId: orderId,
+        amount: parseFloat(currentOrderData.total),
+        currency: 'INR',
+        customer: {
+          name: currentOrderData.userInfo.name,
+          email: currentOrderData.userInfo.email,
+          phone: currentOrderData.userInfo.phone,
+        },
+        billing: {
+          addressLine1: currentOrderData.deliveryAddress.split('\n')[0] || 'N/A',
+          city: 'Mumbai',
+          state: 'Maharashtra',
+          pincode: '400001',
+          country: 'IN',
+        },
+        successUrl: `${window.location.origin}/payment-success?orderId=${orderId}`,
+        failureUrl: `${window.location.origin}/payment-failed?orderId=${orderId}`,
+        description: `Payment for order ${orderId}`,
+        provider: 'cashfree',
+      });
+
+      const payload = await response.json();
+      return payload.data;
+    },
+    onSuccess: (data) => {
+      if (!data || !data.redirectUrl) {
+        toast({
+          title: "Payment Error",
+          description: "Unable to initiate payment. Please try again.",
+          variant: "destructive"
+        });
+        setPaymentStatus('failed');
+        return;
+      }
+
+      latestPaymentIdRef.current = data.paymentId ?? null;
+      window.location.href = data.redirectUrl;
+    },
+    onError: (error) => {
+      console.error('Cashfree payment creation failed:', error);
+      toast({
+        title: "Payment Failed",
+        description: "Unable to process payment. Please try again.",
+        variant: "destructive"
+      });
+      setPaymentStatus('failed');
+    }
   });
 
   const createPaymentMutation = useMutation({
@@ -349,7 +410,7 @@ export default function Payment() {
   });
 
   const currentOrderData = orderData || order;
-  const isLoading = isLoadingOrder || createPaymentMutation.isPending;
+  const isLoading = isLoadingOrder || createPaymentMutation.isPending || createCashfreePaymentMutation.isPending;
 
   // Handle back to checkout
   const handleBackToCheckout = () => {
@@ -361,7 +422,11 @@ export default function Payment() {
     setPaymentStatus('pending');
     latestPaymentIdRef.current = null;
     clearStatusPolling();
-    createPaymentMutation.mutate();
+    if (isCashfree) {
+      createCashfreePaymentMutation.mutate();
+    } else {
+      createPaymentMutation.mutate();
+    }
   };
 
   // Handle payment initiation
@@ -369,7 +434,11 @@ export default function Payment() {
     if (currentOrderData) {
       latestPaymentIdRef.current = null;
       clearStatusPolling();
-      createPaymentMutation.mutate();
+      if (isCashfree) {
+        createCashfreePaymentMutation.mutate();
+      } else {
+        createPaymentMutation.mutate();
+      }
     }
   };
 
@@ -435,7 +504,9 @@ export default function Payment() {
 
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-gray-900 mb-2">Complete Payment</h1>
-        <p className="text-gray-600">Secure payment powered by PhonePe</p>
+        <p className="text-gray-600">
+          Secure payment powered by {isCashfree ? 'Cashfree' : 'PhonePe'}
+        </p>
       </div>
 
       {/* Order Summary */}
@@ -489,30 +560,35 @@ export default function Payment() {
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to Pay</h3>
                 <p className="text-gray-600 mb-6">
-                  The PhonePe checkout will open in a secure iframe to complete your payment.
+                  {isCashfree 
+                    ? 'You will be redirected to Cashfree to complete your payment securely.'
+                    : 'The PhonePe checkout will open in a secure iframe to complete your payment.'
+                  }
                 </p>
               </div>
-              <div className="space-y-3 mb-6">
-                <p className="text-sm font-medium text-gray-900">Choose how you want to pay with UPI</p>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  {PHONEPE_INSTRUMENT_OPTIONS.map((option) => (
-                    <Button
-                      key={option.value}
-                      type="button"
-                      variant={instrumentPreference === option.value ? "default" : "outline"}
-                      className="h-auto w-full flex-col items-start justify-start gap-1 py-3"
-                      onClick={() => setInstrumentPreference(option.value)}
-                      data-testid={option.testId}
-                      aria-pressed={instrumentPreference === option.value}
-                    >
-                      <span className="text-sm font-semibold text-gray-900">{option.label}</span>
-                      <span className="text-xs text-gray-500 text-left">
-                        {option.description}
-                      </span>
-                    </Button>
-                  ))}
+              {!isCashfree && (
+                <div className="space-y-3 mb-6">
+                  <p className="text-sm font-medium text-gray-900">Choose how you want to pay with UPI</p>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    {PHONEPE_INSTRUMENT_OPTIONS.map((option) => (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        variant={instrumentPreference === option.value ? "default" : "outline"}
+                        className="h-auto w-full flex-col items-start justify-start gap-1 py-3"
+                        onClick={() => setInstrumentPreference(option.value)}
+                        data-testid={option.testId}
+                        aria-pressed={instrumentPreference === option.value}
+                      >
+                        <span className="text-sm font-semibold text-gray-900">{option.label}</span>
+                        <span className="text-xs text-gray-500 text-left">
+                          {option.description}
+                        </span>
+                      </Button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
               <Button
                 onClick={handleInitiatePayment}
                 disabled={isLoading}
@@ -528,7 +604,7 @@ export default function Payment() {
                 ) : (
                   <>
                     <CreditCard className="mr-2 h-4 w-4" />
-                    Pay ₹{parseFloat(currentOrderData.total).toFixed(2)} with PhonePe
+                    Pay ₹{parseFloat(currentOrderData.total).toFixed(2)} with {isCashfree ? 'Cashfree' : 'PhonePe'}
                   </>
                 )}
               </Button>
@@ -540,7 +616,12 @@ export default function Payment() {
               <div className="mb-4">
                 <Loader2 className="h-16 w-16 text-blue-600 animate-spin mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Processing Payment</h3>
-                <p className="text-gray-600">Please complete the payment in the PhonePe app or website.</p>
+                <p className="text-gray-600">
+                  {isCashfree 
+                    ? 'Please complete the payment on the Cashfree payment page.'
+                    : 'Please complete the payment in the PhonePe app or website.'
+                  }
+                </p>
               </div>
             </div>
           )}
