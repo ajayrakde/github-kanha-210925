@@ -96,7 +96,7 @@ export default function ProductDetails() {
 
   if (productLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="w-full mx-auto px-2 sm:px-4 py-8 sm:max-w-6xl">
         <div className="flex items-center justify-center h-64">
           <div className="text-gray-500">Loading product...</div>
         </div>
@@ -106,7 +106,7 @@ export default function ProductDetails() {
 
   if (!product) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className="w-full mx-auto px-2 sm:px-4 py-8 sm:max-w-6xl">
         <div className="flex flex-col items-center justify-center h-64">
           <div className="text-gray-500 mb-4">Product not found</div>
           <Button onClick={handleBack} variant="outline">
