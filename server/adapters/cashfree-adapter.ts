@@ -100,6 +100,14 @@ export class CashfreeAdapter implements PaymentsAdapter {
 
       const response = await this.makeApiCall<CashfreeOrderResponse>("/orders", "POST", request);
 
+      const checkoutBaseUrl = this.environment === "live"
+        ? "https://payments.cashfree.com/order"
+        : "https://sandbox.cashfree.com/pg/view/order";
+
+      const redirectUrl = response.payment_session_id
+        ? `${checkoutBaseUrl}/${response.order_id}/${response.payment_session_id}`
+        : undefined;
+
       const result: PaymentResult = {
         paymentId: crypto.randomUUID(),
         providerPaymentId: response.order_id,
@@ -109,6 +117,7 @@ export class CashfreeAdapter implements PaymentsAdapter {
         currency: response.order_currency as Currency,
         provider: "cashfree",
         environment: this.environment,
+        redirectUrl,
         providerData: {
           paymentSessionId: response.payment_session_id,
           cfPaymentId: response.cf_payment_id,
