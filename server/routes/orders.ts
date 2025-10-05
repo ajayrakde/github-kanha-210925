@@ -233,7 +233,26 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
 
       await ordersRepository.clearCart(req.session.sessionId!);
 
-      res.json({ order, message: "Order placed successfully" });
+      const fullOrderWithRelations = await ordersRepository.getOrder(order.id);
+      if (!fullOrderWithRelations) {
+        return res.status(500).json({ message: "Failed to retrieve created order" });
+      }
+
+      const deliveryAddressString = [
+        fullOrderWithRelations.deliveryAddress.address,
+        `${fullOrderWithRelations.deliveryAddress.city}, ${fullOrderWithRelations.deliveryAddress.pincode}`
+      ].join('\n');
+
+      const orderResponse = {
+        id: fullOrderWithRelations.id,
+        total: fullOrderWithRelations.total,
+        subtotal: fullOrderWithRelations.subtotal,
+        discountAmount: fullOrderWithRelations.discountAmount,
+        paymentMethod: fullOrderWithRelations.paymentMethod,
+        deliveryAddress: deliveryAddressString,
+      };
+
+      res.json({ order: orderResponse, message: "Order placed successfully" });
     } catch (error) {
       console.error("Error creating order:", error);
       if (error instanceof z.ZodError) {
