@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Loader2, CreditCard, ArrowLeft, AlertCircle } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -86,6 +87,8 @@ export default function Payment() {
   const [orderId, setOrderId] = useState<string>("");
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'processing' | 'completed' | 'failed'>('pending');
   const [instrumentPreference, setInstrumentPreference] = useState<PhonePeInstrumentPreference>("UPI_INTENT");
+  const [cashfreePaymentSessionId, setCashfreePaymentSessionId] = useState<string | null>(null);
+  const [upiId, setUpiId] = useState<string>('');
   const { toast} = useToast();
   const { clearCart } = useCart();
   const checkoutLoaderRef = useRef<Promise<PhonePeCheckoutInstance> | null>(null);
@@ -197,8 +200,6 @@ export default function Payment() {
       const currentOrderData = orderData || order;
       if (!currentOrderData) throw new Error('No order data available');
 
-      setPaymentStatus('processing');
-
       const response = await apiRequest("POST", "/api/payments/create", {
         orderId: orderId,
         amount: parseFloat(currentOrderData.total),
@@ -225,7 +226,7 @@ export default function Payment() {
       return payload.data;
     },
     onSuccess: (data) => {
-      if (!data || !data.redirectUrl) {
+      if (!data || !data.providerData?.paymentSessionId) {
         toast({
           title: "Payment Error",
           description: "Unable to initiate payment. Please try again.",
@@ -236,13 +237,53 @@ export default function Payment() {
       }
 
       latestPaymentIdRef.current = data.paymentId ?? null;
-      window.location.href = data.redirectUrl;
+      setCashfreePaymentSessionId(data.providerData.paymentSessionId);
+      setPaymentStatus('pending');
     },
     onError: (error) => {
       console.error('Cashfree payment creation failed:', error);
       toast({
         title: "Payment Failed",
         description: "Unable to process payment. Please try again.",
+        variant: "destructive"
+      });
+      setPaymentStatus('failed');
+    }
+  });
+
+  const initiateUPIPaymentMutation = useMutation({
+    mutationFn: async () => {
+      if (!cashfreePaymentSessionId || !upiId) {
+        throw new Error('Missing payment session ID or UPI ID');
+      }
+
+      const response = await apiRequest("POST", "/api/payments/initiate-upi", {
+        orderId: orderId,
+        paymentSessionId: cashfreePaymentSessionId,
+        upiId: upiId.trim(),
+      });
+
+      const payload = await response.json();
+      return payload.data;
+    },
+    onSuccess: (data) => {
+      setPaymentStatus('processing');
+      toast({
+        title: "Payment Initiated",
+        description: "Please check your UPI app to approve the payment request.",
+      });
+
+      if (latestPaymentIdRef.current) {
+        setTimeout(() => {
+          checkPaymentStatusMutation.mutate(latestPaymentIdRef.current!);
+        }, 3000);
+      }
+    },
+    onError: (error) => {
+      console.error('UPI payment initiation failed:', error);
+      toast({
+        title: "Payment Failed",
+        description: "Unable to initiate UPI payment. Please check your VPA and try again.",
         variant: "destructive"
       });
       setPaymentStatus('failed');
@@ -561,7 +602,9 @@ export default function Payment() {
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to Pay</h3>
                 <p className="text-gray-600 mb-6">
                   {isCashfree 
-                    ? 'You will be redirected to Cashfree to complete your payment securely.'
+                    ? (cashfreePaymentSessionId 
+                        ? 'Enter your UPI ID to complete the payment.' 
+                        : 'Click below to set up your payment.')
                     : 'The PhonePe checkout will open in a secure iframe to complete your payment.'
                   }
                 </p>
@@ -589,25 +632,68 @@ export default function Payment() {
                   </div>
                 </div>
               )}
-              <Button
-                onClick={handleInitiatePayment}
-                disabled={isLoading}
-                size="lg"
-                className="w-full"
-                data-testid="button-initiate-payment"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <CreditCard className="mr-2 h-4 w-4" />
-                    Pay ₹{parseFloat(currentOrderData.total).toFixed(2)} with {isCashfree ? 'Cashfree' : 'PhonePe'}
-                  </>
-                )}
-              </Button>
+              {isCashfree && cashfreePaymentSessionId && (
+                <div className="space-y-4 mb-6">
+                  <div className="space-y-2">
+                    <label htmlFor="upi-id" className="text-sm font-medium text-gray-900">
+                      UPI ID / VPA
+                    </label>
+                    <Input
+                      id="upi-id"
+                      type="text"
+                      placeholder="yourname@upi (e.g., success@upi)"
+                      value={upiId}
+                      onChange={(e) => setUpiId(e.target.value)}
+                      disabled={initiateUPIPaymentMutation.isPending}
+                      data-testid="input-upi-id"
+                      className="w-full"
+                    />
+                    <p className="text-xs text-gray-500">
+                      Use success@upi for testing
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => initiateUPIPaymentMutation.mutate()}
+                    disabled={!upiId.trim() || initiateUPIPaymentMutation.isPending}
+                    size="lg"
+                    className="w-full"
+                    data-testid="button-pay-with-upi"
+                  >
+                    {initiateUPIPaymentMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Initiating Payment...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="mr-2 h-4 w-4" />
+                        Pay ₹{parseFloat(currentOrderData.total).toFixed(2)}
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+              {!(isCashfree && cashfreePaymentSessionId) && (
+                <Button
+                  onClick={handleInitiatePayment}
+                  disabled={isLoading}
+                  size="lg"
+                  className="w-full"
+                  data-testid="button-initiate-payment"
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      {isCashfree ? 'Set Up Payment' : `Pay ₹${parseFloat(currentOrderData.total).toFixed(2)} with PhonePe`}
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
           )}
 

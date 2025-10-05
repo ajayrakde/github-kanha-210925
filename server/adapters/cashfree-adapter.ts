@@ -400,6 +400,59 @@ export class CashfreeAdapter implements PaymentsAdapter {
     }
   }
 
+  public async initiateUPIPayment(params: {
+    paymentSessionId: string;
+    upiId: string;
+    orderId: string;
+  }): Promise<{
+    cfPaymentId: string;
+    status: string;
+    data?: {
+      url?: string;
+      payload?: Record<string, any>;
+    };
+  }> {
+    try {
+      const request = {
+        payment_session_id: params.paymentSessionId,
+        payment_method: {
+          upi: {
+            channel: "collect",
+            upi_id: params.upiId,
+          },
+        },
+      };
+
+      const response = await this.makeApiCall<{
+        cf_payment_id: string;
+        payment_method: string;
+        channel: string;
+        action: string;
+        payment_amount: number;
+        data?: {
+          url?: string;
+          payload?: Record<string, any>;
+          content_type?: string;
+          method?: string;
+        };
+      }>("/orders/sessions", "POST", request);
+
+      return {
+        cfPaymentId: response.cf_payment_id,
+        status: "processing",
+        data: response.data,
+      };
+    } catch (error) {
+      console.error("Cashfree UPI payment initiation failed:", error);
+      throw new PaymentError(
+        `UPI payment initiation failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+        "PAYMENT_INITIATION_FAILED",
+        "cashfree",
+        error
+      );
+    }
+  }
+
   public getSupportedMethods(): PaymentMethod[] {
     return ["card", "upi", "netbanking", "wallet"];
   }

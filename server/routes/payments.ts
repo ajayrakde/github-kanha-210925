@@ -661,6 +661,59 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   });
 
   /**
+   * Initiate Cashfree UPI payment with VPA
+   * POST /api/payments/initiate-upi
+   */
+  router.post('/initiate-upi', async (req, res) => {
+    try {
+      const schema = z.object({
+        orderId: z.string(),
+        paymentSessionId: z.string(),
+        upiId: z.string(),
+      });
+
+      const validatedData = schema.parse(req.body);
+      const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+      const environment = (process.env.NODE_ENV === 'production' ? 'live' : 'test') as Environment;
+
+      const adapter = await adapterFactory.getAdapterWithFallback('cashfree', environment, tenantId);
+      if (!adapter) {
+        return res.status(500).json({ error: 'Cashfree adapter not available' });
+      }
+
+      if (adapter.provider !== 'cashfree') {
+        return res.status(500).json({ error: 'Invalid provider adapter' });
+      }
+
+      const cashfreeAdapter = adapter as any;
+      const result = await cashfreeAdapter.initiateUPIPayment({
+        paymentSessionId: validatedData.paymentSessionId,
+        upiId: validatedData.upiId,
+        orderId: validatedData.orderId,
+      });
+
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      console.error('UPI payment initiation error:', error);
+
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          error: 'Invalid request data',
+          details: error.errors
+        });
+      }
+
+      res.status(500).json({
+        error: 'UPI payment initiation failed',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  /**
    * Create a PhonePe checkout token URL for iframe-based flows
    * POST /api/payments/token-url
    */
