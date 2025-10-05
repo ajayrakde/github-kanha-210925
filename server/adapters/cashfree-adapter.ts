@@ -83,12 +83,27 @@ export class CashfreeAdapter implements PaymentsAdapter {
 
   public async createPayment(params: CreatePaymentParams): Promise<PaymentResult> {
     try {
+      // Sanitize customer_id to be alphanumeric with underscores/hyphens only
+      const sanitizeCustomerId = (id: string | undefined): string => {
+        if (!id) return `cust_${Date.now()}`;
+        // Replace @ and other special characters with underscore, keep only alphanumeric, hyphens, underscores
+        return id.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 50);
+      };
+
+      const customerId = params.customer.id 
+        ? sanitizeCustomerId(params.customer.id)
+        : params.customer.email 
+          ? sanitizeCustomerId(params.customer.email)
+          : params.customer.phone 
+            ? sanitizeCustomerId(params.customer.phone)
+            : `cust_${Date.now()}`;
+
       const request = {
         order_id: params.orderId,
         order_amount: params.orderAmount / 100,
         order_currency: params.currency,
         customer_details: {
-          customer_id: params.customer.id || params.customer.email || params.customer.phone || `cust_${Date.now()}`,
+          customer_id: customerId,
           customer_email: params.customer.email,
           customer_phone: params.customer.phone,
         },
