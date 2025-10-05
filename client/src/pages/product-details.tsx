@@ -192,9 +192,9 @@ export default function ProductDetails() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(productStructuredData) }}
         />
       )}
-      <div className="container mx-auto px-4 py-3 max-w-6xl">
+      <div className="container mx-auto px-4 pb-3 max-w-6xl">
         {/* Header with Back Button and Product Title */}
-        <div className="flex items-start gap-2 mb-3">
+        <div className="flex items-start gap-2 mb-2">
           <Button 
             onClick={handleBack}
             variant="ghost" 
@@ -219,14 +219,14 @@ export default function ProductDetails() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 items-start">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-8 items-start">
           {/* Image Section */}
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="relative group">
               <img
                 src={productImages[currentImageIndex]}
                 alt={product.name}
-                className="w-full h-64 sm:h-[500px] object-contain rounded-lg cursor-pointer bg-gray-50"
+                className="w-full h-48 sm:h-[500px] object-contain rounded-lg cursor-pointer bg-gray-50"
                 onClick={handleImageClick}
                 data-testid="product-main-image"
               />
@@ -277,18 +277,18 @@ export default function ProductDetails() {
           </div>
           
           {/* Product Info Section */}
-          <div className="space-y-3 sm:space-y-5">
+          <div className="space-y-2 sm:space-y-5">
             <div className="space-y-1">
-              <div className="text-3xl font-bold text-gray-900" data-testid="product-price">
+              <div className="text-2xl sm:text-3xl font-bold text-gray-900" data-testid="product-price">
                 ₹{parseFloat(product.price).toFixed(2)}
               </div>
               {/* Original price display removed as not in schema */}
             </div>
             
             {/* Cart Controls */}
-            <div className="space-y-3">
+            <div className="space-y-2">
               {isInCart ? (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div className="flex items-center gap-4">
                     <button
                       onClick={handleDecreaseQuantity}
