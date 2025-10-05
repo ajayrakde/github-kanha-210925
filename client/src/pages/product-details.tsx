@@ -192,7 +192,7 @@ export default function ProductDetails() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(productStructuredData) }}
         />
       )}
-      <div className="container mx-auto px-4 pb-3 max-w-6xl">
+      <div className="container mx-auto px-2 sm:px-4 pb-3 max-w-6xl">
         {/* Header with Back Button and Product Title */}
         <div className="flex items-start gap-2 mb-2">
           <Button 
@@ -226,7 +226,7 @@ export default function ProductDetails() {
               <img
                 src={productImages[currentImageIndex]}
                 alt={product.name}
-                className="w-full h-48 sm:h-[500px] object-contain rounded-lg cursor-pointer bg-gray-50"
+                className="w-full h-64 sm:h-[500px] object-contain rounded-lg cursor-pointer bg-gray-50"
                 onClick={handleImageClick}
                 data-testid="product-main-image"
               />
@@ -235,45 +235,38 @@ export default function ProductDetails() {
                 <>
                   <button
                     onClick={handlePreviousImage}
-                    className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                     data-testid="button-previous-image"
                   >
-                    <ChevronLeft size={24} />
+                    <ChevronLeft size={20} />
                   </button>
                   <button
                     onClick={handleNextImage}
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black bg-opacity-50 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                     data-testid="button-next-image"
                   >
-                    <ChevronRight size={24} />
+                    <ChevronRight size={20} />
                   </button>
+                  
+                  {/* Dots Indicator */}
+                  <div className="absolute bottom-3 left-1/2 transform -translate-x-1/2 flex gap-1.5">
+                    {productImages.map((_, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setCurrentImageIndex(index)}
+                        className={`w-2 h-2 rounded-full transition-all ${
+                          index === currentImageIndex 
+                            ? 'bg-white w-6' 
+                            : 'bg-white bg-opacity-50 hover:bg-opacity-75'
+                        }`}
+                        data-testid={`dot-indicator-${index}`}
+                        aria-label={`Go to image ${index + 1}`}
+                      />
+                    ))}
+                  </div>
                 </>
               )}
             </div>
-            
-            {/* Thumbnail Images */}
-            {productImages.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto">
-                {productImages.map((image, index) => (
-                  <button
-                    key={index}
-                    onClick={() => setCurrentImageIndex(index)}
-                    className={`flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border-2 transition-all ${
-                      index === currentImageIndex 
-                        ? 'border-blue-600' 
-                        : 'border-gray-200 hover:border-gray-400'
-                    }`}
-                    data-testid={`thumbnail-${index}`}
-                  >
-                    <img
-                      src={image}
-                      alt={`Product thumbnail ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
           
           {/* Product Info Section */}
