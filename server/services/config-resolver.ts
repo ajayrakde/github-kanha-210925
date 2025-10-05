@@ -116,6 +116,11 @@ export class ConfigResolver {
         ? this.buildPhonePeConfig(environment, dbConfig, secrets)
         : undefined;
 
+    // For Cashfree, use clientId from environment variable instead of database
+    const appId = provider === 'cashfree' && (secrets as any).clientId
+      ? (secrets as any).clientId
+      : (dbConfig?.appId ?? undefined);
+
     // Combine configuration
     const resolvedConfig: ResolvedConfig = {
       provider,
@@ -127,7 +132,7 @@ export class ConfigResolver {
       merchantId: dbConfig?.merchantId ?? undefined,
       keyId: dbConfig?.keyId ?? undefined,
       accessCode: dbConfig?.accessCode ?? undefined,
-      appId: dbConfig?.appId ?? undefined,
+      appId,
       publishableKey: dbConfig?.publishableKey ?? undefined,
       saltIndex: dbConfig?.saltIndex ?? undefined,
       accountId: dbConfig?.accountId ?? undefined,
