@@ -345,7 +345,7 @@ export default function ProductDetails() {
                 <Button
                   onClick={() => addToCartMutation.mutate()}
                   disabled={addToCartMutation.isPending || !product.isActive}
-                  className="w-full md:w-auto bg-blue-600 hover:bg-blue-700"
+                  className="w-full bg-blue-600 hover:bg-blue-700"
                   size="lg"
                   data-testid="button-add-to-cart"
                 >
