@@ -412,7 +412,7 @@ export default function Checkout() {
     return (
       <div className="text-center py-12">
         <h2 className="text-2xl font-semibold text-gray-900 mb-2">No items in cart</h2>
-        <p className="text-gray-600 mb-6">Add some products before checkout</p>
+        <p className="text-gray-600 mb-3 sm:mb-6">Add some products before checkout</p>
         <Button onClick={() => setLocation("/")} data-testid="button-back-to-products">
           Back to Products
         </Button>
@@ -421,7 +421,7 @@ export default function Checkout() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-3 sm:space-y-6">
       {/* Back Button */}
       <Button 
         onClick={() => setLocation("/")}
@@ -433,17 +433,17 @@ export default function Checkout() {
         Back
       </Button>
 
-      <div className="mb-6">
+      <div className="mb-3 sm:mb-6">
         <h2 className="text-2xl font-semibold text-gray-900 mb-2">Checkout</h2>
         <p className="text-gray-600">Complete your order with secure payment</p>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid lg:grid-cols-3 gap-3 sm:gap-6">
+        <div className="lg:col-span-2 space-y-3 sm:space-y-6">
           {/* Phone Verification */}
           {step === "phone" && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+              <h3 className="font-semibold text-gray-900 mb-2 sm:mb-4 flex items-center">
                 <i className="fas fa-mobile-alt text-blue-600 mr-2"></i>
                 Phone Verification
               </h3>
@@ -478,8 +478,8 @@ export default function Checkout() {
 
           {/* OTP Verification */}
           {step === "otp" && (
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+              <h3 className="font-semibold text-gray-900 mb-2 sm:mb-4 flex items-center">
                 <i className="fas fa-shield-alt text-green-600 mr-2"></i>
                 Enter OTP
               </h3>
@@ -522,14 +522,14 @@ export default function Checkout() {
           {/* Delivery Information */}
           {step === "details" && (
             <>
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+                <h3 className="font-semibold text-gray-900 mb-2 sm:mb-4 flex items-center">
                   <i className="fas fa-truck text-blue-600 mr-2"></i>
                   Delivery Information
                 </h3>
 
                 {/* User Name */}
-                <div className="mb-6">
+                <div className="mb-3 sm:mb-6">
                   <Label htmlFor="name">Full Name</Label>
                   <Input
                     id="name"
@@ -549,7 +549,7 @@ export default function Checkout() {
                     {(() => {
                       const preferredAddress = addresses.find(addr => addr.isPreferred);
                       return preferredAddress && !showNewAddressForm ? (
-                        <div className="mb-6">
+                        <div className="mb-3 sm:mb-6">
                           <Label className="text-base font-medium">Preferred Address</Label>
                           <div
                             className={`mt-2 border rounded-lg p-4 cursor-pointer transition-colors ${
@@ -899,8 +899,8 @@ export default function Checkout() {
               </div>
 
               {/* Payment Method */}
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+                <h3 className="font-semibold text-gray-900 mb-2 sm:mb-4 flex items-center">
                   <i className="fas fa-credit-card text-blue-600 mr-2"></i>
                   Payment Method
                 </h3>
@@ -929,9 +929,9 @@ export default function Checkout() {
 
         {/* Order Summary */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow-sm p-6 sticky top-24">
-            <h3 className="font-semibold text-gray-900 mb-4">Order Summary</h3>
-            <div className="space-y-3 text-sm mb-4">
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 sticky top-24">
+            <h3 className="font-semibold text-gray-900 mb-2 sm:mb-4">Order Summary</h3>
+            <div className="space-y-3 text-sm mb-2 sm:mb-4">
               <div className="flex justify-between">
                 <span className="text-gray-600">Subtotal ({cartItems.length} items)</span>
                 <span data-testid="text-order-subtotal">₹{(subtotal / 1.05).toFixed(2)}</span>
@@ -957,7 +957,7 @@ export default function Checkout() {
               </div>
             </div>
 
-            <div className="space-y-3 mb-6">
+            <div className="space-y-3 mb-3 sm:mb-6">
               <div className="text-xs text-gray-500 flex items-center">
                 <i className="fas fa-shield-alt mr-1"></i>
                 Secure checkout with 256-bit SSL encryption

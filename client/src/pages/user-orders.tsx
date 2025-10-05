@@ -142,7 +142,7 @@ export default function UserOrders() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-3 sm:space-y-3 sm:space-y-6">
         <Button 
           onClick={() => setLocation("/")}
           variant="ghost" 
@@ -153,7 +153,7 @@ export default function UserOrders() {
         </Button>
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-lg shadow-sm p-6">
+            <div key={i} className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
               <div className="animate-pulse space-y-3">
                 <div className="h-5 bg-gray-200 rounded w-32"></div>
                 <div className="h-4 bg-gray-200 rounded w-48"></div>
@@ -167,7 +167,7 @@ export default function UserOrders() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-3 sm:space-y-6">
       <Button 
         onClick={() => setLocation("/")}
         variant="ghost" 
@@ -178,16 +178,16 @@ export default function UserOrders() {
         Back
       </Button>
 
-      <div className="mb-6">
+      <div className="mb-3 sm:mb-6">
         <h2 className="text-2xl font-semibold text-gray-900 mb-2">My Orders</h2>
         <p className="text-gray-600">View your order history and track deliveries</p>
       </div>
 
       {!orders || orders.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg shadow-sm">
-          <div className="text-6xl mb-4">📦</div>
+          <div className="text-6xl mb-2 sm:mb-4">📦</div>
           <h3 className="text-xl font-semibold text-gray-900 mb-2">No orders yet</h3>
-          <p className="text-gray-600 mb-6">Start shopping to see your orders here</p>
+          <p className="text-gray-600 mb-3 sm:mb-6">Start shopping to see your orders here</p>
           <Button onClick={() => setLocation("/")} data-testid="button-start-shopping">
             Start Shopping
           </Button>
@@ -198,8 +198,8 @@ export default function UserOrders() {
             const latestPayment = getLatestPayment(order.payments);
 
             return (
-              <div key={order.id} className="bg-white rounded-lg shadow-sm p-6">
-                <div className="flex justify-between items-start mb-4">
+              <div key={order.id} className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+                <div className="flex justify-between items-start mb-2 sm:mb-4">
                   <div>
                     <h3 className="font-semibold text-gray-900">
                       Order #{order.id.slice(0, 8).toUpperCase()}
@@ -217,7 +217,7 @@ export default function UserOrders() {
                   {getStatusBadge(order.status)}
                 </div>
 
-                <Separator className="mb-4" />
+                <Separator className="mb-2 sm:mb-4" />
 
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">

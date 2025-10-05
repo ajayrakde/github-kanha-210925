@@ -586,7 +586,7 @@ export default function ThankYou() {
   if (!currentOrderData && !orderData && !isLoadingPayment) {
     return (
       <div className="max-w-2xl mx-auto text-center py-12">
-        <p className="text-gray-600 mb-6">No order information available</p>
+        <p className="text-gray-600 mb-3 sm:mb-6">No order information available</p>
         <Button onClick={() => setLocation("/")} data-testid="button-continue-shopping-final">
           Continue Shopping
         </Button>
@@ -597,7 +597,7 @@ export default function ThankYou() {
   if (isLoadingPayment && !orderData) {
     return (
       <div className="max-w-2xl mx-auto text-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 sm:mb-4" />
         <p className="text-gray-600">Loading order information...</p>
       </div>
     );
@@ -619,7 +619,7 @@ export default function ThankYou() {
   if (!displayOrderData) {
     return (
       <div className="max-w-2xl mx-auto text-center py-12">
-        <p className="text-gray-600 mb-6">No order information available</p>
+        <p className="text-gray-600 mb-3 sm:mb-6">No order information available</p>
         <Button onClick={() => setLocation("/")} data-testid="button-continue-shopping-final">
           Continue Shopping
         </Button>
@@ -660,16 +660,16 @@ export default function ThankYou() {
       )}
 
       {/* Payment Receipt */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-6">
-        <div className="text-center mb-6">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-3 sm:mb-6">
+        <div className="text-center mb-3 sm:mb-6">
           <h3 className="text-2xl font-semibold text-gray-900">Payment Receipt</h3>
           <p className="text-sm text-gray-500 mt-2">Order Date: {orderDate}</p>
         </div>
 
-        <Separator className="mb-6" />
+        <Separator className="mb-3 sm:mb-6" />
 
         {/* Order Details */}
-        <div className="space-y-4 mb-6">
+        <div className="space-y-4 mb-3 sm:mb-6">
           <div className="flex justify-between">
             <span className="text-gray-600">Order ID:</span>
             <span className="font-mono font-medium" data-testid="text-order-id">
@@ -692,10 +692,10 @@ export default function ThankYou() {
           </div>
         </div>
 
-        <Separator className="mb-6" />
+        <Separator className="mb-3 sm:mb-6" />
 
         {/* Price Breakdown */}
-        <div className="space-y-3 mb-6">
+        <div className="space-y-3 mb-3 sm:mb-6">
           <h4 className="font-semibold text-gray-900">Price Details</h4>
           <div className="flex justify-between text-sm">
             <span className="text-gray-600">Subtotal (incl. tax):</span>
@@ -721,7 +721,7 @@ export default function ThankYou() {
         </div>
 
         {/* Payment Info */}
-        <div className="bg-gray-50 rounded-lg p-4 mb-6">
+        <div className="bg-gray-50 rounded-lg p-4 mb-3 sm:mb-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <i className="fas fa-credit-card text-blue-600 mr-2"></i>
@@ -882,7 +882,7 @@ export default function ThankYou() {
 
         {/* Payment Status Messages */}
         {isUpiMethod(displayOrderData.paymentMethod) && paymentInfo?.order && (
-          <div className="mb-6">
+          <div className="mb-3 sm:mb-6">
             {['pending', 'processing'].includes(normalizeStatus(paymentInfo.order.paymentStatus)) && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <div className="flex items-center">
@@ -932,7 +932,7 @@ export default function ThankYou() {
           </div>
         )}
 
-        <Separator className="mb-6" />
+        <Separator className="mb-3 sm:mb-6" />
 
         {/* Policy Information - At the bottom, not as warning */}
         <div className="text-sm text-gray-600 space-y-2">

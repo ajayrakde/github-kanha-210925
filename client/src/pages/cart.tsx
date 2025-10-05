@@ -177,15 +177,15 @@ export default function Cart() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="mb-6">
+      <div className="space-y-3 sm:space-y-6">
+        <div className="mb-3 sm:mb-6">
           <div className="h-8 bg-gray-200 rounded w-48 mb-2"></div>
           <div className="h-4 bg-gray-200 rounded w-64"></div>
         </div>
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-4">
+        <div className="grid lg:grid-cols-3 gap-3 sm:gap-6">
+          <div className="lg:col-span-2 space-y-3 sm:space-y-4">
             {Array(3).fill(0).map((_, i) => (
-              <div key={i} className="bg-white rounded-lg shadow-sm p-6">
+              <div key={i} className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
                 <div className="flex items-center space-x-4">
                   <div className="w-16 h-16 bg-gray-200 rounded-md"></div>
                   <div className="flex-1 space-y-2">
@@ -198,7 +198,7 @@ export default function Cart() {
             ))}
           </div>
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm p-6">
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
               <div className="h-6 bg-gray-200 rounded w-32 mb-4"></div>
               <div className="space-y-3">
                 {Array(4).fill(0).map((_, i) => (
@@ -217,10 +217,10 @@ export default function Cart() {
 
   if (!cartItems || cartItems.length === 0) {
     return (
-      <div className="text-center py-12">
-        <div className="text-6xl mb-4">🛒</div>
-        <h2 className="text-2xl font-semibold text-gray-900 mb-2">Your cart is empty</h2>
-        <p className="text-gray-600 mb-6">Add some products to get started</p>
+      <div className="text-center py-8 sm:py-12">
+        <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">🛒</div>
+        <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2">Your cart is empty</h2>
+        <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">Add some products to get started</p>
         <Button onClick={() => setLocation("/")} data-testid="button-continue-shopping">
           Continue Shopping
         </Button>
@@ -229,27 +229,27 @@ export default function Cart() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3 sm:space-y-6">
       {/* Back Button */}
       <Button 
         onClick={() => setLocation("/")}
         variant="ghost" 
-        className="-ml-2 mb-2 hover:bg-gray-100"
+        className="-ml-2 mb-1 sm:mb-2 hover:bg-gray-100"
         data-testid="button-back-to-products"
       >
         <ArrowLeft className="mr-2 h-4 w-4" />
         Back
       </Button>
 
-      <div className="mb-6">
-        <h2 className="text-2xl font-semibold text-gray-900 mb-2">Shopping Cart</h2>
-        <p className="text-gray-600">Review your items before checkout</p>
+      <div className="mb-3 sm:mb-6">
+        <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-1 sm:mb-2">Shopping Cart</h2>
+        <p className="text-sm sm:text-base text-gray-600">Review your items before checkout</p>
       </div>
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid lg:grid-cols-3 gap-3 sm:gap-6">
+        <div className="lg:col-span-2 space-y-3 sm:space-y-6">
           {/* Cart Items */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
             <div className="space-y-4">
               {cartItems.map((item, index) => (
                 <div key={item.id}>
@@ -261,8 +261,8 @@ export default function Cart() {
           </div>
 
           {/* Coupon Section */}
-          <div className="bg-white rounded-lg shadow-sm p-6">
-            <h3 className="font-medium text-gray-900 mb-4">Apply Coupon</h3>
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+            <h3 className="text-sm sm:text-base font-medium text-gray-900 mb-3 sm:mb-4">Apply Coupon</h3>
             {!appliedOffer ? (
               <>
                 <div className="flex space-x-3">
@@ -337,8 +337,8 @@ export default function Cart() {
 
         {/* Order Summary */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg shadow-sm p-6 sticky top-24">
-            <h3 className="font-semibold text-gray-900 mb-4">Order Summary</h3>
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 sticky top-24">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Order Summary</h3>
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-600">Subtotal ({cartItems.length} items)</span>
