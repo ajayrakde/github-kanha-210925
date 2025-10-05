@@ -192,21 +192,36 @@ export default function ProductDetails() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(productStructuredData) }}
         />
       )}
-      <div className="container mx-auto px-4 py-6 max-w-6xl">
-        {/* Back Button */}
-        <Button 
-          onClick={handleBack}
-          variant="ghost" 
-          className="mb-4 -ml-2 hover:bg-gray-100"
-          data-testid="button-back-to-products"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back
-        </Button>
+      <div className="container mx-auto px-4 py-3 max-w-6xl">
+        {/* Header with Back Button and Product Title */}
+        <div className="flex items-start gap-2 mb-3">
+          <Button 
+            onClick={handleBack}
+            variant="ghost" 
+            className="flex-shrink-0 -ml-2 h-9 w-9 p-0 hover:bg-gray-100"
+            data-testid="button-back-to-products"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight mb-1" data-testid="product-details-title">
+              {product.name}
+            </h1>
+            {product.isActive ? (
+              <Badge className="bg-green-500 text-white text-xs" data-testid="badge-in-stock">
+                Available
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="text-xs" data-testid="badge-out-of-stock">
+                Unavailable
+              </Badge>
+            )}
+          </div>
+        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 items-start">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 items-start">
           {/* Image Section */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="relative group">
               <img
                 src={productImages[currentImageIndex]}
@@ -243,7 +258,7 @@ export default function ProductDetails() {
                   <button
                     key={index}
                     onClick={() => setCurrentImageIndex(index)}
-                    className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                    className={`flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden border-2 transition-all ${
                       index === currentImageIndex 
                         ? 'border-blue-600' 
                         : 'border-gray-200 hover:border-gray-400'
@@ -262,23 +277,8 @@ export default function ProductDetails() {
           </div>
           
           {/* Product Info Section */}
-          <div className="space-y-4 sm:space-y-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2" data-testid="product-details-title">
-                {product.name}
-              </h1>
-              {product.isActive ? (
-                <Badge className="bg-green-500 text-white" data-testid="badge-in-stock">
-                  Available
-                </Badge>
-              ) : (
-                <Badge variant="secondary" data-testid="badge-out-of-stock">
-                  Unavailable
-                </Badge>
-              )}
-            </div>
-            
-            <div className="space-y-2">
+          <div className="space-y-3 sm:space-y-5">
+            <div className="space-y-1">
               <div className="text-3xl font-bold text-gray-900" data-testid="product-price">
                 ₹{parseFloat(product.price).toFixed(2)}
               </div>
@@ -338,8 +338,8 @@ export default function ProductDetails() {
             </div>
             
             {product.description && (
-              <div className="border-t pt-6">
-                <h3 className="font-semibold text-lg text-gray-900 mb-3">Description</h3>
+              <div className="border-t pt-4">
+                <h3 className="font-semibold text-base sm:text-lg text-gray-900 mb-2">Description</h3>
                 <div data-testid="product-description" className="prose prose-sm max-w-none">
                   <MarkdownRenderer content={product.description} />
                 </div>
