@@ -438,6 +438,7 @@ export class CashfreeAdapter implements PaymentsAdapter {
 
   private mapPaymentStatus(status?: string): PaymentStatus {
     switch ((status || "").toUpperCase()) {
+      case "ACTIVE":
       case "PAYMENT_PENDING":
       case "PENDING":
         return "processing";
