@@ -12,6 +12,7 @@ import {
   insertUserSchema,
 } from "@shared/schema";
 import type { RequireAdminMiddleware, SessionRequest } from "./types";
+import { configResolver } from "../services/config-resolver";
 
 export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
   const router = Router();
@@ -171,6 +172,30 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
 
       const total = subtotal - discountAmount + shippingCharge;
 
+      // Resolve generic "upi" payment method to the active provider
+      let resolvedPaymentMethod = paymentMethod;
+      if (paymentMethod === 'upi') {
+        try {
+          const environment = (process.env.NODE_ENV === 'production' ? 'live' : 'test') as 'test' | 'live';
+          const enabledProviders = await configResolver.getEnabledProviders(environment, 'default');
+          
+          // Find first enabled UPI provider (cashfree or phonepe)
+          const upiProvider = enabledProviders.find(p => 
+            p.provider === 'cashfree' || p.provider === 'phonepe'
+          );
+          
+          if (upiProvider) {
+            resolvedPaymentMethod = upiProvider.provider;
+            console.log(`Resolved payment method "upi" to active provider: ${resolvedPaymentMethod}`);
+          } else {
+            console.warn('No UPI provider enabled, keeping payment method as "upi"');
+          }
+        } catch (error) {
+          console.error('Failed to resolve UPI payment provider:', error);
+          // Keep original paymentMethod if resolution fails
+        }
+      }
+
       const orderData = {
         userId,
         subtotal: subtotal.toString(),
@@ -179,7 +204,7 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
         total: total.toString(),
         amountMinor: Math.round(total * 100),
         offerId: appliedOffer?.id,
-        paymentMethod,
+        paymentMethod: resolvedPaymentMethod,
         paymentStatus: "pending" as const,
         status: "pending" as const,
         deliveryAddressId,
