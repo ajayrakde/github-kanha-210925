@@ -98,20 +98,56 @@ export class CashfreeAdapter implements PaymentsAdapter {
             ? sanitizeCustomerId(params.customer.phone)
             : `cust_${Date.now()}`;
 
-      const request = {
+      // Validate required fields for Cashfree
+      if (!params.customer.phone) {
+        throw new PaymentError(
+          "Customer phone number is required for Cashfree payments",
+          "MISSING_CUSTOMER_PHONE",
+          "cashfree"
+        );
+      }
+
+      const customerDetails: {
+        customer_id: string;
+        customer_phone: string;
+        customer_email?: string;
+        customer_name?: string;
+      } = {
+        customer_id: customerId,
+        customer_phone: params.customer.phone,
+      };
+
+      if (params.customer.email) {
+        customerDetails.customer_email = params.customer.email;
+      }
+
+      if (params.customer.name) {
+        customerDetails.customer_name = params.customer.name;
+      }
+
+      const orderMeta: {
+        return_url?: string;
+        notify_url?: string;
+      } = {};
+
+      if (params.successUrl) {
+        orderMeta.return_url = params.successUrl;
+      }
+
+      if (params.providerOptions?.notifyUrl) {
+        orderMeta.notify_url = params.providerOptions.notifyUrl;
+      }
+
+      const request: any = {
         order_id: params.orderId,
         order_amount: params.orderAmount / 100,
         order_currency: params.currency,
-        customer_details: {
-          customer_id: customerId,
-          customer_email: params.customer.email,
-          customer_phone: params.customer.phone,
-        },
-        order_meta: {
-          return_url: params.successUrl,
-          notify_url: params.providerOptions?.notifyUrl,
-        },
+        customer_details: customerDetails,
       };
+
+      if (Object.keys(orderMeta).length > 0) {
+        request.order_meta = orderMeta;
+      }
 
       const response = await this.makeApiCall<CashfreeOrderResponse>("/orders", "POST", request);
 
