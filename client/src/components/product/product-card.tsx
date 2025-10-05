@@ -59,18 +59,18 @@ export default function ProductCard({ product }: ProductCardProps) {
           className="w-full h-44 object-contain bg-gray-50"
           data-testid={`product-image-${product.id}`}
         />
-        <div className="p-4">
-          <h3 className="font-medium text-gray-900 mb-2 hover:text-blue-600" data-testid={`product-name-${product.id}`}>
+        <div className="p-3 sm:p-4">
+          <h3 className="font-semibold text-sm sm:text-base text-gray-900 mb-2 line-clamp-2 hover:text-blue-600" data-testid={`product-name-${product.id}`}>
             {product.name}
           </h3>
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-lg font-semibold text-gray-900" data-testid={`product-price-${product.id}`}>
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-base sm:text-lg font-bold text-gray-900" data-testid={`product-price-${product.id}`}>
               ₹{parseFloat(product.price).toFixed(2)}
             </span>
             
             {cartQuantity > 0 ? (
               <div 
-                className="flex items-center gap-1 border rounded-md" 
+                className="flex items-center gap-0.5 sm:gap-1 border rounded-md" 
                 onClick={(e) => e.stopPropagation()}
               >
                 <Button
@@ -81,12 +81,12 @@ export default function ProductCard({ product }: ProductCardProps) {
                     handleDecreaseQuantity();
                   }}
                   disabled={updateCartItem.isPending || removeFromCart.isPending}
-                  className="h-8 w-8 p-0"
+                  className="h-7 w-7 sm:h-8 sm:w-8 p-0"
                   data-testid={`button-decrease-quantity-${product.id}`}
                 >
                   <Minus size={14} />
                 </Button>
-                <span className="px-2 py-1 text-sm font-medium min-w-[24px] text-center" data-testid={`cart-quantity-${product.id}`}>
+                <span className="px-1.5 sm:px-2 py-1 text-sm font-medium min-w-[20px] sm:min-w-[24px] text-center" data-testid={`cart-quantity-${product.id}`}>
                   {cartQuantity}
                 </span>
                 <Button
@@ -97,7 +97,7 @@ export default function ProductCard({ product }: ProductCardProps) {
                     handleIncreaseQuantity();
                   }}
                   disabled={updateCartItem.isPending || cartQuantity >= 10}
-                  className="h-8 w-8 p-0"
+                  className="h-7 w-7 sm:h-8 sm:w-8 p-0"
                   data-testid={`button-increase-quantity-${product.id}`}
                 >
                   <Plus size={14} />
@@ -114,10 +114,11 @@ export default function ProductCard({ product }: ProductCardProps) {
                   });
                 }}
                 disabled={addToCart.isPending}
-                className="bg-blue-600 hover:bg-blue-700 text-sm px-3 py-1.5 h-8"
+                className="bg-blue-600 hover:bg-blue-700 text-xs sm:text-sm px-2.5 sm:px-3 py-1.5 h-7 sm:h-8 font-medium"
                 data-testid={`button-add-to-cart-${product.id}`}
               >
-                Add to Cart
+                <span className="sm:hidden">Add</span>
+                <span className="hidden sm:inline">Add to Cart</span>
               </Button>
             )}
           </div>
