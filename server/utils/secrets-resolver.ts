@@ -142,11 +142,31 @@ export class SecretsResolver {
         secrets.workingKey = resolvedEnvValues[`${environmentPrefix}WORKING_KEY`];
         break;
 
-      case 'cashfree':
-        secrets.keySecret = resolvedEnvValues[`${environmentPrefix}SECRET_KEY`];
+      case 'cashfree': {
+        // Cashfree uses CASHFREE_TEST_* naming instead of PAYAPP_TEST_CASHFREE_*
+        const cashfreePrefix = `CASHFREE_${environment.toUpperCase()}_`;
+        const clientId = process.env[`${cashfreePrefix}CLIENT_ID`];
+        const secretKey = process.env[`${cashfreePrefix}SECRET_KEY`];
+        
+        if (!clientId || !secretKey) {
+          const missing = [];
+          if (!clientId) missing.push(`${cashfreePrefix}CLIENT_ID`);
+          if (!secretKey) missing.push(`${cashfreePrefix}SECRET_KEY`);
+          throw new ConfigurationError(
+            `Missing required Cashfree environment variables: ${missing.join(', ')}`,
+            provider,
+            missing
+          );
+        }
+        
+        // Store both client ID and secret key
+        secrets.keySecret = secretKey.trim();
         // Cashfree uses the same secret key for webhook verification
-        secrets.webhookSecret = resolvedEnvValues[`${environmentPrefix}SECRET_KEY`];
+        secrets.webhookSecret = secretKey.trim();
+        // Store client ID for later use
+        (secrets as any).clientId = clientId.trim();
         break;
+      }
 
       case 'paytm':
         secrets.merchantKey = resolvedEnvValues[`${environmentPrefix}MERCHANT_KEY`];
@@ -267,7 +287,11 @@ export class SecretsResolver {
       case 'ccavenue':
         return [`${prefix}WORKING_KEY`];
       case 'cashfree':
-        return [`${prefix}SECRET_KEY`];
+        // Cashfree uses CASHFREE_TEST_* naming instead of PAYAPP_TEST_CASHFREE_*
+        return [
+          `CASHFREE_${environment.toUpperCase()}_CLIENT_ID`,
+          `CASHFREE_${environment.toUpperCase()}_SECRET_KEY`
+        ];
       case 'paytm':
         return [`${prefix}MERCHANT_KEY`];
       case 'billdesk':
