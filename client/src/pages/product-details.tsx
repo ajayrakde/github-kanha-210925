@@ -192,9 +192,9 @@ export default function ProductDetails() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(productStructuredData) }}
         />
       )}
-      <div className="w-full mx-auto px-2 sm:px-4 pb-3 sm:max-w-6xl">
-        {/* Header with Back Button and Product Title */}
-        <div className="flex items-start gap-2 mb-2">
+      <div className="w-full mx-auto pb-3 sm:max-w-6xl">
+        {/* Back Button */}
+        <div className="px-2 sm:px-4 mb-3">
           <Button 
             onClick={handleBack}
             variant="ghost" 
@@ -203,8 +203,14 @@ export default function ProductDetails() {
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 leading-tight mb-1" data-testid="product-details-title">
+        </div>
+
+        {/* Main Product Container - Mobile: Flex Column, Desktop: Grid */}
+        <section className="w-full px-4 sm:px-6 flex flex-col sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)] gap-4 sm:gap-8">
+          
+          {/* Product Title & Badge - Mobile Only (Full Width) */}
+          <header className="sm:hidden">
+            <h1 className="text-xl font-bold text-gray-900 leading-tight mb-2" data-testid="product-details-title">
               {product.name}
             </h1>
             {product.isActive ? (
@@ -216,17 +222,15 @@ export default function ProductDetails() {
                 Unavailable
               </Badge>
             )}
-          </div>
-        </div>
+          </header>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-8 items-start">
-          {/* Image Section */}
-          <div className="space-y-2">
-            <div className="relative group">
+          {/* Image Container with Aspect Ratio */}
+          <div className="w-full">
+            <div className="relative group w-full aspect-square sm:aspect-auto">
               <img
                 src={productImages[currentImageIndex]}
                 alt={product.name}
-                className="w-full h-64 sm:h-[500px] object-contain rounded-lg cursor-pointer bg-gray-50"
+                className="w-full h-full sm:h-[500px] object-contain rounded-lg cursor-pointer bg-gray-50"
                 onClick={handleImageClick}
                 data-testid="product-main-image"
               />
@@ -270,7 +274,7 @@ export default function ProductDetails() {
             
             {/* Thumbnail Images - Desktop Only */}
             {productImages.length > 1 && (
-              <div className="hidden sm:flex gap-2 overflow-x-auto">
+              <div className="hidden sm:flex gap-2 overflow-x-auto mt-3">
                 {productImages.map((image, index) => (
                   <button
                     key={index}
@@ -293,13 +297,27 @@ export default function ProductDetails() {
             )}
           </div>
           
-          {/* Product Info Section */}
-          <div className="space-y-2 sm:space-y-5">
-            <div className="space-y-1">
-              <div className="text-2xl sm:text-3xl font-bold text-gray-900" data-testid="product-price">
-                ₹{parseFloat(product.price).toFixed(2)}
-              </div>
-              {/* Original price display removed as not in schema */}
+          {/* Product Info & CTA Section */}
+          <div className="w-full space-y-3 sm:space-y-5">
+            {/* Title & Badge - Desktop Only */}
+            <header className="hidden sm:block">
+              <h1 className="text-2xl font-bold text-gray-900 leading-tight mb-2" data-testid="product-details-title">
+                {product.name}
+              </h1>
+              {product.isActive ? (
+                <Badge className="bg-green-500 text-white text-xs" data-testid="badge-in-stock">
+                  Available
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="text-xs" data-testid="badge-out-of-stock">
+                  Unavailable
+                </Badge>
+              )}
+            </header>
+
+            {/* Price */}
+            <div className="text-2xl sm:text-3xl font-bold text-gray-900" data-testid="product-price">
+              ₹{parseFloat(product.price).toFixed(2)}
             </div>
             
             {/* Cart Controls */}
@@ -329,7 +347,7 @@ export default function ProductDetails() {
                     <span className="text-sm text-gray-600">in cart</span>
                   </div>
                   
-                  {/* Proceed to Checkout Button - shown when cart has items */}
+                  {/* Proceed to Checkout Button */}
                   {cartItems && cartItems.length > 0 && (
                     <Button
                       onClick={() => navigate('/checkout')}
@@ -353,17 +371,28 @@ export default function ProductDetails() {
                 </Button>
               )}
             </div>
-            
+
+            {/* Description - Desktop Only */}
             {product.description && (
-              <div className="border-t pt-4">
-                <h3 className="font-semibold text-base sm:text-lg text-gray-900 mb-2">Description</h3>
+              <div className="hidden sm:block border-t pt-4">
+                <h3 className="font-semibold text-lg text-gray-900 mb-2">Description</h3>
                 <div data-testid="product-description" className="prose prose-sm max-w-none">
                   <MarkdownRenderer content={product.description} />
                 </div>
               </div>
             )}
           </div>
-        </div>
+        </section>
+
+        {/* Description - Mobile Only (Below Hero) */}
+        {product.description && (
+          <section className="sm:hidden px-4 mt-4 border-t pt-4">
+            <h3 className="font-semibold text-base text-gray-900 mb-2">Description</h3>
+            <div data-testid="product-description" className="prose prose-sm max-w-none">
+              <MarkdownRenderer content={product.description} />
+            </div>
+          </section>
+        )}
       </div>
 
       <ImageLightbox
