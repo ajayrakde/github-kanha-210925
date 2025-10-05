@@ -192,7 +192,7 @@ export default function ProductDetails() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(productStructuredData) }}
         />
       )}
-      <div className="container mx-auto px-2 sm:px-4 pb-3 max-w-6xl">
+      <div className="w-full mx-auto px-2 sm:px-4 pb-3 sm:max-w-6xl">
         {/* Header with Back Button and Product Title */}
         <div className="flex items-start gap-2 mb-2">
           <Button 
