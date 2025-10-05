@@ -192,9 +192,9 @@ export default function ProductDetails() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(productStructuredData) }}
         />
       )}
-      <div className="w-full mx-auto pb-3 sm:max-w-6xl">
+      <div className="w-full mx-auto pb-3 sm:max-w-6xl px-2 sm:px-4">
         {/* Main Product Container - Mobile: Flex Column, Desktop: Grid */}
-        <section className="w-full px-4 sm:px-6 flex flex-col sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)] gap-2 sm:gap-8">
+        <section className="w-full bg-white dark:bg-gray-900 rounded-lg shadow-md px-4 sm:px-6 py-3 sm:py-6 flex flex-col sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)] gap-2 sm:gap-8">
           
           {/* Back Button & Title - Mobile Only (Side by Side) */}
           <header className="sm:hidden flex items-start gap-2">
@@ -396,9 +396,9 @@ export default function ProductDetails() {
 
         {/* Description - Mobile Only (Below Hero) */}
         {product.description && (
-          <section className="sm:hidden px-4 mt-4 border-t pt-4">
-            <h3 className="font-semibold text-base text-gray-900 mb-2">Description</h3>
-            <div data-testid="product-description" className="prose prose-sm max-w-none">
+          <section className="sm:hidden bg-white dark:bg-gray-900 rounded-lg shadow-md px-4 py-4 mt-2">
+            <h3 className="font-semibold text-base text-gray-900 dark:text-gray-100 mb-2">Description</h3>
+            <div data-testid="product-description" className="prose prose-sm max-w-none dark:prose-invert">
               <MarkdownRenderer content={product.description} />
             </div>
           </section>
