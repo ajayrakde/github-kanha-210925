@@ -144,7 +144,8 @@ export class SecretsResolver {
 
       case 'cashfree':
         secrets.keySecret = resolvedEnvValues[`${environmentPrefix}SECRET_KEY`];
-        secrets.webhookSecret = resolvedEnvValues[`${environmentPrefix}WEBHOOK_SECRET`];
+        // Cashfree uses the same secret key for webhook verification
+        secrets.webhookSecret = resolvedEnvValues[`${environmentPrefix}SECRET_KEY`];
         break;
 
       case 'paytm':
@@ -266,7 +267,7 @@ export class SecretsResolver {
       case 'ccavenue':
         return [`${prefix}WORKING_KEY`];
       case 'cashfree':
-        return [`${prefix}SECRET_KEY`, `${prefix}WEBHOOK_SECRET`];
+        return [`${prefix}SECRET_KEY`];
       case 'paytm':
         return [`${prefix}MERCHANT_KEY`];
       case 'billdesk':
