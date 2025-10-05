@@ -211,11 +211,11 @@ export default function ProductDetails() {
                 {product.name}
               </h1>
               {product.isActive ? (
-                <Badge className="bg-green-500 text-white text-xs" data-testid="badge-in-stock">
+                <Badge className="bg-green-500 text-white text-[10px] px-1.5 py-0" data-testid="badge-in-stock">
                   Available
                 </Badge>
               ) : (
-                <Badge variant="secondary" className="text-xs" data-testid="badge-out-of-stock">
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0" data-testid="badge-out-of-stock">
                   Unavailable
                 </Badge>
               )}
@@ -313,11 +313,11 @@ export default function ProductDetails() {
                     {product.name}
                   </h1>
                   {product.isActive ? (
-                    <Badge className="bg-green-500 text-white text-xs" data-testid="badge-in-stock">
+                    <Badge className="bg-green-500 text-white text-[10px] px-1.5 py-0" data-testid="badge-in-stock">
                       Available
                     </Badge>
                   ) : (
-                    <Badge variant="secondary" className="text-xs" data-testid="badge-out-of-stock">
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0" data-testid="badge-out-of-stock">
                       Unavailable
                     </Badge>
                   )}
