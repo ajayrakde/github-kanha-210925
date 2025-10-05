@@ -283,18 +283,27 @@ export class CashfreeAdapter implements PaymentsAdapter {
 
   public async verifyWebhook(params: WebhookVerifyParams): Promise<WebhookVerifyResult> {
     try {
-      if (!this.webhookSecret) {
-        throw new WebhookError("Webhook secret not configured", "WEBHOOK_SECRET_MISSING", "cashfree");
+      // Cashfree uses the secret key (not a separate webhook secret) for verification
+      if (!this.secretKey) {
+        throw new WebhookError("Secret key not configured", "SECRET_KEY_MISSING", "cashfree");
       }
 
       const signature = params.headers["x-webhook-signature"];
+      const timestamp = params.headers["x-webhook-timestamp"];
+      
       if (!signature) {
         return { verified: false, error: { code: "MISSING_SIGNATURE", message: "Missing Cashfree signature" } };
       }
 
+      if (!timestamp) {
+        return { verified: false, error: { code: "MISSING_TIMESTAMP", message: "Missing Cashfree timestamp" } };
+      }
+
+      // Cashfree signature is HMAC-SHA256(timestamp + rawBody) encoded as base64
+      const message = timestamp + params.body.toString();
       const expected = crypto
-        .createHmac("sha256", this.webhookSecret)
-        .update(params.body.toString(), "utf8")
+        .createHmac("sha256", this.secretKey)
+        .update(message, "utf8")
         .digest("base64");
 
       if (signature !== expected) {
