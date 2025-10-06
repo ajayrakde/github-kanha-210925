@@ -896,31 +896,44 @@ export class WebhookRouter {
     const nestedSources = [
       payload,
       typeof payload.data === 'object' ? payload.data : undefined,
+      typeof payload.payment === 'object' ? payload.payment : undefined,
     ].filter(Boolean) as Record<string, any>[];
 
     for (const source of nestedSources) {
       const candidates = [
-        source.amount,
         source.amountMinor,
+        source.amount,
         source.transactionAmount,
         source.capturedAmount,
         source.captureAmount,
+        source.payment_amount,
       ];
 
       for (const candidate of candidates) {
         if (typeof candidate === 'number' && !Number.isNaN(candidate)) {
-          return candidate;
+          const amount = Math.round(candidate);
+          if (amount < 10000) {
+            console.log(`[Webhook] Detected major currency unit (${amount}), converting to minor units (${amount * 100})`);
+            return amount * 100;
+          }
+          return amount;
         }
 
         if (typeof candidate === 'string' && candidate.trim().length > 0) {
           const parsed = Number(candidate);
           if (!Number.isNaN(parsed)) {
-            return candidate.includes('.') ? Math.round(parsed * 100) : Math.round(parsed);
+            const amount = candidate.includes('.') ? Math.round(parsed * 100) : Math.round(parsed);
+            if (amount < 10000) {
+              console.log(`[Webhook] Detected major currency unit from string (${amount}), converting to minor units (${amount * 100})`);
+              return amount * 100;
+            }
+            return amount;
           }
         }
       }
     }
 
+    console.log('[Webhook] Failed to extract captured amount from payload');
     return undefined;
   }
 
