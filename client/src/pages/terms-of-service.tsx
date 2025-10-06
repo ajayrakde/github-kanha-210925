@@ -6,10 +6,10 @@ import { cn } from "@/lib/utils";
 export default function TermsOfService() {
   return (
     <div className="max-w-4xl mx-auto py-8">
-      <div className="mb-6">
+      <div className="mb-6 flex items-center gap-3">
         <Link
           href="/"
-          className={cn(buttonVariants({ variant: "ghost" }), "mb-4")}
+          className={cn(buttonVariants({ variant: "ghost" }), "-ml-2")}
           data-testid="button-back-home"
         >
           <i className="fas fa-arrow-left mr-2" aria-hidden="true"></i>
