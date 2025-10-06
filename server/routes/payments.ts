@@ -667,6 +667,386 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   });
 
   /**
+   * Start payment flow - atomically creates order and initiates payment
+   * POST /api/payments/start
+   */
+  router.post('/start', requireAuthenticatedSession, async (req: SessionRequest, res) => {
+    try {
+      // Validation schema for order intent
+      const startPaymentSchema = z.object({
+        checkoutIntentId: z.string(),
+        userInfo: z.object({
+          name: z.string().optional(),
+          email: z.string().email().or(z.literal("")).optional().nullable(),
+          addressLine1: z.string().min(1),
+          addressLine2: z.string().min(1),
+          addressLine3: z.string().optional(),
+          landmark: z.string().optional(),
+          city: z.string().min(1),
+          pincode: z.string().min(1),
+          makePreferred: z.boolean().optional().default(false),
+        }).optional(),
+        offerCode: z.string().optional().nullable(),
+        paymentMethod: z.string().min(1),
+        selectedAddressId: z.string().optional().nullable(),
+      });
+
+      const validatedData = startPaymentSchema.parse(req.body);
+      const { checkoutIntentId, userInfo, offerCode, paymentMethod, selectedAddressId } = validatedData;
+      const userId = req.session.userId!;
+      const sessionId = req.session.sessionId!;
+      const tenantId = resolveTenantId(req);
+
+      // Step 1: Check for existing order with this intent (idempotency)
+      const existingOrder = await ordersRepository.getPendingByIntent(checkoutIntentId);
+      if (existingOrder) {
+        // Order already exists, return it with payment session if available
+        const fullOrder = await ordersRepository.getOrder(existingOrder.id);
+        if (fullOrder) {
+          const deliveryAddressString = [
+            fullOrder.deliveryAddress.address,
+            `${fullOrder.deliveryAddress.city}, ${fullOrder.deliveryAddress.pincode}`
+          ].join('\n');
+
+          return res.json({
+            order: {
+              id: fullOrder.id,
+              total: fullOrder.total,
+              subtotal: fullOrder.subtotal,
+              discountAmount: fullOrder.discountAmount,
+              paymentMethod: fullOrder.paymentMethod,
+              deliveryAddress: deliveryAddressString,
+              userInfo: {
+                name: fullOrder.user?.name || '',
+                email: fullOrder.user?.email || '',
+                phone: fullOrder.user?.phone || '',
+              },
+              cashfreePaymentSessionId: fullOrder.cashfreePaymentSessionId,
+            },
+            message: "Order already exists for this checkout"
+          });
+        }
+      }
+
+      // Step 2: Re-validate cart items (could have changed since checkout)
+      const cartItems = await ordersRepository.getCartItems(sessionId);
+      if (cartItems.length === 0) {
+        return res.status(400).json({ message: "Cart is empty" });
+      }
+
+      // Step 3: Handle address (create or select)
+      let deliveryAddressId = selectedAddressId ?? undefined;
+
+      if (selectedAddressId) {
+        const userAddresses = await (await import('../storage')).usersRepository.getUserAddresses(userId);
+        const selectedAddress = userAddresses.find(addr => addr.id === selectedAddressId);
+        if (!selectedAddress) {
+          return res.status(400).json({ message: "Selected address does not belong to user" });
+        }
+      }
+
+      if (!selectedAddressId && userInfo) {
+        const { insertUserAddressSchema } = await import("@shared/schema");
+        const usersRepository = (await import('../storage')).usersRepository;
+        
+        const fullAddress = [
+          userInfo.addressLine1,
+          userInfo.addressLine2,
+          userInfo.addressLine3,
+        ]
+          .filter(line => line?.trim())
+          .join("\n");
+
+        const existingAddresses = await usersRepository.getUserAddresses(userId);
+        const shouldBePreferred = userInfo.makePreferred || existingAddresses.length === 0;
+
+        const addressData = {
+          userId,
+          name: existingAddresses.length === 0 ? "Primary Address" : "Delivery Address",
+          address: fullAddress,
+          city: userInfo.city,
+          pincode: userInfo.pincode,
+          isPreferred: shouldBePreferred,
+        };
+
+        const newAddress = await usersRepository.createUserAddress(addressData);
+
+        if (shouldBePreferred && existingAddresses.length > 0) {
+          await usersRepository.setPreferredAddress(userId, newAddress.id);
+        }
+
+        deliveryAddressId = newAddress.id;
+      }
+
+      if (!deliveryAddressId) {
+        return res.status(400).json({ message: "Delivery address is required" });
+      }
+
+      // Step 4: Update user info if provided
+      if (userInfo) {
+        const { insertUserSchema } = await import("@shared/schema");
+        const usersRepository = (await import('../storage')).usersRepository;
+        const {
+          addressLine1,
+          addressLine2,
+          addressLine3,
+          landmark,
+          city,
+          pincode,
+          makePreferred,
+          ...userInfoToUpdate
+        } = userInfo;
+        if (Object.keys(userInfoToUpdate).length > 0) {
+          const userUpdateSchema = insertUserSchema
+            .partial()
+            .pick({ name: true, email: true })
+            .extend({
+              email: z.string().email().or(z.literal("")).optional().nullable(),
+            });
+          const validatedUserUpdate = userUpdateSchema.parse(userInfoToUpdate);
+          if (validatedUserUpdate.email === "") {
+            validatedUserUpdate.email = null;
+          }
+          await usersRepository.updateUser(userId, validatedUserUpdate);
+        }
+      }
+
+      // Step 5: Calculate totals and validate offer
+      const subtotal = cartItems.reduce(
+        (sum, item) => sum + parseFloat(item.product.price) * item.quantity,
+        0,
+      );
+      let discountAmount = 0;
+      const offersRepository = (await import('../storage')).offersRepository;
+      const appliedOffer = offerCode ? await offersRepository.getOfferByCode(offerCode) : undefined;
+
+      if (appliedOffer) {
+        if (appliedOffer.discountType === "percentage") {
+          discountAmount = (subtotal * parseFloat(appliedOffer.discountValue)) / 100;
+          if (appliedOffer.maxDiscount) {
+            discountAmount = Math.min(
+              discountAmount,
+              parseFloat(appliedOffer.maxDiscount),
+            );
+          }
+        } else {
+          discountAmount = parseFloat(appliedOffer.discountValue);
+        }
+      }
+
+      // Step 6: Calculate shipping
+      const usersRepository = (await import('../storage')).usersRepository;
+      const shippingRepository = (await import('../storage')).shippingRepository;
+      const address = await usersRepository
+        .getUserAddresses(userId)
+        .then(addresses => addresses.find(addr => addr.id === deliveryAddressId));
+
+      const shippingCharge = address
+        ? await shippingRepository.calculateShippingCharge({
+            cartItems,
+            pincode: address.pincode,
+            orderValue: subtotal,
+          })
+        : 50;
+
+      const total = subtotal - discountAmount + shippingCharge;
+
+      // Step 7: Resolve payment method to active provider
+      let resolvedPaymentMethod = paymentMethod;
+      if (paymentMethod === 'upi') {
+        try {
+          const enabledProviders = await configResolver.getEnabledProviders(environment, tenantId);
+          const upiProvider = enabledProviders.find(p => 
+            p.provider === 'cashfree' || p.provider === 'phonepe'
+          );
+          
+          if (upiProvider) {
+            resolvedPaymentMethod = upiProvider.provider;
+            console.log(`[PaymentStart] Resolved payment method "upi" to active provider: ${resolvedPaymentMethod}`);
+          }
+        } catch (error) {
+          console.error('[PaymentStart] Failed to resolve UPI payment provider:', error);
+        }
+      }
+
+      // Step 8: Create order atomically with checkoutIntentId
+      const orderData = {
+        userId,
+        subtotal: subtotal.toString(),
+        discountAmount: discountAmount.toString(),
+        shippingCharge: shippingCharge.toString(),
+        total: total.toString(),
+        amountMinor: Math.round(total * 100),
+        offerId: appliedOffer?.id,
+        paymentMethod: resolvedPaymentMethod,
+        paymentStatus: "pending" as const,
+        status: "pending" as const,
+        deliveryAddressId,
+        checkoutIntentId,  // Add intent ID to prevent duplicates
+      };
+
+      const order = await ordersRepository.createOrder(orderData);
+      console.log(`[PaymentStart] Created order ${order.id} with intent ${checkoutIntentId}`);
+
+      const orderItems = cartItems.map(item => ({
+        productId: item.productId,
+        quantity: item.quantity,
+        price: item.product.price,
+        orderId: order.id,
+      }));
+
+      await ordersRepository.createOrderItems(orderItems);
+
+      if (appliedOffer) {
+        await offersRepository.createOfferRedemption({
+          offerId: appliedOffer.id,
+          userId,
+          orderId: order.id,
+          discountAmount: discountAmount.toString(),
+        });
+        await offersRepository.incrementOfferUsage(appliedOffer.id);
+      }
+
+      // Step 9: Initiate payment immediately for Cashfree
+      let cashfreeCreated = false;
+      let cashfreeOrderId: string | undefined;
+      let cashfreePaymentSessionId: string | undefined;
+      let cashfreeOrderStatus: string | undefined;
+      let cashfreeError: string | undefined;
+
+      if (resolvedPaymentMethod === 'cashfree') {
+        try {
+          const { retryCashfreeOperation } = await import('../utils/retry');
+          const { CashfreeAdapter } = await import('../adapters/cashfree-adapter');
+          
+          const config = await configResolver.resolveConfig('cashfree', environment, tenantId);
+          const cashfreeAdapter = new CashfreeAdapter(config);
+
+          const user = await usersRepository.getUser(userId);
+          if (!user) {
+            throw new Error('User not found');
+          }
+
+          let attempts = 0;
+          const result = await retryCashfreeOperation(async () => {
+            attempts++;
+            
+            // Check if order already exists before creating
+            const existingOrder = await cashfreeAdapter.checkOrderExists(order.id);
+            if (existingOrder) {
+              console.log(`[Order ${order.id}] Cashfree order already exists, using existing order`);
+              return {
+                providerOrderId: existingOrder.order_id,
+                providerData: {
+                  paymentSessionId: existingOrder.payment_session_id,
+                },
+                status: cashfreeAdapter['mapPaymentStatus'](existingOrder.order_status),
+              };
+            }
+
+            console.log(`[Order ${order.id}] Attempt ${attempts}: Creating Cashfree payment`);
+            return await cashfreeAdapter.createPayment({
+              orderId: order.id,
+              orderAmount: Math.round(total * 100),
+              currency: 'INR',
+              customer: {
+                id: user.id,
+                name: user.name || 'Customer',
+                email: user.email || undefined,
+                phone: user.phone,
+              },
+              successUrl: `${process.env.APP_URL || 'http://localhost:5000'}/payment-success?orderId=${order.id}`,
+              failureUrl: `${process.env.APP_URL || 'http://localhost:5000'}/payment-failed?orderId=${order.id}`,
+            });
+          }, (attempt, error) => {
+            console.log(`[Order ${order.id}] Retry attempt ${attempt} failed:`, error);
+          });
+
+          cashfreeCreated = true;
+          cashfreeOrderId = result.providerOrderId;
+          cashfreePaymentSessionId = result.providerData?.paymentSessionId;
+          cashfreeOrderStatus = result.status;
+
+          console.log(`[Order ${order.id}] Cashfree payment created successfully after ${attempts} attempt(s)`);
+
+          // Update order with Cashfree details
+          await ordersRepository.updateCashfreeOrderDetails(order.id, {
+            cashfreeOrderId,
+            cashfreePaymentSessionId,
+            cashfreeOrderStatus,
+            cashfreeCreated: true,
+            cashfreeAttempts: attempts,
+          });
+        } catch (error) {
+          console.error(`[PaymentStart] Cashfree payment creation failed for order ${order.id}:`, error);
+          cashfreeError = error instanceof Error ? error.message : 'Unknown error';
+          
+          // ROLLBACK: Delete the order we just created since payment failed
+          console.log(`[PaymentStart] Rolling back order ${order.id} due to Cashfree failure`);
+          await ordersRepository.deleteOrder(order.id);
+          
+          // Also roll back offer redemption if it was created
+          // Note: We don't need to decrement usage as we're deleting the redemption record
+          
+          return res.status(500).json({
+            message: "Payment gateway unavailable. Please try again.",
+            error: cashfreeError,
+            cashfreeCreated: false,
+          });
+        }
+      }
+
+      // Step 10: Prepare and return response
+      const fullOrder = await ordersRepository.getOrder(order.id);
+      if (!fullOrder) {
+        return res.status(500).json({ message: "Failed to retrieve created order" });
+      }
+
+      const user = await usersRepository.getUser(userId);
+      const deliveryAddressString = [
+        fullOrder.deliveryAddress.address,
+        `${fullOrder.deliveryAddress.city}, ${fullOrder.deliveryAddress.pincode}`
+      ].join('\n');
+
+      const orderResponse = {
+        id: fullOrder.id,
+        total: fullOrder.total,
+        subtotal: fullOrder.subtotal,
+        discountAmount: fullOrder.discountAmount,
+        paymentMethod: fullOrder.paymentMethod,
+        deliveryAddress: deliveryAddressString,
+        userInfo: {
+          name: user?.name || '',
+          email: user?.email || '',
+          phone: user?.phone || '',
+        },
+        cashfreeCreated,
+        cashfreePaymentSessionId,
+      };
+
+      res.json({ 
+        order: orderResponse, 
+        message: "Order and payment created successfully" 
+      });
+
+    } catch (error) {
+      console.error('[PaymentStart] Error:', error);
+
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          message: "Invalid request data",
+          errors: error.errors
+        });
+      }
+
+      res.status(500).json({
+        message: "Failed to start payment",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  /**
    * Create a pending payment record for Cashfree order
    * POST /api/payments/create-pending-cashfree
    */
