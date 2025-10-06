@@ -534,10 +534,6 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       }
 
       const validatedData = createPaymentSchema.parse(req.body);
-      
-      // Debug logging to trace phone number issue
-      console.log('[Payment Create] Request body customer:', JSON.stringify(req.body.customer, null, 2));
-      console.log('[Payment Create] Validated customer:', JSON.stringify(validatedData.customer, null, 2));
 
       const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
 

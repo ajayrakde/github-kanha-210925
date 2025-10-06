@@ -394,7 +394,7 @@ export default function Checkout() {
         discountAmount: result.order.discountAmount,
         paymentMethod: result.order.paymentMethod,
         deliveryAddress: result.order.deliveryAddress,
-        userInfo: orderUserInfo
+        userInfo: result.order.userInfo // Use userInfo from backend response (includes phone)
       }));
 
       // Redirect based on payment method
