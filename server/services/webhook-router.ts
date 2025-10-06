@@ -28,7 +28,7 @@ import {
 } from "../../shared/payment-types";
 import { db } from "../db";
 import { webhookInbox, payments, refunds, paymentEvents, orders } from "../../shared/schema";
-import { eq, and, sql, or } from "drizzle-orm";
+import { eq, and, sql, or, isNotNull } from "drizzle-orm";
 import crypto from "crypto";
 import {
   maskPhonePeVirtualPaymentAddress,
@@ -1157,6 +1157,8 @@ export class WebhookRouter {
   
   /**
    * Get existing webhook from inbox
+   * Only returns webhooks that were successfully verified AND processed
+   * Failed webhooks should allow retries
    */
   private async getExistingWebhook(provider: PaymentProvider, dedupeKey: string, tenantId: string) {
     const result = await db
@@ -1166,7 +1168,9 @@ export class WebhookRouter {
         and(
           eq(webhookInbox.provider, provider),
           eq(webhookInbox.dedupeKey, dedupeKey),
-          eq(webhookInbox.tenantId, tenantId)
+          eq(webhookInbox.tenantId, tenantId),
+          eq(webhookInbox.signatureVerified, true),
+          isNotNull(webhookInbox.processedAt)
         )
       )
       .limit(1);
