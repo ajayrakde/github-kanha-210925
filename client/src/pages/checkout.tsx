@@ -69,11 +69,11 @@ export default function Checkout() {
     if (!appliedOffer) return 0;
 
     if (appliedOffer.discountType === 'percentage') {
-      const discountAmount = (subtotal * parseFloat(appliedOffer.discountValue)) / 100;
-      const maxDiscount = appliedOffer.maxDiscount ? parseFloat(appliedOffer.maxDiscount) : null;
+      const discountAmount = (subtotal * (parseFloat(appliedOffer.discountValue) || 0)) / 100;
+      const maxDiscount = appliedOffer.maxDiscount ? (parseFloat(appliedOffer.maxDiscount) || 0) : null;
       return maxDiscount && discountAmount > maxDiscount ? maxDiscount : discountAmount;
     } else {
-      return parseFloat(appliedOffer.discountValue);
+      return parseFloat(appliedOffer.discountValue) || 0;
     }
   };
 

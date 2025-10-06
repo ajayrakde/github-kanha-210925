@@ -163,12 +163,12 @@ export default function Cart() {
     
     // Discount applied on all-inclusive price (price + tax)
     if (appliedOffer.discountType === 'percentage') {
-      const discount = (subtotal * parseFloat(appliedOffer.discountValue)) / 100;
+      const discount = (subtotal * (parseFloat(appliedOffer.discountValue) || 0)) / 100;
       return appliedOffer.maxDiscount 
-        ? Math.min(discount, parseFloat(appliedOffer.maxDiscount))
+        ? Math.min(discount, (parseFloat(appliedOffer.maxDiscount) || 0))
         : discount;
     } else {
-      return parseFloat(appliedOffer.discountValue);
+      return parseFloat(appliedOffer.discountValue) || 0;
     }
   };
 
