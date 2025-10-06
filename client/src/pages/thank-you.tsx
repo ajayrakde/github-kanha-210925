@@ -64,7 +64,15 @@ interface PaymentStatusInfo {
     paymentFailedAt?: string | null;
     paymentMethod: string;
     total: string;
+    subtotal?: string;
+    discountAmount?: string;
     shippingCharge?: string;
+    deliveryAddress?: string;
+    userInfo?: {
+      name: string;
+      email: string;
+      phone?: string;
+    };
     createdAt: string;
     updatedAt: string;
   };
@@ -607,11 +615,11 @@ export default function ThankYou() {
   const displayOrderData = orderData || (paymentInfo?.order ? {
     orderId: paymentInfo.order.id,
     total: paymentInfo.order.total,
-    subtotal: paymentInfo.order.total, // Use total as subtotal fallback
-    discountAmount: '0',
+    subtotal: paymentInfo.order.subtotal || paymentInfo.order.total,
+    discountAmount: paymentInfo.order.discountAmount || '0',
     paymentMethod: paymentInfo.order.paymentMethod,
-    deliveryAddress: 'Loading address...',
-    userInfo: {
+    deliveryAddress: paymentInfo.order.deliveryAddress || '',
+    userInfo: paymentInfo.order.userInfo || {
       name: 'Customer',
       email: '',
     }

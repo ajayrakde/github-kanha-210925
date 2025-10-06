@@ -2290,6 +2290,19 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       const taxableBase = subtotal - discount;
       const tax = Math.max(total - shipping - taxableBase, 0);
 
+      // Format delivery address
+      const deliveryAddressString = order.deliveryAddress ? [
+        order.deliveryAddress.address,
+        `${order.deliveryAddress.city}, ${order.deliveryAddress.pincode}`
+      ].join('\n') : '';
+
+      // Format user info
+      const userInfo = {
+        name: order.user?.name || 'Customer',
+        email: order.user?.email || '',
+        phone: order.user?.phone || '',
+      };
+
       res.json({
         order: {
           id: order.id,
@@ -2301,7 +2314,11 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
               : order.paymentFailedAt ?? null,
           paymentMethod: order.paymentMethod,
           total: order.total,
+          subtotal: order.subtotal,
+          discountAmount: order.discountAmount,
           shippingCharge: order.shippingCharge,
+          deliveryAddress: deliveryAddressString,
+          userInfo: userInfo,
           createdAt: order.createdAt instanceof Date ? order.createdAt.toISOString() : order.createdAt,
           updatedAt: order.updatedAt instanceof Date ? order.updatedAt.toISOString() : order.updatedAt,
         },
