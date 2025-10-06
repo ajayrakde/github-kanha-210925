@@ -80,6 +80,16 @@ interface OrderData {
     phone?: string;
   };
   cashfreePaymentSessionId?: string;
+  items?: Array<{
+    id: string;
+    productId: string;
+    quantity: number;
+    product: {
+      id: string;
+      name: string;
+      price: string;
+    };
+  }>;
 }
 
 export default function Payment() {
@@ -767,31 +777,54 @@ export default function Payment() {
             <CardHeader>
               <CardTitle className="text-lg">Order Summary</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between text-sm">
-                <span>Order ID:</span>
-                <span className="font-mono font-medium" data-testid="text-order-id">
-                  {orderId.slice(0, 8)}...
-                </span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Subtotal:</span>
-                <span data-testid="text-subtotal">₹{parseFloat(currentOrderData.subtotal).toFixed(2)}</span>
-              </div>
-              {parseFloat(currentOrderData.discountAmount) > 0 && (
-                <div className="flex justify-between text-sm text-green-600">
-                  <span>Discount:</span>
-                  <span data-testid="text-discount">-₹{parseFloat(currentOrderData.discountAmount).toFixed(2)}</span>
+            <CardContent>
+              <div className="mb-3 text-sm">
+                <div className="flex justify-between text-gray-600">
+                  <span>Order ID:</span>
+                  <span className="font-mono font-medium" data-testid="text-order-id">
+                    {orderId.slice(0, 8)}...
+                  </span>
                 </div>
-              )}
-              <div className="flex justify-between text-sm">
-                <span>Shipping:</span>
-                <span data-testid="text-shipping">₹50.00</span>
               </div>
-              <hr className="my-2" />
-              <div className="flex justify-between font-semibold text-lg">
-                <span>Total:</span>
-                <span data-testid="text-total">₹{parseFloat(currentOrderData.total).toFixed(2)}</span>
+
+              {/* Itemized List */}
+              {currentOrderData.items && currentOrderData.items.length > 0 && (
+                <>
+                  <div className="space-y-2 mb-3 text-sm">
+                    {currentOrderData.items.map((item) => (
+                      <div key={item.id} className="flex justify-between text-gray-600">
+                        <span className="flex-1">
+                          {item.product.name} × {item.quantity}
+                        </span>
+                        <span className="ml-2">₹{(parseFloat(item.product.price) * item.quantity).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <hr className="my-3" />
+                </>
+              )}
+
+              {/* Summary Totals */}
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Subtotal</span>
+                  <span data-testid="text-subtotal">₹{parseFloat(currentOrderData.subtotal).toFixed(2)}</span>
+                </div>
+                {parseFloat(currentOrderData.discountAmount) > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span>Discount:</span>
+                    <span data-testid="text-discount">-₹{parseFloat(currentOrderData.discountAmount).toFixed(2)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Shipping</span>
+                  <span data-testid="text-shipping">₹50.00</span>
+                </div>
+                <hr className="my-2" />
+                <div className="flex justify-between font-semibold text-lg">
+                  <span>Total</span>
+                  <span data-testid="text-total">₹{parseFloat(currentOrderData.total).toFixed(2)}</span>
+                </div>
               </div>
             </CardContent>
           </Card>

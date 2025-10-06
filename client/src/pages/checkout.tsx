@@ -409,6 +409,7 @@ export default function Checkout() {
         deliveryAddress: result.order.deliveryAddress,
         userInfo: result.order.userInfo, // Use userInfo from backend response (includes phone)
         cashfreePaymentSessionId: result.order.cashfreePaymentSessionId,
+        items: cartItems, // Store cart items for display on payment page
       }));
 
       // Redirect based on payment method
