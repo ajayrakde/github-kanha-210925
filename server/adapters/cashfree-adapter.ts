@@ -379,11 +379,21 @@ export class CashfreeAdapter implements PaymentsAdapter {
       }
 
       // Cashfree signature is HMAC-SHA256(timestamp + rawBody) encoded as base64
-      const message = timestamp + params.body.toString();
+      const bodyString = params.body.toString('utf8');
+      const message = timestamp + bodyString;
       const expected = crypto
         .createHmac("sha256", this.secretKey)
         .update(message, "utf8")
         .digest("base64");
+
+      console.log('[Cashfree Webhook] Signature verification:', {
+        timestamp,
+        bodyLength: bodyString.length,
+        bodyPreview: bodyString.substring(0, 100),
+        receivedSignature: signature,
+        expectedSignature: expected,
+        match: signature === expected
+      });
 
       if (signature !== expected) {
         return { verified: false, error: { code: "INVALID_SIGNATURE", message: "Invalid webhook signature" } };
