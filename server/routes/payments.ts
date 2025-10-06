@@ -586,19 +586,25 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       }
 
       // Convert to our payment params format
+      const baseUrl = process.env.BASE_URL || `${req.protocol}://${req.get('host')}`;
+      const webhookUrl = `${baseUrl}/api/payments/webhook/cashfree`;
+      
       const paymentParams: CreatePaymentParams = {
         orderId: validatedData.orderId,
         orderAmount: expectedAmountMinor, // Stored in minor units (paise/cents)
         currency: expectedCurrency,
         customer: validatedData.customer,
         billing: validatedData.billing,
-        successUrl: validatedData.successUrl || `${process.env.BASE_URL || 'http://localhost:3000'}/payment-success`,
-        failureUrl: validatedData.failureUrl || `${process.env.BASE_URL || 'http://localhost:3000'}/payment-failed`,
+        successUrl: validatedData.successUrl || `${baseUrl}/payment-success`,
+        failureUrl: validatedData.failureUrl || `${baseUrl}/payment-failed`,
         description: validatedData.description,
         metadata: {
           ...validatedData.metadata,
           createdVia: 'api',
           userAgent: req.headers['user-agent'],
+        },
+        providerOptions: {
+          notifyUrl: webhookUrl,
         },
         idempotencyKey: idempotencyKeyHeader.trim(),
         tenantId,
