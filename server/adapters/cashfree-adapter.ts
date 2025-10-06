@@ -391,14 +391,19 @@ export class CashfreeAdapter implements PaymentsAdapter {
 
       const payload = JSON.parse(params.body.toString());
       const eventType = payload.type || payload.event || "payment.update";
+      
+      // Extract payment status from Cashfree webhook structure
+      // Cashfree sends payment_status in data.payment.payment_status, not data.status
+      const paymentStatus = payload.data?.payment?.payment_status || payload.data?.status;
+      const cfPaymentId = payload.data?.payment?.cf_payment_id || payload.data?.cf_payment_id || payload.data?.order?.order_id;
 
       return {
         verified: true,
         event: {
           type: eventType,
-          paymentId: payload.data?.cf_payment_id || payload.data?.order_id,
+          paymentId: cfPaymentId,
           refundId: payload.data?.refund_id,
-          status: payload.data?.status,
+          status: paymentStatus,
           data: payload.data || payload,
         },
         providerData: payload,
