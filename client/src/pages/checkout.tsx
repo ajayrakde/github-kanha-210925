@@ -49,6 +49,9 @@ export default function Checkout() {
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
   const [isPincodeValid, setIsPincodeValid] = useState(false);
   const [previousSelectedAddressId, setPreviousSelectedAddressId] = useState<string | null>(null);
+  const [couponCode, setCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
+  const [couponDiscount, setCouponDiscount] = useState(0);
 
   // Function to validate pincode (6 digits)
   const validatePincode = useCallback((pincode: string): boolean => {
@@ -317,6 +320,40 @@ export default function Checkout() {
     },
   });
 
+  const validateCouponMutation = useMutation({
+    mutationFn: async (code: string) => {
+      const response = await apiRequest("POST", "/api/offers/validate", {
+        code,
+        userId: user?.id,
+        cartValue: subtotal,
+      });
+      return response;
+    },
+    onSuccess: (data) => {
+      if (data.valid) {
+        setAppliedCoupon(data.offer);
+        setCouponDiscount(data.discountAmount || 0);
+        toast({
+          title: "Coupon applied!",
+          description: `You saved ₹${(data.discountAmount || 0).toFixed(2)}`,
+        });
+      } else {
+        toast({
+          title: "Invalid coupon",
+          description: data.message || "This coupon cannot be applied",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to validate coupon",
+        variant: "destructive",
+      });
+    },
+  });
+
   const placeOrderMutation = useMutation({
     mutationFn: async () => {
       const orderUserInfoSnapshot = {
@@ -356,16 +393,11 @@ export default function Checkout() {
         addressIdToUse = newAddress?.id ?? addressIdToUse;
       }
 
-      const selectedOffer = queryClient.getQueryData<{ id: string; code: string } | null>([
-        "checkout",
-        "selectedOffer"
-      ]);
-
       const response = await apiRequest("POST", "/api/orders", {
         userId: user.id,
         userInfo: orderUserInfoSnapshot,
         paymentMethod,
-        offerCode: selectedOffer?.code ?? null,
+        offerCode: appliedCoupon?.code ?? null,
         selectedAddressId: addressIdToUse,
       });
       const result = await response.json();
@@ -446,7 +478,7 @@ export default function Checkout() {
     });
   }, [step, userInfo, isPincodeValid, isCalculatingShipping, placeOrderMutation.isPending]);
 
-  const total = subtotal + shippingCharge; // Add dynamic shipping charges
+  const total = subtotal + shippingCharge - couponDiscount; // Add shipping and subtract discount
 
   if (!cartItems || cartItems.length === 0) {
     return (
@@ -1008,6 +1040,57 @@ export default function Checkout() {
                   )}
                 </span>
               </div>
+              
+              {/* Coupon Section */}
+              {!appliedCoupon ? (
+                <div className="mt-3 space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      placeholder="Enter coupon code"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                      className="flex-1"
+                      data-testid="input-coupon-code"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        if (couponCode.trim()) {
+                          validateCouponMutation.mutate(couponCode.trim());
+                        }
+                      }}
+                      disabled={!couponCode.trim() || validateCouponMutation.isPending}
+                      data-testid="button-apply-coupon"
+                    >
+                      {validateCouponMutation.isPending ? "..." : "Apply"}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-between text-green-600">
+                  <span>Discount ({appliedCoupon.code})</span>
+                  <div className="flex items-center gap-2">
+                    <span data-testid="text-order-discount">-₹{couponDiscount.toFixed(2)}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setAppliedCoupon(null);
+                        setCouponDiscount(0);
+                        setCouponCode("");
+                      }}
+                      className="h-6 px-2 text-xs text-gray-500 hover:text-red-600"
+                      data-testid="button-remove-coupon"
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
               <hr className="my-2" />
               <div className="flex justify-between font-semibold text-lg">
                 <span>Total</span>
