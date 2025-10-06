@@ -129,7 +129,7 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   cod: 'Cash on Delivery',
   upi: 'UPI',
   cashfree: 'UPI',
-  phonepe: 'PhonePe',
+  phonepe: 'UPI',
   card: 'Card',
   credit_card: 'Card',
   debit_card: 'Card',
@@ -147,7 +147,7 @@ const formatPaymentMethod = (method?: string | null) => {
 const isUpiMethod = (method?: string | null) => {
   if (!method) return false;
   const normalized = method.toLowerCase();
-  return normalized === 'upi' || normalized === 'phonepe';
+  return normalized === 'upi' || normalized === 'phonepe' || normalized === 'cashfree';
 };
 
 const normalizeStatus = (status?: string | null) => status?.toLowerCase() ?? '';

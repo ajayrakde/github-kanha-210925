@@ -8,7 +8,8 @@ import { Separator } from "@/components/ui/separator";
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   cod: "Cash on Delivery",
   upi: "UPI",
-  phonepe: "PhonePe",
+  cashfree: "UPI",
+  phonepe: "UPI",
   card: "Card",
   credit_card: "Card",
   debit_card: "Card",

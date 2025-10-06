@@ -327,9 +327,10 @@ export default function Checkout() {
         userId: user?.id,
         cartValue: subtotal,
       });
-      return response;
+      const data = await response.json();
+      return data;
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       if (data.valid) {
         setAppliedCoupon(data.offer);
         setCouponDiscount(data.discountAmount || 0);
