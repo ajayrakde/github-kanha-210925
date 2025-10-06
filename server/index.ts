@@ -4,6 +4,9 @@ import { setupVite, serveStatic, log } from "./vite";
 import { startPhonePePollingWorker } from "./services/phonepe-polling-registry";
 
 const app = express();
+
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 

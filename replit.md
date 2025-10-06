@@ -6,6 +6,17 @@ The application features a modern tech stack with React/TypeScript frontend, Exp
 
 # Recent Changes
 
+## 2025-10-06 - Cashfree Webhook Signature Verification Fix
+- **Issue**: Cashfree webhook signature verification was failing because Express JSON middleware was parsing decimal values (e.g., `170.00` → `170`), causing signature mismatch
+- **Root Cause**: Cashfree computes webhook signature using `HMAC-SHA256(timestamp + rawBody)` which requires the exact raw payload format including decimal precision
+- **Solution**: Configured Express to use `express.raw()` middleware for webhook routes (`/api/payments/webhook`) to preserve raw body as Buffer
+- **Implementation Details**:
+  - Added `app.use('/api/payments/webhook', express.raw({ type: 'application/json' }))` before `express.json()` middleware
+  - Webhook body now preserved in raw format for signature computation
+  - Headers correctly extracted: `x-webhook-signature` and `x-webhook-timestamp`
+- **Files Modified**:
+  - `server/index.ts`: Added raw body middleware for webhook routes
+
 ## 2025-01-06 - Atomic Cashfree Order Creation with Retry Logic
 - **Implementation**: Atomic order creation ensures both local database order and Cashfree payment order are created together
 - **Retry Mechanism**: 3 attempts with exponential backoff (100ms, 200ms, 400ms delays)
