@@ -5,7 +5,14 @@ import { startPhonePePollingWorker } from "./services/phonepe-polling-registry";
 
 const app = express();
 
-app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+// Skip JSON parsing for webhook routes - they need raw body for signature verification
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/payments/webhook')) {
+    express.raw({ type: 'application/json' })(req, res, next);
+  } else {
+    next();
+  }
+});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));

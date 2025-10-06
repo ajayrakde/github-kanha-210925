@@ -77,6 +77,8 @@ export class WebhookRouter {
     const headers = this.extractHeaders(req);
     const body = this.extractBody(req);
     const identifiers = this.extractIdentifiers(body);
+    
+    console.log('[Webhook] req.body type:', typeof req.body, 'isBuffer:', Buffer.isBuffer(req.body));
 
     try {
       const candidates = await this.resolveCandidateProviders(providerParam, tenantId);
