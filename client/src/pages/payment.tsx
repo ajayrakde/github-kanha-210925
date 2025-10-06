@@ -781,8 +781,8 @@ export default function Payment() {
               <div className="mb-3 text-sm">
                 <div className="flex justify-between text-gray-600">
                   <span>Order ID:</span>
-                  <span className="font-mono font-medium" data-testid="text-order-id">
-                    {orderId.slice(0, 8)}...
+                  <span className="font-mono text-xs font-medium break-all" data-testid="text-order-id">
+                    {orderId}
                   </span>
                 </div>
               </div>
@@ -808,7 +808,15 @@ export default function Payment() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Subtotal</span>
-                  <span data-testid="text-subtotal">₹{parseFloat(currentOrderData.subtotal).toFixed(2)}</span>
+                  <span data-testid="text-subtotal">₹{(parseFloat(currentOrderData.subtotal) / 1.05).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Tax (5%)</span>
+                  <span data-testid="text-tax">₹{(parseFloat(currentOrderData.subtotal) - (parseFloat(currentOrderData.subtotal) / 1.05)).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Shipping</span>
+                  <span data-testid="text-shipping">₹50.00</span>
                 </div>
                 {parseFloat(currentOrderData.discountAmount) > 0 && (
                   <div className="flex justify-between text-green-600">
@@ -816,10 +824,6 @@ export default function Payment() {
                     <span data-testid="text-discount">-₹{parseFloat(currentOrderData.discountAmount).toFixed(2)}</span>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Shipping</span>
-                  <span data-testid="text-shipping">₹50.00</span>
-                </div>
                 <hr className="my-2" />
                 <div className="flex justify-between font-semibold text-lg">
                   <span>Total</span>
