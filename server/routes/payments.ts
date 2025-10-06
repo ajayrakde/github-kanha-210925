@@ -676,6 +676,56 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
       const environment = (process.env.NODE_ENV === 'production' ? 'live' : 'test') as Environment;
 
+      // Get order details
+      const order = await ordersRepository.getOrderWithPayments(validatedData.orderId);
+      if (!order) {
+        return res.status(404).json({ error: 'Order not found' });
+      }
+
+      const expectedAmountMinor = Number(order.amountMinor);
+      if (!Number.isFinite(expectedAmountMinor) || expectedAmountMinor <= 0) {
+        return res.status(400).json({ error: 'Order amount unavailable' });
+      }
+
+      const currency = typeof order.currency === 'string' ? order.currency.trim().toUpperCase() : 'INR';
+
+      // Create payment record locally FIRST
+      const paymentId = randomUUID();
+      const now = new Date();
+      
+      await db.insert(paymentsTable).values({
+        id: paymentId,
+        tenantId,
+        orderId: validatedData.orderId,
+        provider: 'cashfree',
+        environment,
+        providerOrderId: order.cashfreeOrderId || null,
+        amountAuthorizedMinor: expectedAmountMinor,
+        currency,
+        status: 'PENDING',
+        methodKind: 'upi',
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // Log payment creation event
+      await db.insert(paymentEvents).values({
+        id: randomUUID(),
+        tenantId,
+        paymentId,
+        provider: 'cashfree',
+        type: 'payment_created',
+        data: {
+          orderId: validatedData.orderId,
+          amount: expectedAmountMinor,
+          currency,
+          method: { type: 'upi' },
+          upiId: validatedData.upiId,
+        },
+        occurredAt: now,
+      });
+
+      // NOW call Cashfree
       const adapter = await adapterFactory.getAdapterWithFallback('cashfree', environment, tenantId);
       if (!adapter) {
         return res.status(500).json({ error: 'Cashfree adapter not available' });
@@ -692,9 +742,20 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         orderId: validatedData.orderId,
       });
 
+      // Update payment record with Cashfree's payment ID
+      await db.update(paymentsTable)
+        .set({
+          providerPaymentId: result.cfPaymentId,
+          updatedAt: new Date(),
+        })
+        .where(eq(paymentsTable.id, paymentId));
+
       res.json({
         success: true,
-        data: result,
+        data: {
+          ...result,
+          paymentId, // Return our local payment ID
+        },
       });
     } catch (error) {
       console.error('UPI payment initiation error:', error);
