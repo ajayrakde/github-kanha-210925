@@ -1576,9 +1576,10 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   /**
    * Get payment status
    * GET /api/payments/status/:paymentId
-   * Note: No authentication required to allow polling during payment flow
+   * Returns cached payment status from database (does not call payment provider API)
+   * The webhook updates the database when payment status changes
    */
-  router.get('/status/:paymentId', async (req: SessionRequest, res) => {
+  router.get('/status/:paymentId', requireAuthenticatedSession, async (req: SessionRequest, res) => {
     try {
       const { paymentId } = req.params;
 
@@ -1589,6 +1590,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       }
 
       const tenantId = resolveTenantId(req);
+      const { isAdmin, buyerId } = resolveSessionContext(req);
 
       const paymentRecord = await db.query.payments.findFirst({
         where: and(
@@ -1630,23 +1632,29 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         return res.status(403).json({ error: 'Order not accessible' });
       }
 
-      // We'll verify the payment which also fetches the latest status
-      const result = await paymentsService.verifyPayment({
-        paymentId,
-      }, tenantId);
-      
+      const hasBuyerAccess = buyerId && paymentRecord.order.userId === buyerId;
+
+      if (!isAdmin && !hasBuyerAccess) {
+        return res.status(403).json({ error: 'Order not accessible' });
+      }
+
+      // Return cached status from database - do NOT call payment provider API
+      // The webhook handler updates the database when status changes
       res.json({
         success: true,
         data: {
-          paymentId: result.paymentId,
-          status: result.status,
-          amount: result.amount,
-          currency: result.currency,
-          provider: result.provider,
-          method: result.method,
-          error: result.error,
-          createdAt: result.createdAt,
-          updatedAt: result.updatedAt,
+          paymentId: paymentRecord.id,
+          status: paymentRecord.status,
+          amount: Number(paymentRecord.amountAuthorizedMinor || 0),
+          currency: paymentRecord.currency || 'INR',
+          provider: paymentRecord.provider,
+          method: paymentRecord.methodKind,
+          error: paymentRecord.failureMessage ? {
+            code: paymentRecord.failureCode || 'UNKNOWN',
+            message: paymentRecord.failureMessage
+          } : undefined,
+          createdAt: paymentRecord.createdAt,
+          updatedAt: paymentRecord.updatedAt,
         }
       });
       
