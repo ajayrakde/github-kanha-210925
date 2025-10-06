@@ -18,7 +18,7 @@ The backend is an Express.js application written in TypeScript, running on Node.
 PostgreSQL serves as the primary database, managed with Drizzle ORM for type-safe operations. The schema includes tables for users, products, orders, cart items, offers/coupons, and influencers, enabling product inventory, order management, coupon usage limits, and influencer performance tracking.
 
 ## Authentication & Session Management
-Authentication is handled via OTP (One-Time Password) verification sent to phone numbers during checkout. User accounts are automatically created upon their first order. `express-session` manages session data, including cart persistence.
+Authentication is handled via OTP (One-Time Password) verification sent to phone numbers during checkout. User accounts are automatically created upon their first order. `express-session` manages session data with PostgreSQL persistent storage via `connect-pg-simple`, ensuring sessions persist across server restarts and browser refreshes. Session cookies have a default lifetime of 3 days.
 
 ## State Management
 Client-side state is managed using TanStack Query for server-related data and React's built-in state management for local UI states. The application employs optimistic updates and cache invalidation for data consistency.

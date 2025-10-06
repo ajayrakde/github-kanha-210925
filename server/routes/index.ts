@@ -2,6 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import rateLimit from "express-rate-limit";
 import session from "express-session";
+import ConnectPgSimple from "connect-pg-simple";
+import { neon } from "@neondatabase/serverless";
 
 import { settingsRepository } from "../storage";
 import type { RequireAdminMiddleware, SessionRequest } from "./types";
@@ -52,7 +54,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const parsedMaxAge = sessionMaxAgeEnv ? Number.parseInt(sessionMaxAgeEnv, 10) : NaN;
   const sessionMaxAge = !Number.isNaN(parsedMaxAge) && parsedMaxAge > 0 ? parsedMaxAge : 1000 * 60 * 60 * 24 * 3;
 
+  // Create PostgreSQL session store
+  const PgSession = ConnectPgSimple(session);
+  const sessionStore = new PgSession({
+    conObject: {
+      connectionString: process.env.DATABASE_URL,
+    },
+    tableName: 'session',
+    createTableIfMissing: true,
+  });
+
   const sessionConfig = session({
+    store: sessionStore,
     secret: sessionSecrets,
     resave: false,
     saveUninitialized: false,
