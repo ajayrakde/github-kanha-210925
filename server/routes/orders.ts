@@ -17,6 +17,45 @@ import { configResolver } from "../services/config-resolver";
 export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
   const router = Router();
 
+  // Save checkout intent endpoint
+  router.post("/checkout-intent", async (req: SessionRequest, res) => {
+    if (!req.session.userId || req.session.userRole !== "buyer") {
+      return res.status(401).json({ message: "Authentication required" });
+    }
+
+    try {
+      const intentSchema = z.object({
+        checkoutIntentId: z.string(),
+        userInfo: z.any().optional(),
+        paymentMethod: z.string(),
+        offerCode: z.string().optional().nullable(),
+        selectedAddressId: z.string().optional().nullable(),
+        cartItems: z.array(z.any()),
+        subtotal: z.number(),
+        discount: z.number(),
+        shippingCharge: z.number(),
+        total: z.number(),
+      });
+
+      const validatedData = intentSchema.parse(req.body);
+
+      // Save intent to database with 1 hour expiry
+      const intent = await ordersRepository.saveCheckoutIntent({
+        ...validatedData,
+        sessionId: req.session.sessionId!,
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour from now
+      });
+
+      res.json({ success: true, intentId: intent.id });
+    } catch (error) {
+      console.error('[CheckoutIntent] Error saving intent:', error);
+      res.status(500).json({ 
+        message: "Failed to save checkout intent",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   const orderCreationSchema = z.object({
     userInfo: z
       .object({

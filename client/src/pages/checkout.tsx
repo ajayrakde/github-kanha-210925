@@ -421,62 +421,54 @@ export default function Checkout() {
         addressIdToUse = newAddress?.id ?? addressIdToUse;
       }
 
-      const response = await apiRequest("POST", "/api/orders", {
-        userId: user.id,
+      // Generate checkout intent ID (timestamp + random string for uniqueness)
+      const checkoutIntentId = `intent_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+      
+      // Prepare checkout intent data
+      const checkoutIntent = {
+        checkoutIntentId,
         userInfo: orderUserInfoSnapshot,
         paymentMethod,
         offerCode: appliedOffer?.code ?? null,
         selectedAddressId: addressIdToUse,
-      });
-      const result = await response.json();
+        cartItems, // Store cart items for display on payment page
+        subtotal,
+        discount,
+        shippingCharge,
+        total: subtotal + shippingCharge - discount,
+      };
+      
+      // Save intent to backend (persistent storage)
+      const intentResponse = await apiRequest("POST", "/api/orders/checkout-intent", checkoutIntent);
+      const intentResult = await intentResponse.json();
+      
+      // Also store in sessionStorage as a fallback
+      sessionStorage.setItem('checkoutIntent', JSON.stringify(checkoutIntent));
+      console.log('[Checkout] Created checkout intent:', checkoutIntentId);
 
       return {
-        result,
+        checkoutIntentId,
         orderUserInfo: orderUserInfoSnapshot,
       };
     },
-    onSuccess: async ({ result, orderUserInfo }) => {
+    onSuccess: async ({ checkoutIntentId, orderUserInfo }) => {
       const isUpiPayment = paymentMethod === 'upi';
 
-      // Check if Cashfree order creation failed
-      if (result.cashfreeCreated === false) {
-        toast({
-          title: "Order Saved",
-          description: "Your order is saved but we couldn't connect to the payment gateway. Our team will contact you to complete the payment.",
-          variant: "default",
-        });
-        clearCart.mutate();
-        queryClient.invalidateQueries({ queryKey: ["/api/auth/orders"] });
-        setLocation("/");
-        return;
-      }
-
-      // Clear the cart immediately only for non-UPI payments.
-      // For UPI we keep the cart until the payment succeeds so buyers can retry without losing items.
-      if (!isUpiPayment) {
-        clearCart.mutate();
-      }
-      // Invalidate orders cache to show the new order
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/orders"] });
+      // Clear selected offer from cache
       queryClient.setQueryData(["checkout", "selectedOffer"], null);
-      // Store order data in session storage
-      sessionStorage.setItem('lastOrder', JSON.stringify({
-        orderId: result.order.id,
-        total: result.order.total,
-        subtotal: result.order.subtotal,
-        discountAmount: result.order.discountAmount,
-        paymentMethod: result.order.paymentMethod,
-        deliveryAddress: result.order.deliveryAddress,
-        userInfo: result.order.userInfo, // Use userInfo from backend response (includes phone)
-        cashfreePaymentSessionId: result.order.cashfreePaymentSessionId,
-        items: cartItems, // Store cart items for display on payment page
-      }));
-
-      // Redirect based on payment method
-      if (isUpiPayment) {
-        setLocation(`/payment?orderId=${result.order.id}`);
+      
+      // Redirect to payment page with intent ID
+      // Order will be created when payment page loads
+      if (isUpiPayment || paymentMethod === 'cashfree') {
+        setLocation(`/payment?intentId=${checkoutIntentId}`);
       } else {
-        setLocation("/thank-you");
+        // For non-UPI payments, we still need to create the order
+        // This case is not implemented yet - would need separate flow
+        toast({
+          title: "Payment Method Not Supported",
+          description: "Please select UPI payment method",
+          variant: "destructive",
+        });
       }
     },
   });

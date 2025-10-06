@@ -4,6 +4,7 @@ import {
   cartItems,
   products,
   offers,
+  checkoutIntents,
   type Order,
   type InsertOrder,
   type OrderItem,
@@ -17,7 +18,7 @@ import {
 } from "@shared/schema";
 import type { AbandonedCart } from "@/lib/types";
 import { db } from "../db";
-import { eq, and, desc, sql, gte, lt, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lt, inArray, gt } from "drizzle-orm";
 
 export const MIN_CART_ITEM_QUANTITY = 1;
 export const MAX_CART_ITEM_QUANTITY = 10;
@@ -209,6 +210,44 @@ export class OrdersRepository {
     await db.delete(orderItems).where(eq(orderItems.orderId, orderId));
     // Then delete the order
     await db.delete(orders).where(eq(orders.id, orderId));
+  }
+
+  async saveCheckoutIntent(intent: {
+    checkoutIntentId: string;
+    sessionId: string;
+    userInfo?: any;
+    paymentMethod: string;
+    offerCode?: string | null;
+    selectedAddressId?: string | null;
+    cartItems: any[];
+    subtotal: number;
+    discount: number;
+    shippingCharge: number;
+    total: number;
+    expiresAt: Date;
+  }): Promise<{ id: string }> {
+    const { checkoutIntentId, ...restIntent } = intent;
+    const [savedIntent] = await db.insert(checkoutIntents).values({
+      id: checkoutIntentId,
+      ...restIntent,
+    }).returning();
+    return savedIntent;
+  }
+
+  async getCheckoutIntent(intentId: string, sessionId: string): Promise<any | null> {
+    const intent = await db.query.checkoutIntents.findFirst({
+      where: and(
+        eq(checkoutIntents.id, intentId),
+        eq(checkoutIntents.sessionId, sessionId), // Verify ownership by session
+        eq(checkoutIntents.isConsumed, false),
+        gt(checkoutIntents.expiresAt, new Date())
+      ),
+    });
+    return intent;
+  }
+
+  async markIntentAsConsumed(intentId: string): Promise<void> {
+    await db.update(checkoutIntents).set({ isConsumed: true }).where(eq(checkoutIntents.id, intentId));
   }
 
   async updateOrderStatus(id: string, status: string): Promise<Order> {

@@ -100,6 +100,8 @@ export default function Payment() {
   const [instrumentPreference, setInstrumentPreference] = useState<PhonePeInstrumentPreference>("UPI_INTENT");
   const [cashfreePaymentSessionId, setCashfreePaymentSessionId] = useState<string | null>(null);
   const [upiId, setUpiId] = useState<string>('');
+  const [intentId, setIntentId] = useState<string>("");
+  const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const { toast} = useToast();
   const { clearCart } = useCart();
   const checkoutLoaderRef = useRef<Promise<PhonePeCheckoutInstance> | null>(null);
@@ -112,15 +114,22 @@ export default function Payment() {
     }
   };
 
-  // Extract orderId from URL parameters
+  // Extract intentId or orderId from URL parameters
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
+    const intentIdParam = urlParams.get('intentId');
     const orderIdParam = urlParams.get('orderId');
 
-    if (orderIdParam) {
+    // New flow: intentId from checkout
+    if (intentIdParam) {
+      setIntentId(intentIdParam);
+      console.log('[Payment] Intent ID received:', intentIdParam);
+    }
+    // Old flow: orderId (backwards compatibility)
+    else if (orderIdParam) {
       setOrderId(orderIdParam);
       
-      // Get order data from session storage
+      // Get order data from session storage (old flow)
       const storedOrder = sessionStorage.getItem('lastOrder');
       if (storedOrder) {
         const orderInfo = JSON.parse(storedOrder) as OrderData;
@@ -136,16 +145,115 @@ export default function Payment() {
     }
   }, [location]);
 
+  // Create order from checkout intent with retry logic
+  const startPaymentMutation = useMutation({
+    mutationFn: async (checkoutIntentId: string) => {
+      setIsCreatingOrder(true);
+      
+      console.log('[Payment] Starting payment with intent:', checkoutIntentId);
+
+      // Retry logic with exponential backoff
+      let lastError: Error | null = null;
+      const maxRetries = 3;
+      const baseDelay = 1000;
+
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        try {
+          // Backend will fetch the intent from database using the intentId
+          const response = await apiRequest("POST", "/api/payments/start", {
+            checkoutIntentId: checkoutIntentId,
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Payment initiation failed');
+          }
+
+          const result = await response.json();
+          return result;
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error('Unknown error');
+          console.log(`[Payment] Attempt ${attempt + 1} failed:`, lastError.message);
+
+          // Don't retry on client errors (400-499)
+          if (error instanceof Error && error.message.includes('Intent ID mismatch')) {
+            throw error;
+          }
+
+          // Retry with exponential backoff
+          if (attempt < maxRetries - 1) {
+            const delay = baseDelay * Math.pow(2, attempt);
+            console.log(`[Payment] Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+        }
+      }
+
+      throw lastError || new Error('Payment initiation failed after retries');
+    },
+    onSuccess: (result) => {
+      console.log('[Payment] Order created:', result.order.id);
+      
+      // Set order data
+      setOrderId(result.order.id);
+      setOrderData({
+        orderId: result.order.id,
+        total: result.order.total,
+        subtotal: result.order.subtotal,
+        discountAmount: result.order.discountAmount,
+        paymentMethod: result.order.paymentMethod,
+        deliveryAddress: result.order.deliveryAddress,
+        userInfo: result.order.userInfo,
+        cashfreePaymentSessionId: result.order.cashfreePaymentSessionId,
+        items: result.order.items, // Use items from backend response
+      });
+
+      // Set Cashfree payment session ID if available
+      if (result.order.cashfreePaymentSessionId) {
+        setCashfreePaymentSessionId(result.order.cashfreePaymentSessionId);
+        console.log('[Payment] Cashfree session ID set:', result.order.cashfreePaymentSessionId);
+      }
+
+      // Clear checkout intent from storage
+      sessionStorage.removeItem('checkoutIntent');
+      setIsCreatingOrder(false);
+    },
+    onError: (error) => {
+      console.error('[Payment] Failed to create order:', error);
+      setIsCreatingOrder(false);
+      
+      const errorMessage = error instanceof Error ? error.message : "Failed to initiate payment. Please try again.";
+      
+      toast({
+        title: "Payment Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      
+      // Redirect back to checkout after a delay
+      setTimeout(() => {
+        setLocation('/checkout');
+      }, 3000);
+    },
+  });
+
+  // Automatically create order when intentId is available
+  useEffect(() => {
+    if (intentId && !orderId && !isCreatingOrder) {
+      startPaymentMutation.mutate(intentId);
+    }
+  }, [intentId, orderId, isCreatingOrder]);
+
   useEffect(() => {
     return () => {
       clearStatusPolling();
     };
   }, []);
 
-  // Fetch order details from API if not in session storage
+  // Fetch order details from API if not in session storage (backwards compatibility)
   const { data: order, isLoading: isLoadingOrder } = useQuery<OrderData>({
     queryKey: ["/api/orders", orderId],
-    enabled: Boolean(orderId) && !orderData,
+    enabled: Boolean(orderId) && !orderData && !intentId,
     retry: false
   });
 
@@ -482,7 +590,7 @@ export default function Payment() {
   });
 
   const currentOrderData = orderData || order;
-  const isLoading = isLoadingOrder || createPaymentMutation.isPending || createCashfreePaymentMutation.isPending;
+  const isLoading = isCreatingOrder || isLoadingOrder || createPaymentMutation.isPending || createCashfreePaymentMutation.isPending;
 
   // Handle back to checkout
   const handleBackToCheckout = () => {
@@ -539,7 +647,9 @@ export default function Payment() {
         <Card>
           <CardContent className="p-6 text-center">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-            <p className="text-gray-600">Loading order details...</p>
+            <p className="text-gray-600">
+              {isCreatingOrder ? "Preparing your order and payment..." : "Loading order details..."}
+            </p>
           </CardContent>
         </Card>
       </div>

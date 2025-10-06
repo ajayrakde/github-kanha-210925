@@ -672,32 +672,33 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
    */
   router.post('/start', requireAuthenticatedSession, async (req: SessionRequest, res) => {
     try {
-      // Validation schema for order intent
+      // Validation schema - only need intentId, rest comes from database
       const startPaymentSchema = z.object({
         checkoutIntentId: z.string(),
-        userInfo: z.object({
-          name: z.string().optional(),
-          email: z.string().email().or(z.literal("")).optional().nullable(),
-          addressLine1: z.string().min(1),
-          addressLine2: z.string().min(1),
-          addressLine3: z.string().optional(),
-          landmark: z.string().optional(),
-          city: z.string().min(1),
-          pincode: z.string().min(1),
-          makePreferred: z.boolean().optional().default(false),
-        }).optional(),
-        offerCode: z.string().optional().nullable(),
-        paymentMethod: z.string().min(1),
-        selectedAddressId: z.string().optional().nullable(),
       });
 
       const validatedData = startPaymentSchema.parse(req.body);
-      const { checkoutIntentId, userInfo, offerCode, paymentMethod, selectedAddressId } = validatedData;
+      const { checkoutIntentId } = validatedData;
       const userId = req.session.userId!;
       const sessionId = req.session.sessionId!;
       const tenantId = resolveTenantId(req);
 
-      // Step 1: Check for existing order with this intent (idempotency)
+      // Step 1: Fetch checkout intent from database (with session verification)
+      const checkoutIntent = await ordersRepository.getCheckoutIntent(checkoutIntentId, sessionId);
+      if (!checkoutIntent) {
+        return res.status(404).json({ 
+          message: "Checkout intent not found, expired, or does not belong to your session. Please start checkout again." 
+        });
+      }
+
+      // Extract data from stored intent
+      const userInfo = checkoutIntent.userInfo as any;
+      const offerCode = checkoutIntent.offerCode;
+      const paymentMethod = checkoutIntent.paymentMethod;
+      const selectedAddressId = checkoutIntent.selectedAddressId;
+
+      // Step 2: Check for existing order with this intent (idempotency)
+      // Return existing order WITHOUT consuming intent (allows retries)
       const existingOrder = await ordersRepository.getPendingByIntent(checkoutIntentId);
       if (existingOrder) {
         // Order already exists, return it with payment session if available
@@ -722,14 +723,15 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
                 phone: fullOrder.user?.phone || '',
               },
               cashfreePaymentSessionId: fullOrder.cashfreePaymentSessionId,
+              items: checkoutIntent.cartItems,
             },
             message: "Order already exists for this checkout"
           });
         }
       }
 
-      // Step 2: Re-validate cart items (could have changed since checkout)
-      const cartItems = await ordersRepository.getCartItems(sessionId);
+      // Step 2: Use cart items from stored intent (snapshot at checkout time)
+      const cartItems = checkoutIntent.cartItems as any[];
       if (cartItems.length === 0) {
         return res.status(400).json({ message: "Cart is empty" });
       }
@@ -1022,7 +1024,17 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         },
         cashfreeCreated,
         cashfreePaymentSessionId,
+        items: checkoutIntent.cartItems, // Include items from stored intent
       };
+
+      // Mark intent as consumed only after successful order creation
+      // This happens last so retries work if anything fails earlier
+      try {
+        await ordersRepository.markIntentAsConsumed(checkoutIntentId);
+      } catch (error) {
+        // Log but don't fail the request - order was created successfully
+        console.error('[PaymentStart] Failed to mark intent as consumed:', error);
+      }
 
       res.json({ 
         order: orderResponse, 

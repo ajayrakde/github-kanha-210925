@@ -84,6 +84,24 @@ export const otps = pgTable("otps", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Checkout Intents table - temporary storage for checkout data before order creation
+export const checkoutIntents = pgTable("checkout_intents", {
+  id: varchar("id").primaryKey(), // intentId from frontend
+  sessionId: varchar("session_id").notNull(),
+  userInfo: jsonb("user_info"), // Stores user information from checkout
+  paymentMethod: varchar("payment_method", { length: 50 }).notNull(),
+  offerCode: varchar("offer_code", { length: 50 }),
+  selectedAddressId: varchar("selected_address_id"),
+  cartItems: jsonb("cart_items").notNull(), // Store cart items snapshot
+  subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
+  discount: decimal("discount", { precision: 10, scale: 2 }).default(sql`'0'`),
+  shippingCharge: decimal("shipping_charge", { precision: 10, scale: 2 }).notNull(),
+  total: decimal("total", { precision: 10, scale: 2 }).notNull(),
+  isConsumed: boolean("is_consumed").default(false), // Mark as consumed after order creation
+  createdAt: timestamp("created_at").defaultNow(),
+  expiresAt: timestamp("expires_at").notNull(), // Expire after 1 hour
+});
+
 // App Settings table for admin configuration
 export const appSettings = pgTable("app_settings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
