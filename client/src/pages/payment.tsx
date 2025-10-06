@@ -255,7 +255,7 @@ export default function Payment() {
       if (data.paymentId) {
         setTimeout(() => {
           checkPaymentStatusMutation.mutate(data.paymentId);
-        }, 3000);
+        }, 5000);
       }
     },
     onError: (error) => {
@@ -297,7 +297,7 @@ export default function Payment() {
       if (data.paymentId) {
         setTimeout(() => {
           checkPaymentStatusMutation.mutate(data.paymentId);
-        }, 3000);
+        }, 5000);
       }
     },
     onError: (error) => {
@@ -448,7 +448,7 @@ export default function Payment() {
         clearStatusPolling();
         pollTimeoutRef.current = window.setTimeout(() => {
           checkPaymentStatusMutation.mutate(paymentId);
-        }, 3000);
+        }, 5000);
         return;
       }
 
