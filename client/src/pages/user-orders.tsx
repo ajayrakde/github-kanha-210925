@@ -142,25 +142,27 @@ export default function UserOrders() {
 
   if (isLoading) {
     return (
-      <div className="space-y-3 sm:space-y-3 sm:space-y-6">
-        <Button 
-          onClick={() => setLocation("/")}
-          variant="ghost" 
-          className="-ml-2 mb-2 hover:bg-gray-100"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back
-        </Button>
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-              <div className="animate-pulse space-y-3">
-                <div className="h-5 bg-gray-200 rounded w-32"></div>
-                <div className="h-4 bg-gray-200 rounded w-48"></div>
-                <div className="h-4 bg-gray-200 rounded w-64"></div>
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="space-y-3 sm:space-y-3 sm:space-y-6">
+          <Button 
+            onClick={() => setLocation("/")}
+            variant="ghost" 
+            className="-ml-2 mb-2 hover:bg-gray-100"
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back
+          </Button>
+          <div className="space-y-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+                <div className="animate-pulse space-y-3">
+                  <div className="h-5 bg-gray-200 rounded w-32"></div>
+                  <div className="h-4 bg-gray-200 rounded w-48"></div>
+                  <div className="h-4 bg-gray-200 rounded w-64"></div>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     );
