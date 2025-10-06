@@ -486,8 +486,11 @@ export class WebhookRouter {
           transitionAllowed;
 
         if (shouldPromoteOrder) {
-          console.log(`[Webhook] Promoting order ${paymentRecord.orderId} to paid/confirmed status`);
-          await trx
+          console.log(`[Webhook] ✅ Promoting order ${paymentRecord.orderId}:`);
+          console.log(`  - Payment status: ${paymentRecord.currentStatus} → COMPLETED`);
+          console.log(`  - Order payment_status: updating to 'paid'`);
+          console.log(`  - Order status: 'pending' → 'confirmed' (if pending)`);
+          const result = await trx
             .update(orders)
             .set({
               paymentStatus: 'paid',
@@ -500,8 +503,10 @@ export class WebhookRouter {
                 sql`${orders.paymentStatus} <> 'paid'`
               )
             );
+          console.log(`[Webhook] ✅ Order ${paymentRecord.orderId} database update complete. Rows affected: ${result.rowCount || 0}`);
+          console.log(`[Webhook] 📱 Frontend will see updated status on next poll of /api/payments/status/${paymentRecord.id}`);
         } else if (nextLifecycle === 'COMPLETED') {
-          console.log(`[Webhook] Order promotion skipped for ${paymentRecord.orderId}. Conditions: verified=${options?.verified}, skipPromotion=${skipOrderPromotion}, transitionAllowed=${transitionAllowed}`);
+          console.log(`[Webhook] ⚠️ Order promotion skipped for ${paymentRecord.orderId}. Conditions: verified=${options?.verified}, skipPromotion=${skipOrderPromotion}, transitionAllowed=${transitionAllowed}`);
         }
 
         return true;
