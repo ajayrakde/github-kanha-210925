@@ -191,6 +191,22 @@ export class CashfreeAdapter implements PaymentsAdapter {
     }
   }
 
+  public async checkOrderExists(orderId: string): Promise<CashfreeOrderResponse | null> {
+    try {
+      const response = await this.makeApiCall<CashfreeOrderResponse>(
+        `/orders/${orderId}`,
+        "GET"
+      );
+      return response;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('404') || errorMessage.includes('not found')) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
   public async verifyPayment(params: VerifyPaymentParams): Promise<PaymentResult> {
     try {
       const providerOrderId = params.providerPaymentId || params.paymentId;
