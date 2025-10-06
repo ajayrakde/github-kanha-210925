@@ -130,6 +130,13 @@ export const orders = pgTable("orders", {
   paymentMethod: varchar("payment_method", { length: 50 })
     .notNull()
     .default('unselected'), // cod|upi|card|netbanking|wallet|unselected
+  // Cashfree order tracking fields
+  cashfreeOrderId: varchar("cashfree_order_id", { length: 100 }), // cf_order_id from Cashfree
+  cashfreePaymentSessionId: text("cashfree_payment_session_id"), // payment_session_id for checkout
+  cashfreeOrderStatus: varchar("cashfree_order_status", { length: 50 }), // ACTIVE|PAID|EXPIRED etc
+  cashfreeCreated: boolean("cashfree_created").default(false), // Whether Cashfree order was successfully created
+  cashfreeAttempts: integer("cashfree_attempts").default(0), // Number of Cashfree creation attempts
+  cashfreeLastError: text("cashfree_last_error"), // Last error from Cashfree API
   // Legacy fields for backward compatibility
   subtotal: decimal("subtotal", { precision: 10, scale: 2 }).notNull(),
   discountAmount: decimal("discount_amount", { precision: 10, scale: 2 }).default(sql`'0'`),
