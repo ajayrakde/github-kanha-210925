@@ -1036,6 +1036,15 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         console.error('[PaymentStart] Failed to mark intent as consumed:', error);
       }
 
+      // Clear the cart after successful order creation
+      try {
+        await ordersRepository.clearCart(sessionId);
+        console.log('[PaymentStart] Cart cleared for session:', sessionId);
+      } catch (error) {
+        // Log but don't fail the request - order was created successfully
+        console.error('[PaymentStart] Failed to clear cart:', error);
+      }
+
       res.json({ 
         order: orderResponse, 
         message: "Order and payment created successfully" 

@@ -214,6 +214,10 @@ export default function Payment() {
         console.log('[Payment] Cashfree session ID set:', result.order.cashfreePaymentSessionId);
       }
 
+      // Clear the cart on the frontend
+      clearCart.mutate();
+      console.log('[Payment] Cart cleared');
+
       // Clear checkout intent from storage
       sessionStorage.removeItem('checkoutIntent');
       setIsCreatingOrder(false);
