@@ -395,7 +395,8 @@ export class CashfreeAdapter implements PaymentsAdapter {
       // Extract payment status from Cashfree webhook structure
       // Cashfree sends payment_status in data.payment.payment_status, not data.status
       const paymentStatus = payload.data?.payment?.payment_status || payload.data?.status;
-      const cfPaymentId = payload.data?.payment?.cf_payment_id || payload.data?.cf_payment_id || payload.data?.order?.order_id;
+      // Use order_id first (matches our stored providerPaymentId), fall back to cf_payment_id
+      const cfPaymentId = payload.data?.order?.order_id || payload.data?.payment?.cf_payment_id || payload.data?.cf_payment_id;
 
       return {
         verified: true,
