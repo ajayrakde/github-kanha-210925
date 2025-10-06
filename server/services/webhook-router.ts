@@ -253,8 +253,16 @@ export class WebhookRouter {
       source: 'webhook',
     });
     
+    // Debug: Check if payment update conditions are met
+    console.log(`[Webhook] 🔍 processVerifiedWebhook for ${provider}:`);
+    console.log(`  - event.paymentId: ${event.paymentId || 'MISSING'}`);
+    console.log(`  - event.status: ${event.status || 'MISSING'}`);
+    console.log(`  - isPaymentStatus(${event.status}): ${this.isPaymentStatus(event.status)}`);
+    console.log(`  - Will call updatePaymentStatus: ${!!(event.paymentId && event.status && this.isPaymentStatus(event.status))}`);
+    
     // Update payment status if applicable
     if (event.paymentId && event.status && this.isPaymentStatus(event.status)) {
+      console.log(`[Webhook] 📝 Calling updatePaymentStatus for payment ${event.paymentId}`);
       paymentUpdated = await this.updatePaymentStatus(
         event.paymentId,
         event.status,
@@ -262,6 +270,9 @@ export class WebhookRouter {
         tenantId,
         { verified: verifyResult.verified === true }
       );
+      console.log(`[Webhook] 📝 updatePaymentStatus returned: ${paymentUpdated}`);
+    } else {
+      console.log(`[Webhook] ⚠️  Skipping updatePaymentStatus - conditions not met`);
     }
     
     // Update refund status if applicable
