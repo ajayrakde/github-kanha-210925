@@ -230,20 +230,21 @@ export default function Cart() {
 
   return (
     <div className="space-y-3 sm:space-y-6">
-      {/* Back Button */}
-      <Button 
-        onClick={() => setLocation("/")}
-        variant="ghost" 
-        className="-ml-2 mb-1 sm:mb-2 hover:bg-gray-100"
-        data-testid="button-back-to-products"
-      >
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Back
-      </Button>
-
-      <div className="mb-3 sm:mb-6">
-        <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-1 sm:mb-2">Shopping Cart</h2>
-        <p className="text-sm sm:text-base text-gray-600">Review your items before checkout</p>
+      {/* Back Button and Title */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-6">
+        <Button 
+          onClick={() => setLocation("/")}
+          variant="ghost" 
+          className="-ml-2 hover:bg-gray-100"
+          data-testid="button-back-to-products"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back
+        </Button>
+        <div>
+          <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-1">Shopping Cart</h2>
+          <p className="text-sm sm:text-base text-gray-600">Review your items before checkout</p>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-3 sm:gap-6">
