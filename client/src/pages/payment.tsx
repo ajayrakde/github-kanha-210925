@@ -135,7 +135,7 @@ export default function Payment() {
 
   // Determine if we're using Cashfree or PhonePe
   const paymentMethod = orderData?.paymentMethod || order?.paymentMethod;
-  const isCashfree = paymentMethod?.toLowerCase() === 'cashfree';
+  const isCashfree = paymentMethod?.toLowerCase() === 'upi' || paymentMethod?.toLowerCase() === 'cashfree';
 
   const loadPhonePeCheckout = async () => {
     if (window.PhonePeCheckout) {
