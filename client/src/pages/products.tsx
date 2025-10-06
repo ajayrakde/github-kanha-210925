@@ -17,8 +17,9 @@ export default function Products() {
 
   if (isLoading) {
     return (
-      <div className="space-y-3 sm:space-y-6">
-        <header className="mb-3 sm:mb-6">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="space-y-3 sm:space-y-3 sm:space-y-6">
+          <header className="mb-3 sm:mb-6">
           <div className="h-8 bg-gray-200 rounded w-48 mb-2 animate-pulse"></div>
           <div className="h-4 bg-gray-200 rounded w-64 animate-pulse"></div>
         </header>
@@ -38,23 +39,27 @@ export default function Products() {
           ))}
         </div>
       </div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <div className="space-y-3 sm:space-y-6">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="space-y-3 sm:space-y-3 sm:space-y-6">
         <header className="mb-3 sm:mb-6">
           <h1 className="text-3xl font-semibold text-gray-900 mb-2">Our Products</h1>
           <p className="text-gray-600">Discover our carefully curated collection</p>
         </header>
         <ApiErrorMessage error={error as Error} onRetry={() => refetch()} />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3 sm:space-y-6">
+    <div className="max-w-7xl mx-auto px-4">
+      <div className="space-y-3 sm:space-y-3 sm:space-y-6">
       {/* Checkout Proceed Element - appears at top when cart has items */}
       {itemCount > 0 && (
         <div className="sticky top-20 z-10 bg-gradient-to-r from-green-500 to-green-600 text-white p-3 sm:p-4 rounded-lg shadow-lg border-2 border-green-400">
@@ -100,6 +105,7 @@ export default function Products() {
           ))}
         </div>
       )}
+    </div>
     </div>
   );
 }

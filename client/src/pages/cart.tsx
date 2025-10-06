@@ -177,11 +177,12 @@ export default function Cart() {
 
   if (isLoading) {
     return (
-      <div className="space-y-3 sm:space-y-6">
-        <div className="mb-3 sm:mb-6">
-          <div className="h-8 bg-gray-200 rounded w-48 mb-2"></div>
-          <div className="h-4 bg-gray-200 rounded w-64"></div>
-        </div>
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="space-y-3 sm:space-y-3 sm:space-y-6">
+          <div className="mb-3 sm:mb-6">
+            <div className="h-8 bg-gray-200 rounded w-48 mb-2"></div>
+            <div className="h-4 bg-gray-200 rounded w-64"></div>
+          </div>
         <div className="grid lg:grid-cols-3 gap-3 sm:gap-6">
           <div className="lg:col-span-2 space-y-3 sm:space-y-4">
             {Array(3).fill(0).map((_, i) => (
@@ -212,24 +213,28 @@ export default function Cart() {
           </div>
         </div>
       </div>
+      </div>
     );
   }
 
   if (!cartItems || cartItems.length === 0) {
     return (
-      <div className="text-center py-8 sm:py-12">
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="text-center py-8 sm:py-12">
         <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">🛒</div>
         <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-2">Your cart is empty</h2>
         <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">Add some products to get started</p>
         <Button onClick={() => setLocation("/")} data-testid="button-continue-shopping">
           Continue Shopping
         </Button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3 sm:space-y-6">
+    <div className="max-w-7xl mx-auto px-4">
+      <div className="space-y-3 sm:space-y-3 sm:space-y-6">
       {/* Back Button and Title */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-6">
         <Button 
@@ -375,6 +380,7 @@ export default function Cart() {
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }

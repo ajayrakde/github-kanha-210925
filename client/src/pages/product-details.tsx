@@ -96,7 +96,7 @@ export default function ProductDetails() {
 
   if (productLoading) {
     return (
-      <div className="w-full mx-auto px-2 sm:px-4 py-8 sm:max-w-6xl">
+      <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-center h-64">
           <div className="text-gray-500">Loading product...</div>
         </div>
@@ -106,7 +106,7 @@ export default function ProductDetails() {
 
   if (!product) {
     return (
-      <div className="w-full mx-auto px-2 sm:px-4 py-8 sm:max-w-6xl">
+      <div className="max-w-7xl mx-auto px-4">
         <div className="flex flex-col items-center justify-center h-64">
           <div className="text-gray-500 mb-4">Product not found</div>
           <Button onClick={handleBack} variant="outline">
@@ -192,7 +192,7 @@ export default function ProductDetails() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(productStructuredData) }}
         />
       )}
-      <div className="w-full mx-auto pb-3 sm:max-w-6xl px-2 sm:px-4">
+      <div className="max-w-7xl mx-auto px-4">
         {/* Main Product Container - Mobile: Flex Column, Desktop: Grid */}
         <section className="w-full bg-white dark:bg-gray-900 rounded-lg shadow-md px-4 sm:px-6 py-3 sm:py-6 flex flex-col sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(320px,0.9fr)] gap-2 sm:gap-8">
           
