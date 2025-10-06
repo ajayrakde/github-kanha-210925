@@ -972,9 +972,25 @@ export default function Checkout() {
         <div className="lg:col-span-1">
           <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 sticky top-24">
             <h3 className="font-semibold text-gray-900 mb-2 sm:mb-4">Order Summary</h3>
-            <div className="space-y-3 text-sm mb-2 sm:mb-4">
+            
+            {/* Itemized List */}
+            <div className="space-y-2 mb-3 sm:mb-4 text-sm">
+              {cartItems.map((item) => (
+                <div key={item.id} className="flex justify-between text-gray-600">
+                  <span className="flex-1">
+                    {item.product.name} × {item.quantity}
+                  </span>
+                  <span className="ml-2">₹{(parseFloat(item.product.price) * item.quantity).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+
+            <hr className="my-3" />
+
+            {/* Summary Totals */}
+            <div className="space-y-2 text-sm mb-2 sm:mb-4">
               <div className="flex justify-between">
-                <span className="text-gray-600">Subtotal ({cartItems.length} items)</span>
+                <span className="text-gray-600">Subtotal</span>
                 <span data-testid="text-order-subtotal">₹{(subtotal / 1.05).toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
@@ -991,7 +1007,7 @@ export default function Checkout() {
                   )}
                 </span>
               </div>
-              <hr />
+              <hr className="my-2" />
               <div className="flex justify-between font-semibold text-lg">
                 <span>Total</span>
                 <span data-testid="text-order-total">₹{total.toFixed(2)}</span>
@@ -1002,10 +1018,6 @@ export default function Checkout() {
               <div className="text-xs text-gray-500 flex items-center">
                 <i className="fas fa-shield-alt mr-1"></i>
                 Secure checkout with 256-bit SSL encryption
-              </div>
-              <div className="text-xs text-gray-500 flex items-center">
-                <i className="fas fa-truck mr-1"></i>
-                Delivery across India - ₹{shippingCharge}
               </div>
             </div>
 
