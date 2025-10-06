@@ -624,6 +624,21 @@ export default function Payment() {
     }
   };
 
+  // Show loading state if we have an intentId but haven't created the order yet
+  if (!orderId && (intentId || isCreatingOrder)) {
+    return (
+      <div className="max-w-2xl mx-auto py-8 px-4">
+        <Card>
+          <CardContent className="p-6 text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <p className="text-gray-600">Preparing your order and payment...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Only show error if we have no orderId AND no intentId AND not creating order
   if (!orderId) {
     return (
       <div className="max-w-2xl mx-auto py-8 px-4">
