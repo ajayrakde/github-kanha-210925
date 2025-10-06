@@ -119,13 +119,13 @@ export class WebhookRouter {
 
           const verifyResult = await adapter.verifyWebhook(verifyParams);
 
-          await this.storeWebhook(provider, dedupeKey, verifyResult.verified, tenantId, {
-            headers,
-            body: typeof body === 'string' ? body : JSON.stringify(body),
-            identifiers,
-          });
-
           if (!verifyResult.verified) {
+            await this.storeWebhook(provider, dedupeKey, false, tenantId, {
+              headers,
+              body: typeof body === 'string' ? body : JSON.stringify(body),
+              identifiers,
+            });
+
             if (this.isAuthorizationError(verifyResult.error?.code)) {
               authorizationRejected = true;
               authorizationError = verifyResult.error?.message ?? 'Invalid webhook authorization';
@@ -148,7 +148,17 @@ export class WebhookRouter {
 
           const processResult = await this.processVerifiedWebhook(verifyResult, adapter.provider, tenantId);
 
-          await this.markWebhookProcessed(provider, dedupeKey, tenantId);
+          try {
+            await this.storeWebhook(provider, dedupeKey, true, tenantId, {
+              headers,
+              body: typeof body === 'string' ? body : JSON.stringify(body),
+              identifiers,
+            });
+
+            await this.markWebhookProcessed(provider, dedupeKey, tenantId);
+          } catch (storeError) {
+            console.log(`[Webhook] ⚠️  Webhook already stored (duplicate), but processing completed successfully`);
+          }
 
           res.status(200).json({ status: 'processed', ...processResult });
 
