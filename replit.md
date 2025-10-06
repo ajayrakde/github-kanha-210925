@@ -6,6 +6,17 @@ The application features a modern tech stack with React/TypeScript frontend, Exp
 
 # Recent Changes
 
+## 2025-10-06 - Cashfree Webhook Currency Unit Conversion Fix
+- **Issue**: Cashfree success webhooks were returning 200 "processed" but not updating order payment status to "paid"
+  - **Root Cause**: Currency unit mismatch - Cashfree sends payment amounts in rupees (e.g., 380) while database stores in paise (38,000). The webhook code detected this as potential tampering and skipped order promotion.
+  - **Solution**: Updated `extractCapturedAmount()` function to:
+    1. Extract `payment.payment_amount` from Cashfree webhook structure
+    2. Detect amounts in major currency units (< 10,000) and convert to minor units (multiply by 100)
+    3. Add debug logging for currency conversion and amount mismatch detection
+  - **Impact**: Success webhooks now properly update both payment status (PENDING → COMPLETED) and order status (pending → paid/confirmed)
+- **Files Modified**:
+  - `server/services/webhook-router.ts`: Updated amount extraction and added comprehensive logging
+
 ## 2025-10-06 - Payment Architecture Fixes: Webhook Signature & Secure Polling
 - **Issue 1 - Webhook Signature Verification**: Cashfree webhook signature verification was failing because Express JSON middleware was parsing decimal values (e.g., `170.00` → `170`), causing signature mismatch
   - **Root Cause**: Cashfree computes webhook signature using `HMAC-SHA256(timestamp + rawBody)` which requires the exact raw payload format including decimal precision
