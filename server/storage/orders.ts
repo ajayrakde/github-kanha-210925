@@ -226,9 +226,13 @@ export class OrdersRepository {
     total: number;
     expiresAt: Date;
   }): Promise<{ id: string }> {
-    const { checkoutIntentId, ...restIntent } = intent;
+    const { checkoutIntentId, subtotal, discount, shippingCharge, total, ...restIntent } = intent;
     const [savedIntent] = await db.insert(checkoutIntents).values({
       id: checkoutIntentId,
+      subtotal: subtotal.toString(),
+      discount: discount.toString(),
+      shippingCharge: shippingCharge.toString(),
+      total: total.toString(),
       ...restIntent,
     }).returning();
     return savedIntent;
@@ -342,7 +346,7 @@ export class OrdersRepository {
     const existingItem = await this.findCartItem(sessionId, productId);
 
     const desiredQuantity = (existingItem?.quantity ?? 0) + quantity;
-    const clampedQuantity = this.clampQuantity(desiredQuantity, product.stock);
+    const clampedQuantity = this.clampQuantity(desiredQuantity);
 
     if (existingItem) {
       if (existingItem.quantity === clampedQuantity) {
@@ -375,7 +379,7 @@ export class OrdersRepository {
       throw new CartQuantityError("Cart item not found");
     }
 
-    const clampedQuantity = this.clampQuantity(quantity, product.stock);
+    const clampedQuantity = this.clampQuantity(quantity);
 
     if (existingItem.quantity === clampedQuantity) {
       return existingItem;
@@ -512,14 +516,9 @@ export class OrdersRepository {
     return cartItem;
   }
 
-  private clampQuantity(requestedQuantity: number, productStock: number): number {
-    const maxAvailable = Math.min(productStock, MAX_CART_ITEM_QUANTITY);
-
-    if (maxAvailable < MIN_CART_ITEM_QUANTITY) {
-      throw new CartQuantityError("Product is out of stock");
-    }
-
-    const clamped = Math.min(Math.max(requestedQuantity, MIN_CART_ITEM_QUANTITY), maxAvailable);
+  private clampQuantity(requestedQuantity: number): number {
+    // Clamp between MIN (1) and MAX (10) quantity
+    const clamped = Math.min(Math.max(requestedQuantity, MIN_CART_ITEM_QUANTITY), MAX_CART_ITEM_QUANTITY);
 
     if (clamped < MIN_CART_ITEM_QUANTITY) {
       throw new CartQuantityError("Quantity must be at least 1");

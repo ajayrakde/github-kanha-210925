@@ -40,7 +40,7 @@ export const products = pgTable("products", {
   imageUrl: text("image_url"), // Primary image for backward compatibility
   images: text("images").array().default([]), // Array of image URLs (max 5)
   displayImageUrl: text("display_image_url"), // Selected display image from the images array
-  stock: integer("stock").default(0).notNull(),
+  stock: integer("stock").default(0),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -480,7 +480,9 @@ export const paymentEventsRelations = relations(paymentEvents, ({ one }) => ({
 
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertProductSchema = createInsertSchema(products).omit({ id: true, createdAt: true, updatedAt: true }).extend({
+  stock: z.number().int().default(0).optional(),
+});
 export const insertInfluencerSchema = createInsertSchema(influencers).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAdminSchema = createInsertSchema(admins).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOfferSchema = createInsertSchema(offers).omit({ id: true, createdAt: true, currentUsage: true }).extend({
