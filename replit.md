@@ -6,6 +6,34 @@ The application features a modern tech stack with React/TypeScript frontend, Exp
 
 # Recent Changes
 
+## 2025-01-06 - Atomic Cashfree Order Creation with Retry Logic
+- **Implementation**: Atomic order creation ensures both local database order and Cashfree payment order are created together
+- **Retry Mechanism**: 3 attempts with exponential backoff (100ms, 200ms, 400ms delays)
+- **Duplicate Prevention**: Before each retry, checks if Cashfree order already exists using checkOrderExists method
+- **Schema Extensions**: Added tracking fields to orders table:
+  - `cashfreeOrderId`: Cashfree's order identifier
+  - `cashfreePaymentSessionId`: Payment session ID for frontend checkout widget
+  - `cashfreeOrderStatus`: Current Cashfree order status
+  - `cashfreeCreated`: Boolean flag indicating if Cashfree order was successfully created
+  - `cashfreeAttempts`: Number of Cashfree creation attempts made
+  - `cashfreeLastError`: Last error message from Cashfree API for debugging
+- **Error Handling**:
+  - Full failure (local order creation fails): Returns error, user sees "try again later"
+  - Partial success (local order saved, Cashfree fails after retries): Returns order with cashfreeCreated=false, user sees "we'll contact you" message
+  - Full success: Returns order with Cashfree details, proceeds to payment
+- **Frontend Updates**:
+  - Checkout page handles partial success scenarios with appropriate user messaging
+  - Payment session ID stored in sessionStorage and passed to payment page
+  - Payment page uses stored session ID instead of creating duplicate Cashfree orders
+- **Files Modified**:
+  - `shared/schema.ts`: Extended orders table schema with Cashfree tracking fields
+  - `server/utils/retry.ts`: Created retry utility with exponential backoff
+  - `server/adapters/cashfree-adapter.ts`: Added checkOrderExists method
+  - `server/routes/orders.ts`: Implemented atomic order creation with retry logic
+  - `server/storage/orders.ts`: Added updateCashfreeOrderDetails repository method
+  - `client/src/pages/checkout.tsx`: Added partial success handling
+  - `client/src/pages/payment.tsx`: Updated to use stored paymentSessionId
+
 ## 2025-01-06 - Security Fix for Address Deletion
 - **Security Vulnerability Fixed**: The DELETE /api/auth/addresses/:id endpoint now properly verifies address ownership before deletion
 - **Storage Method Updated**: The deleteUserAddress method now requires and validates userId parameter
