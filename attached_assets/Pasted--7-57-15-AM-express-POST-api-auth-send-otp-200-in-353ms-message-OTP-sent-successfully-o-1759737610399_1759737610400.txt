@@ -1,0 +1,62 @@
+
+7:57:15 AM [express] POST /api/auth/send-otp 200 in 353ms :: {"message":"OTP sent successfully","otp…
+🧪 TEST MODE - OTP verification successful for +919876543210: 113036
+[OTP] Successful verification for buyer +919876543210
+7:57:34 AM [express] POST /api/auth/verify-otp 200 in 417ms :: {"message":"OTP verified successfully…
+7:57:35 AM [express] GET /api/auth/addresses 304 in 42ms :: [{"id":"787a1e1c-0f18-4cfc-a8d8-54de8f41…
+7:57:35 AM [express] POST /api/shipping/calculate 200 in 118ms :: {"shippingCharge":50}
+7:57:36 AM [express] POST /api/shipping/calculate 200 in 110ms :: {"shippingCharge":50}
+Resolved payment method "upi" to active provider: cashfree
+[Order 3a1a23b8-f9a6-4f08-893e-b0de54894042] Attempt 1: Creating Cashfree order
+[Order 3a1a23b8-f9a6-4f08-893e-b0de54894042] Cashfree order created successfully after 1 attempt(s)
+7:57:41 AM [express] POST /api/orders 200 in 2624ms :: {"order":{"id":"3a1a23b8-f9a6-4f08-893e-b0de5…
+7:57:44 AM [express] GET /api/cart 304 in 41ms :: [{"id":"0f4a3e36-8320-452b-80d0-32f7292b8a48","ses…
+7:57:44 AM [express] POST /api/payments/create-pending-cashfree 200 in 160ms :: {"success":true,"dat…
+7:57:48 AM [express] GET /api/payments/status/7abf8b1c-e7b6-4382-96bd-8a2b69d4b515 200 in 1088ms :: …
+7:57:49 AM [express] POST /api/payments/initiate-upi 200 in 1475ms :: {"success":true,"data":{"cfPay…
+Cashfree payment verification failed: Error: Cashfree API error: 404 {"code":"order_not_found","help":"Check latest errors and resolution from Merchant Dashboard API logs: https://bit.ly/4glEd0W Help Document: https://bit.ly/4eeZYO9","message":"Order Reference Id does not exist","type":"invalid_request_error"}
+
+    at CashfreeAdapter.makeApiCall (/home/runner/workspace/server/adapters/cashfree-adapter.ts:557:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async CashfreeAdapter.verifyPayment (/home/runner/workspace/server/adapters/cashfree-adapter.ts:218:24)
+    at async PaymentsService.verifyPayment (/home/runner/workspace/server/services/payments-service.ts:261:22)
+    at async <anonymous> (/home/runner/workspace/server/routes/payments.ts:1640:22)
+Payment verification failed: PaymentError: Payment verification failed: Cashfree API error: 404 {"code":"order_not_found","help":"Check latest errors and resolution from Merchant Dashboard API logs: https://bit.ly/4glEd0W Help Document: https://bit.ly/4eeZYO9","message":"Order Reference Id does not exist","type":"invalid_request_error"}
+
+    at CashfreeAdapter.verifyPayment (/home/runner/workspace/server/adapters/cashfree-adapter.ts:248:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async PaymentsService.verifyPayment (/home/runner/workspace/server/services/payments-service.ts:261:22)
+    at async <anonymous> (/home/runner/workspace/server/routes/payments.ts:1640:22) {
+  code: 'PAYMENT_VERIFICATION_FAILED',
+  provider: 'cashfree',
+  providerError: Error: Cashfree API error: 404 {"code":"order_not_found","help":"Check latest errors and resolution from Merchant Dashboard API logs: https://bit.ly/4glEd0W Help Document: https://bit.ly/4eeZYO9","message":"Order Reference Id does not exist","type":"invalid_request_error"}
+  
+      at CashfreeAdapter.makeApiCall (/home/runner/workspace/server/adapters/cashfree-adapter.ts:557:13)
+      at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+      at async CashfreeAdapter.verifyPayment (/home/runner/workspace/server/adapters/cashfree-adapter.ts:218:24)
+      at async PaymentsService.verifyPayment (/home/runner/workspace/server/services/payments-service.ts:261:22)
+      at async <anonymous> (/home/runner/workspace/server/routes/payments.ts:1640:22)
+}
+Payment status check error: PaymentError: Failed to verify payment
+    at PaymentsService.verifyPayment (/home/runner/workspace/server/services/payments-service.ts:285:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async <anonymous> (/home/runner/workspace/server/routes/payments.ts:1640:22) {
+  code: 'PAYMENT_VERIFICATION_FAILED',
+  provider: undefined,
+  providerError: PaymentError: Payment verification failed: Cashfree API error: 404 {"code":"order_not_found","help":"Check latest errors and resolution from Merchant Dashboard API logs: https://bit.ly/4glEd0W Help Document: https://bit.ly/4eeZYO9","message":"Order Reference Id does not exist","type":"invalid_request_error"}
+  
+      at CashfreeAdapter.verifyPayment (/home/runner/workspace/server/adapters/cashfree-adapter.ts:248:13)
+      at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+      at async PaymentsService.verifyPayment (/home/runner/workspace/server/services/payments-service.ts:261:22)
+      at async <anonymous> (/home/runner/workspace/server/routes/payments.ts:1640:22) {
+    code: 'PAYMENT_VERIFICATION_FAILED',
+    provider: 'cashfree',
+    providerError: Error: Cashfree API error: 404 {"code":"order_not_found","help":"Check latest errors and resolution from Merchant Dashboard API logs: https://bit.ly/4glEd0W Help Document: https://bit.ly/4eeZYO9","message":"Order Reference Id does not exist","type":"invalid_request_error"}
+    
+        at CashfreeAdapter.makeApiCall (/home/runner/workspace/server/adapters/cashfree-adapter.ts:557:13)
+        at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at async CashfreeAdapter.verifyPayment (/home/runner/workspace/server/adapters/cashfree-adapter.ts:218:24)
+        at async PaymentsService.verifyPayment (/home/runner/workspace/server/services/payments-service.ts:261:22)
+        at async <anonymous> (/home/runner/workspace/server/routes/payments.ts:1640:22)
+  }
+}
