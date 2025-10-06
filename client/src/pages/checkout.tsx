@@ -10,7 +10,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { ArrowLeft, Plus } from "lucide-react";
+import { ArrowLeft, Plus, Loader2 } from "lucide-react";
 
 interface UserInfo {
   name: string;
@@ -1027,8 +1027,17 @@ export default function Checkout() {
                 }
                 data-testid="button-place-order"
               >
-                <i className="fas fa-lock mr-2"></i>
-                Place Order - ₹{total.toFixed(2)}
+                {isCalculatingShipping ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Place Order - ₹{total.toFixed(2)}
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-lock mr-2"></i>
+                    Place Order - ₹{total.toFixed(2)}
+                  </>
+                )}
               </Button>
             )}
           </div>
