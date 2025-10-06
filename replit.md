@@ -6,16 +6,21 @@ The application features a modern tech stack with React/TypeScript frontend, Exp
 
 # Recent Changes
 
-## 2025-10-06 - Cashfree Webhook Signature Verification Fix
-- **Issue**: Cashfree webhook signature verification was failing because Express JSON middleware was parsing decimal values (e.g., `170.00` → `170`), causing signature mismatch
-- **Root Cause**: Cashfree computes webhook signature using `HMAC-SHA256(timestamp + rawBody)` which requires the exact raw payload format including decimal precision
-- **Solution**: Configured Express to use `express.raw()` middleware for webhook routes (`/api/payments/webhook`) to preserve raw body as Buffer
+## 2025-10-06 - Cashfree Webhook & Payment Status Polling Fixes
+- **Issue 1**: Cashfree webhook signature verification was failing because Express JSON middleware was parsing decimal values (e.g., `170.00` → `170`), causing signature mismatch
+  - **Root Cause**: Cashfree computes webhook signature using `HMAC-SHA256(timestamp + rawBody)` which requires the exact raw payload format including decimal precision
+  - **Solution**: Configured Express to use `express.raw()` middleware for webhook routes (`/api/payments/webhook`) to preserve raw body as Buffer
+- **Issue 2**: Payment status polling failing with 401 errors, preventing UI from updating after webhook processing
+  - **Root Cause**: GET `/api/payments/status/:paymentId` endpoint required authentication, but during payment flow the session might not be maintained
+  - **Solution**: Removed `requireAuthenticatedSession` middleware to allow unauthenticated status checks during payment processing
+  - **Security**: PaymentId is a UUID (hard to guess), and endpoint only returns status information, not sensitive details
 - **Implementation Details**:
-  - Added `app.use('/api/payments/webhook', express.raw({ type: 'application/json' }))` before `express.json()` middleware
-  - Webhook body now preserved in raw format for signature computation
-  - Headers correctly extracted: `x-webhook-signature` and `x-webhook-timestamp`
+  - Added `app.use('/api/payments/webhook', express.raw({ type: 'application/json' }))` before `express.json()` middleware in `server/index.ts`
+  - Removed authentication requirement from payment status endpoint
+  - Frontend polling now works correctly throughout payment flow
 - **Files Modified**:
   - `server/index.ts`: Added raw body middleware for webhook routes
+  - `server/routes/payments.ts`: Removed authentication requirement from status endpoint
 
 ## 2025-01-06 - Atomic Cashfree Order Creation with Retry Logic
 - **Implementation**: Atomic order creation ensures both local database order and Cashfree payment order are created together

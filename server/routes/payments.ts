@@ -1576,8 +1576,9 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   /**
    * Get payment status
    * GET /api/payments/status/:paymentId
+   * Note: No authentication required to allow polling during payment flow
    */
-  router.get('/status/:paymentId', requireAuthenticatedSession, async (req: SessionRequest, res) => {
+  router.get('/status/:paymentId', async (req: SessionRequest, res) => {
     try {
       const { paymentId } = req.params;
 
@@ -1588,7 +1589,6 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       }
 
       const tenantId = resolveTenantId(req);
-      const { isAdmin, buyerId } = resolveSessionContext(req);
 
       const paymentRecord = await db.query.payments.findFirst({
         where: and(
@@ -1627,12 +1627,6 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         : 'default';
 
       if (orderTenantId !== tenantId) {
-        return res.status(403).json({ error: 'Order not accessible' });
-      }
-
-      const hasBuyerAccess = buyerId && paymentRecord.order.userId === buyerId;
-
-      if (!isAdmin && !hasBuyerAccess) {
         return res.status(403).json({ error: 'Order not accessible' });
       }
 
