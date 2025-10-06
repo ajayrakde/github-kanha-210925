@@ -554,9 +554,10 @@ export default function Payment() {
   }
 
   return (
-    <div className="space-y-3 sm:space-y-6">
-      {/* Back Button and Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-6">
+    <div className="max-w-7xl mx-auto px-4">
+      <div className="space-y-3 sm:space-y-6">
+        {/* Back Button and Title */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-6">
         <Button 
           onClick={handleBackToCheckout}
           variant="ghost" 
@@ -796,6 +797,7 @@ export default function Payment() {
           </Card>
         </div>
       </div>
+    </div>
     </div>
   );
 }
