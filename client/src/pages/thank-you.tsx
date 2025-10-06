@@ -128,6 +128,7 @@ const PaymentStatusBadge = ({
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   cod: 'Cash on Delivery',
   upi: 'UPI',
+  cashfree: 'UPI',
   phonepe: 'PhonePe',
   card: 'Card',
   credit_card: 'Card',
