@@ -144,6 +144,7 @@ export const orders = pgTable("orders", {
   total: decimal("total", { precision: 10, scale: 2 }).notNull(),
   offerId: varchar("offer_id").references(() => offers.id),
   deliveryAddressId: varchar("delivery_address_id").references(() => userAddresses.id).notNull(),
+  checkoutIntentId: varchar("checkout_intent_id", { length: 255 }).unique(), // Unique ID to prevent duplicate orders
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
