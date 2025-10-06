@@ -1,0 +1,128 @@
+[Webhook] 🔔 Incoming webhook from cashfree
+[Webhook] Headers: {
+  "host": "a71b3758-2f84-4165-a317-0b628e1f46d0-00-aiwexbwursff.worf.replit.dev",
+  "user-agent": "ReactorNetty/1.1.11",
+  "content-length": "1245",
+  "accept": "*/*",
+  "accept-encoding": "gzip",
+  "content-type": "application/json",
+  "x-datadog-parent-id": "8616073470399605812",
+  "x-datadog-sampling-priority": "0",
+  "x-datadog-trace-id": "2039103775191055203",
+  "x-forwarded-for": "52.66.25.127, 10.83.6.125",
+  "x-forwarded-proto": "https",
+  "x-idempotency-key": "uxPbd36acK6dwGS6QEbZmNCvtj7vKqVcgfXtZ7YCeGg=",
+  "x-replit-user-bio": "",
+  "x-replit-user-id": "",
+  "x-replit-user-name": "",
+  "x-replit-user-profile-image": "",
+  "x-replit-user-roles": "",
+  "x-replit-user-teams": "",
+  "x-replit-user-url": "",
+  "x-webhook-attempt": "1",
+  "x-webhook-signature": "KIyqd2JWiizVq3qqOrayqA/ODjNgl5zQ/VqZwHHqKW4=",
+  "x-webhook-timestamp": "1759751557976",
+  "x-webhook-version": "2025-01-01"
+}
+[Webhook] Body type: object
+[Webhook] Body length: 1245
+[Webhook] 📨 Processing cashfree webhook...
+[Webhook] req.body type: object isBuffer: true
+11:52:40 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 47ms :: {"…
+[Cashfree Webhook] Signature verification: {
+  timestamp: '1759751557976',
+  bodyLength: 1245,
+  bodyPreview: '{"data":{"order":{"order_id":"a3073563-6225-4501-9694-5cb91a943a7c","order_amount":380.00,"order_cur',
+  receivedSignature: 'KIyqd2JWiizVq3qqOrayqA/ODjNgl5zQ/VqZwHHqKW4=',
+  expectedSignature: 'KIyqd2JWiizVq3qqOrayqA/ODjNgl5zQ/VqZwHHqKW4=',
+  match: true
+}
+11:52:40 AM [express] POST /api/payments/webhook/cashfree 400 in 258ms :: {"status":"unprocessed","me…
+11:52:46 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 43ms :: {"…
+11:52:52 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 40ms :: {"…
+11:52:58 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 41ms :: {"…
+11:53:04 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 41ms :: {"…
+11:53:10 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 41ms :: {"…
+11:53:16 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 43ms :: {"…
+11:53:22 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 41ms :: {"…
+11:53:28 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 44ms :: {"…
+11:53:34 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 40ms :: {"…
+11:53:40 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 40ms :: {"…
+11:53:46 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 43ms :: {"…
+11:53:52 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 40ms :: {"…
+11:53:58 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 43ms :: {"…
+11:54:04 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 40ms :: {"…
+11:54:10 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 41ms :: {"…
+11:54:16 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 41ms :: {"…
+11:54:22 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 41ms :: {"…
+11:54:28 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 40ms :: {"…
+11:54:34 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 41ms :: {"…
+11:54:40 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 43ms :: {"…
+[Webhook] 🔔 Incoming webhook from cashfree
+[Webhook] Headers: {
+  "host": "a71b3758-2f84-4165-a317-0b628e1f46d0-00-aiwexbwursff.worf.replit.dev",
+  "user-agent": "ReactorNetty/1.1.11",
+  "content-length": "1245",
+  "accept": "*/*",
+  "accept-encoding": "gzip",
+  "content-type": "application/json",
+  "x-datadog-parent-id": "8086940170967124780",
+  "x-datadog-sampling-priority": "1",
+  "x-datadog-trace-id": "3297587796660848235",
+  "x-forwarded-for": "52.66.25.127, 10.83.11.252",
+  "x-forwarded-proto": "https",
+  "x-idempotency-key": "uxPbd36acK6dwGS6QEbZmNCvtj7vKqVcgfXtZ7YCeGg=",
+  "x-replit-user-bio": "",
+  "x-replit-user-id": "",
+  "x-replit-user-name": "",
+  "x-replit-user-profile-image": "",
+  "x-replit-user-roles": "",
+  "x-replit-user-teams": "",
+  "x-replit-user-url": "",
+  "x-webhook-attempt": "2",
+  "x-webhook-signature": "KIyqd2JWiizVq3qqOrayqA/ODjNgl5zQ/VqZwHHqKW4=",
+  "x-webhook-timestamp": "1759751557976",
+  "x-webhook-version": "2025-01-01"
+}
+[Webhook] Body type: object
+[Webhook] Body length: 1245
+[Webhook] 📨 Processing cashfree webhook...
+[Webhook] req.body type: object isBuffer: true
+[Cashfree Webhook] Signature verification: {
+  timestamp: '1759751557976',
+  bodyLength: 1245,
+  bodyPreview: '{"data":{"order":{"order_id":"a3073563-6225-4501-9694-5cb91a943a7c","order_amount":380.00,"order_cur',
+  receivedSignature: 'KIyqd2JWiizVq3qqOrayqA/ODjNgl5zQ/VqZwHHqKW4=',
+  expectedSignature: 'KIyqd2JWiizVq3qqOrayqA/ODjNgl5zQ/VqZwHHqKW4=',
+  match: true
+}
+Failed to store failed webhook: error: duplicate key value violates unique constraint "webhook_inbox_provider_dedupe_unique"
+    at file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async WebhookRouter.storeWebhook (/home/runner/workspace/server/services/webhook-router.ts:1191:5)
+    at async WebhookRouter.processWebhook (/home/runner/workspace/server/services/webhook-router.ts:178:13)
+    at async <anonymous> (/home/runner/workspace/server/routes/payments.ts:2125:22) {
+  length: 331,
+  severity: 'ERROR',
+  code: '23505',
+  detail: 'Key (provider, dedupe_key)=(cashfree, 35d710033cd6581cb69ed4fe07308d5d0021e32880dd86d25484a8f324edb1e4) already exists.',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'webhook_inbox',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'webhook_inbox_provider_dedupe_unique',
+  file: 'nbtinsert.c',
+  line: '666',
+  routine: '_bt_check_unique'
+}
+11:54:43 AM [express] POST /api/payments/webhook/cashfree 400 in 253ms :: {"status":"unprocessed","me…
+11:54:46 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 161ms :: {…
+11:54:52 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 40ms :: {"…
+11:54:58 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 41ms :: {"…
+11:55:04 AM [express] GET /api/payments/status/d3e32fcb-7858-4d92-8e89-f7cfd309bd41 304 in 43ms :: {"…
+11:55:10 AM [express] 

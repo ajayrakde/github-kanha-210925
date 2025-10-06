@@ -148,7 +148,9 @@ export class WebhookRouter {
             continue;
           }
 
+          console.log('[Webhook] ✅ Signature verified, processing webhook...');
           const processResult = await this.processVerifiedWebhook(verifyResult, adapter.provider, tenantId);
+          console.log('[Webhook] ✅ Webhook processed successfully:', processResult);
 
           try {
             await this.storeWebhook(provider, dedupeKey, true, tenantId, {
@@ -172,6 +174,7 @@ export class WebhookRouter {
           };
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`[Webhook] ❌ Error processing ${provider} webhook:`, error);
           failureReasons.push(`${provider}: ${message}`);
 
           try {
