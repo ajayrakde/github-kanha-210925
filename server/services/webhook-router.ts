@@ -427,6 +427,7 @@ export class WebhookRouter {
             typeof paymentRecord.amountAuthorizedMinor === 'number' &&
             capturedAmount !== paymentRecord.amountAuthorizedMinor
           ) {
+            console.log(`[Webhook] Amount mismatch detected for payment ${paymentRecord.id}: expected ${paymentRecord.amountAuthorizedMinor}, received ${capturedAmount}. Order promotion will be skipped.`);
             tamperedAudit = {
               provider: paymentRecord.provider as PaymentProvider,
               expectedAmountMinor: paymentRecord.amountAuthorizedMinor,
@@ -485,6 +486,7 @@ export class WebhookRouter {
           transitionAllowed;
 
         if (shouldPromoteOrder) {
+          console.log(`[Webhook] Promoting order ${paymentRecord.orderId} to paid/confirmed status`);
           await trx
             .update(orders)
             .set({
@@ -498,6 +500,8 @@ export class WebhookRouter {
                 sql`${orders.paymentStatus} <> 'paid'`
               )
             );
+        } else if (nextLifecycle === 'COMPLETED') {
+          console.log(`[Webhook] Order promotion skipped for ${paymentRecord.orderId}. Conditions: verified=${options?.verified}, skipPromotion=${skipOrderPromotion}, transitionAllowed=${transitionAllowed}`);
         }
 
         return true;
