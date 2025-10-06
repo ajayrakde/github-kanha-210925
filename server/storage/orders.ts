@@ -203,6 +203,28 @@ export class OrdersRepository {
     return updatedOrder;
   }
 
+  async updateCashfreeOrderDetails(
+    orderId: string,
+    details: {
+      cashfreeOrderId?: string;
+      cashfreePaymentSessionId?: string;
+      cashfreeOrderStatus?: string;
+      cashfreeCreated?: boolean;
+      cashfreeAttempts?: number;
+      cashfreeLastError?: string;
+    }
+  ): Promise<Order> {
+    const [updatedOrder] = await db
+      .update(orders)
+      .set({
+        ...details,
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, orderId))
+      .returning();
+    return updatedOrder;
+  }
+
   async getOrdersByUser(userId: string): Promise<(Order & {
     items: (OrderItem & { product: Product })[];
     offer?: Offer;
