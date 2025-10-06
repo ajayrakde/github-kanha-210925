@@ -253,9 +253,10 @@ export class PaymentsService {
       );
 
       // Verify payment through adapter using providerOrderId (for Cashfree) or providerPaymentId
+      // Note: Cashfree requires the ORDER ID, not payment ID, for verification
       const verifyParams: VerifyPaymentParams = {
         paymentId: params.paymentId,
-        providerPaymentId: payment.providerPaymentId || payment.providerOrderId || undefined,
+        providerPaymentId: payment.providerOrderId || payment.providerPaymentId || undefined,
       };
 
       const result = await adapter.verifyPayment(verifyParams);
