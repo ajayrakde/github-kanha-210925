@@ -68,7 +68,7 @@ export default function Products() {
                   {itemCount} {itemCount === 1 ? 'item' : 'items'} in cart
                 </div>
                 <div className="text-green-100 text-sm">
-                  Total: ₹{subtotal.toFixed(2)} (+ ₹50 shipping)
+                  Total: ₹{subtotal.toFixed(2)} (+ shipping)
                 </div>
               </div>
             </div>
