@@ -248,7 +248,7 @@ export default function Cart() {
         </Button>
         <div>
           <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-1">Shopping Cart</h2>
-          <p className="text-sm sm:text-base text-gray-600">Review your items before checkout</p>
+          <p className="text-sm sm:text-base text-gray-600 hidden sm:block">Review your items before checkout</p>
         </div>
       </div>
 

@@ -528,7 +528,7 @@ export default function Checkout() {
         </Button>
         <div>
           <h2 className="text-2xl font-semibold text-gray-900 mb-1">Checkout</h2>
-          <p className="text-gray-600">Complete your order with secure payment</p>
+          <p className="text-gray-600 hidden sm:block">Complete your order with secure payment</p>
         </div>
       </div>
 

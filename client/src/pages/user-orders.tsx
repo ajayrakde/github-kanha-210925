@@ -185,7 +185,7 @@ export default function UserOrders() {
         </Button>
         <div>
           <h2 className="text-2xl font-semibold text-gray-900 mb-1">My Orders</h2>
-          <p className="text-gray-600">View your order history and track deliveries</p>
+          <p className="text-gray-600 hidden sm:block">View your order history and track deliveries</p>
         </div>
       </div>
 

@@ -708,7 +708,7 @@ export default function Payment() {
         </Button>
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 mb-1">Complete Payment</h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 hidden sm:block">
             Secure payment powered by UPI
           </p>
         </div>
