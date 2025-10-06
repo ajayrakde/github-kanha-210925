@@ -779,7 +779,7 @@ export default function Payment() {
                 <div className="flex justify-between text-gray-600">
                   <span>Order ID:</span>
                   <span className="font-mono text-xs font-medium break-all" data-testid="text-order-id">
-                    {orderId}
+                    #{orderId.slice(0, 8).toUpperCase()}
                   </span>
                 </div>
               </div>
