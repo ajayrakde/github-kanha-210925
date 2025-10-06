@@ -554,9 +554,9 @@ export default function Payment() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto py-8 px-4">
+    <div className="space-y-3 sm:space-y-6">
       {/* Back Button and Title */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-6">
         <Button 
           onClick={handleBackToCheckout}
           variant="ghost" 
@@ -574,222 +574,228 @@ export default function Payment() {
         </div>
       </div>
 
-      {/* Order Summary */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="text-lg">Order Summary</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex justify-between text-sm">
-            <span>Order ID:</span>
-            <span className="font-mono font-medium" data-testid="text-order-id">
-              {orderId.slice(0, 8)}...
-            </span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span>Subtotal:</span>
-            <span data-testid="text-subtotal">₹{parseFloat(currentOrderData.subtotal).toFixed(2)}</span>
-          </div>
-          {parseFloat(currentOrderData.discountAmount) > 0 && (
-            <div className="flex justify-between text-sm text-green-600">
-              <span>Discount:</span>
-              <span data-testid="text-discount">-₹{parseFloat(currentOrderData.discountAmount).toFixed(2)}</span>
-            </div>
-          )}
-          <div className="flex justify-between text-sm">
-            <span>Shipping:</span>
-            <span data-testid="text-shipping">₹50.00</span>
-          </div>
-          <hr className="my-2" />
-          <div className="flex justify-between font-semibold text-lg">
-            <span>Total:</span>
-            <span data-testid="text-total">₹{parseFloat(currentOrderData.total).toFixed(2)}</span>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Payment Status */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <CreditCard className="mr-2 h-5 w-5" />
-            Payment Status
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {paymentStatus === 'pending' && (
-            <div className="text-center py-6">
-              <div className="mb-4">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CreditCard className="h-8 w-8 text-blue-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to Pay</h3>
-                <p className="text-gray-600 mb-6">
-                  {isCashfree 
-                    ? (cashfreePaymentSessionId 
-                        ? 'Enter your UPI ID to complete the payment.' 
-                        : 'Click below to set up your payment.')
-                    : 'The PhonePe checkout will open in a secure iframe to complete your payment.'
-                  }
-                </p>
-              </div>
-              {!isCashfree && (
-                <div className="space-y-3 mb-6">
-                  <p className="text-sm font-medium text-gray-900">Choose how you want to pay with UPI</p>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    {PHONEPE_INSTRUMENT_OPTIONS.map((option) => (
-                      <Button
-                        key={option.value}
-                        type="button"
-                        variant={instrumentPreference === option.value ? "default" : "outline"}
-                        className="h-auto w-full flex-col items-start justify-start gap-1 py-3"
-                        onClick={() => setInstrumentPreference(option.value)}
-                        data-testid={option.testId}
-                        aria-pressed={instrumentPreference === option.value}
-                      >
-                        <span className="text-sm font-semibold text-gray-900">{option.label}</span>
-                        <span className="text-xs text-gray-500 text-left">
-                          {option.description}
-                        </span>
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {isCashfree && cashfreePaymentSessionId && (
-                <div className="space-y-4 mb-6">
-                  <div className="space-y-2">
-                    <label htmlFor="upi-id" className="text-sm font-medium text-gray-900">
-                      UPI ID / VPA
-                    </label>
-                    <Input
-                      id="upi-id"
-                      type="text"
-                      placeholder="yourname@upi (e.g., success@upi)"
-                      value={upiId}
-                      onChange={(e) => setUpiId(e.target.value)}
-                      disabled={initiateUPIPaymentMutation.isPending}
-                      data-testid="input-upi-id"
-                      className="w-full"
-                    />
-                    <p className="text-xs text-gray-500">
-                      Use success@upi for testing
+      <div className="grid lg:grid-cols-3 gap-3 sm:gap-6">
+        <div className="lg:col-span-2">
+          {/* Payment Status */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <CreditCard className="mr-2 h-5 w-5" />
+                Payment Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {paymentStatus === 'pending' && (
+                <div className="text-center py-6">
+                  <div className="mb-4">
+                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <CreditCard className="h-8 w-8 text-blue-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to Pay</h3>
+                    <p className="text-gray-600 mb-6">
+                      {isCashfree 
+                        ? (cashfreePaymentSessionId 
+                            ? 'Enter your UPI ID to complete the payment.' 
+                            : 'Click below to set up your payment.')
+                        : 'The PhonePe checkout will open in a secure iframe to complete your payment.'
+                      }
                     </p>
                   </div>
-                  <Button
-                    onClick={() => initiateUPIPaymentMutation.mutate()}
-                    disabled={!upiId.trim() || initiateUPIPaymentMutation.isPending}
-                    size="lg"
-                    className="w-full"
-                    data-testid="button-pay-with-upi"
-                  >
-                    {initiateUPIPaymentMutation.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Initiating Payment...
-                      </>
-                    ) : (
-                      <>
-                        <CreditCard className="mr-2 h-4 w-4" />
-                        Pay ₹{parseFloat(currentOrderData.total).toFixed(2)}
-                      </>
-                    )}
-                  </Button>
+                  {!isCashfree && (
+                    <div className="space-y-3 mb-6">
+                      <p className="text-sm font-medium text-gray-900">Choose how you want to pay with UPI</p>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        {PHONEPE_INSTRUMENT_OPTIONS.map((option) => (
+                          <Button
+                            key={option.value}
+                            type="button"
+                            variant={instrumentPreference === option.value ? "default" : "outline"}
+                            className="h-auto w-full flex-col items-start justify-start gap-1 py-3"
+                            onClick={() => setInstrumentPreference(option.value)}
+                            data-testid={option.testId}
+                            aria-pressed={instrumentPreference === option.value}
+                          >
+                            <span className="text-sm font-semibold text-gray-900">{option.label}</span>
+                            <span className="text-xs text-gray-500 text-left">
+                              {option.description}
+                            </span>
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {isCashfree && cashfreePaymentSessionId && (
+                    <div className="space-y-4 mb-6">
+                      <div className="space-y-2">
+                        <label htmlFor="upi-id" className="text-sm font-medium text-gray-900">
+                          UPI ID / VPA
+                        </label>
+                        <Input
+                          id="upi-id"
+                          type="text"
+                          placeholder="yourname@upi (e.g., success@upi)"
+                          value={upiId}
+                          onChange={(e) => setUpiId(e.target.value)}
+                          disabled={initiateUPIPaymentMutation.isPending}
+                          data-testid="input-upi-id"
+                          className="w-full"
+                        />
+                        <p className="text-xs text-gray-500">
+                          Use success@upi for testing
+                        </p>
+                      </div>
+                      <Button
+                        onClick={() => initiateUPIPaymentMutation.mutate()}
+                        disabled={!upiId.trim() || initiateUPIPaymentMutation.isPending}
+                        size="lg"
+                        className="w-full"
+                        data-testid="button-pay-with-upi"
+                      >
+                        {initiateUPIPaymentMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Initiating Payment...
+                          </>
+                        ) : (
+                          <>
+                            <CreditCard className="mr-2 h-4 w-4" />
+                            Pay ₹{parseFloat(currentOrderData.total).toFixed(2)}
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                  {!(isCashfree && cashfreePaymentSessionId) && (
+                    <Button
+                      onClick={handleInitiatePayment}
+                      disabled={isLoading}
+                      size="lg"
+                      className="w-full"
+                      data-testid="button-initiate-payment"
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard className="mr-2 h-4 w-4" />
+                          {isCashfree ? 'Set Up Payment' : `Pay ₹${parseFloat(currentOrderData.total).toFixed(2)} with PhonePe`}
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
               )}
-              {!(isCashfree && cashfreePaymentSessionId) && (
-                <Button
-                  onClick={handleInitiatePayment}
-                  disabled={isLoading}
-                  size="lg"
-                  className="w-full"
-                  data-testid="button-initiate-payment"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>
-                      <CreditCard className="mr-2 h-4 w-4" />
-                      {isCashfree ? 'Set Up Payment' : `Pay ₹${parseFloat(currentOrderData.total).toFixed(2)} with PhonePe`}
-                    </>
-                  )}
-                </Button>
+
+              {paymentStatus === 'processing' && (
+                <div className="text-center py-6">
+                  <div className="mb-4">
+                    <Loader2 className="h-16 w-16 text-blue-600 animate-spin mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Processing Payment</h3>
+                    <p className="text-gray-600">
+                      {isCashfree 
+                        ? 'Please complete the payment on the Cashfree payment page.'
+                        : 'Please complete the payment in the PhonePe app or website.'
+                      }
+                    </p>
+                  </div>
+                </div>
               )}
-            </div>
-          )}
 
-          {paymentStatus === 'processing' && (
-            <div className="text-center py-6">
-              <div className="mb-4">
-                <Loader2 className="h-16 w-16 text-blue-600 animate-spin mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Processing Payment</h3>
-                <p className="text-gray-600">
-                  {isCashfree 
-                    ? 'Please complete the payment on the Cashfree payment page.'
-                    : 'Please complete the payment in the PhonePe app or website.'
-                  }
-                </p>
-              </div>
-            </div>
-          )}
-
-          {paymentStatus === 'completed' && (
-            <div className="text-center py-6">
-              <div className="mb-4">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <i className="fas fa-check text-green-600 text-2xl"></i>
+              {paymentStatus === 'completed' && (
+                <div className="text-center py-6">
+                  <div className="mb-4">
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <i className="fas fa-check text-green-600 text-2xl"></i>
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Payment Successful!</h3>
+                    <p className="text-gray-600">Your payment has been processed successfully. Redirecting...</p>
+                  </div>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Payment Successful!</h3>
-                <p className="text-gray-600">Your payment has been processed successfully. Redirecting...</p>
-              </div>
-            </div>
-          )}
+              )}
 
-          {paymentStatus === 'failed' && (
-            <div className="text-center py-6">
-              <div className="mb-4">
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <AlertCircle className="h-8 w-8 text-red-600" />
+              {paymentStatus === 'failed' && (
+                <div className="text-center py-6">
+                  <div className="mb-4">
+                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <AlertCircle className="h-8 w-8 text-red-600" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Payment Failed</h3>
+                    <p className="text-gray-600 mb-6">Your payment could not be processed. Please try again.</p>
+                  </div>
+                  <div className="space-y-3">
+                    <Button 
+                      onClick={handleRetryPayment}
+                      disabled={isLoading}
+                      size="lg"
+                      className="w-full"
+                      data-testid="button-retry-payment"
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Retrying...
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard className="mr-2 h-4 w-4" />
+                          Retry Payment
+                        </>
+                      )}
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      onClick={handleBackToCheckout}
+                      className="w-full"
+                      data-testid="button-back-to-checkout-failed"
+                    >
+                      Back to Checkout
+                    </Button>
+                  </div>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Payment Failed</h3>
-                <p className="text-gray-600 mb-6">Your payment could not be processed. Please try again.</p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Order Summary - Right Side */}
+        <div className="lg:col-span-1">
+          <Card className="lg:sticky lg:top-4">
+            <CardHeader>
+              <CardTitle className="text-lg">Order Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span>Order ID:</span>
+                <span className="font-mono font-medium" data-testid="text-order-id">
+                  {orderId.slice(0, 8)}...
+                </span>
               </div>
-              <div className="space-y-3">
-                <Button 
-                  onClick={handleRetryPayment}
-                  disabled={isLoading}
-                  size="lg"
-                  className="w-full"
-                  data-testid="button-retry-payment"
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Retrying...
-                    </>
-                  ) : (
-                    <>
-                      <CreditCard className="mr-2 h-4 w-4" />
-                      Retry Payment
-                    </>
-                  )}
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={handleBackToCheckout}
-                  className="w-full"
-                  data-testid="button-back-to-checkout-failed"
-                >
-                  Back to Checkout
-                </Button>
+              <div className="flex justify-between text-sm">
+                <span>Subtotal:</span>
+                <span data-testid="text-subtotal">₹{parseFloat(currentOrderData.subtotal).toFixed(2)}</span>
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              {parseFloat(currentOrderData.discountAmount) > 0 && (
+                <div className="flex justify-between text-sm text-green-600">
+                  <span>Discount:</span>
+                  <span data-testid="text-discount">-₹{parseFloat(currentOrderData.discountAmount).toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm">
+                <span>Shipping:</span>
+                <span data-testid="text-shipping">₹50.00</span>
+              </div>
+              <hr className="my-2" />
+              <div className="flex justify-between font-semibold text-lg">
+                <span>Total:</span>
+                <span data-testid="text-total">₹{parseFloat(currentOrderData.total).toFixed(2)}</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
