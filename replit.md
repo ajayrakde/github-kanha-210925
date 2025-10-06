@@ -6,21 +6,37 @@ The application features a modern tech stack with React/TypeScript frontend, Exp
 
 # Recent Changes
 
-## 2025-10-06 - Cashfree Webhook & Payment Status Polling Fixes
-- **Issue 1**: Cashfree webhook signature verification was failing because Express JSON middleware was parsing decimal values (e.g., `170.00` → `170`), causing signature mismatch
+## 2025-10-06 - Payment Architecture Fixes: Webhook Signature & Secure Polling
+- **Issue 1 - Webhook Signature Verification**: Cashfree webhook signature verification was failing because Express JSON middleware was parsing decimal values (e.g., `170.00` → `170`), causing signature mismatch
   - **Root Cause**: Cashfree computes webhook signature using `HMAC-SHA256(timestamp + rawBody)` which requires the exact raw payload format including decimal precision
-  - **Solution**: Configured Express to use `express.raw()` middleware for webhook routes (`/api/payments/webhook`) to preserve raw body as Buffer
-- **Issue 2**: Payment status polling failing with 401 errors, preventing UI from updating after webhook processing
-  - **Root Cause**: GET `/api/payments/status/:paymentId` endpoint required authentication, but during payment flow the session might not be maintained
-  - **Solution**: Removed `requireAuthenticatedSession` middleware to allow unauthenticated status checks during payment processing
-  - **Security**: PaymentId is a UUID (hard to guess), and endpoint only returns status information, not sensitive details
+  - **Solution**: Configured Express to use `express.raw()` middleware for webhook routes to preserve raw body as Buffer
+  
+- **Issue 2 - Status Endpoint Architecture**: Payment status polling was calling Cashfree API on every request instead of reading from database
+  - **Root Cause**: Status endpoint was calling `paymentsService.verifyPayment()` which made API calls to Cashfree
+  - **Solution**: Changed status endpoint to query database only - webhooks update DB, frontend reads cached status
+  - **Security**: Restored `requireAuthenticatedSession` middleware for proper access control
+  
+- **Correct Payment Flow**:
+  ```
+  Backend ↔ Cashfree:
+    - Cashfree webhook → Backend verifies signature → Updates database
+  
+  Frontend ↔ Backend:
+    - User logs in via OTP → Session created
+    - Frontend polls GET /api/payments/status/:paymentId (authenticated)
+    - Backend reads cached status from database (no Cashfree API call)
+    - Frontend polls until status changes from PENDING/PROCESSING to COMPLETED/FAILED
+  ```
+  
 - **Implementation Details**:
-  - Added `app.use('/api/payments/webhook', express.raw({ type: 'application/json' }))` before `express.json()` middleware in `server/index.ts`
-  - Removed authentication requirement from payment status endpoint
-  - Frontend polling now works correctly throughout payment flow
+  - Added `app.use('/api/payments/webhook', express.raw({ type: 'application/json' }))` before `express.json()` middleware
+  - Modified status endpoint to return cached payment data from database without calling payment provider APIs
+  - Restored authentication requirement on status endpoint for security
+  - Session properly maintained after OTP verification throughout payment flow
+  
 - **Files Modified**:
   - `server/index.ts`: Added raw body middleware for webhook routes
-  - `server/routes/payments.ts`: Removed authentication requirement from status endpoint
+  - `server/routes/payments.ts`: Changed status endpoint to DB-only reads with authentication restored
 
 ## 2025-01-06 - Atomic Cashfree Order Creation with Retry Logic
 - **Implementation**: Atomic order creation ensures both local database order and Cashfree payment order are created together
