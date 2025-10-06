@@ -555,22 +555,23 @@ export default function Payment() {
 
   return (
     <div className="max-w-2xl mx-auto py-8 px-4">
-      {/* Back Button */}
-      <Button 
-        onClick={handleBackToCheckout}
-        variant="ghost" 
-        className="-ml-2 mb-4 hover:bg-gray-100"
-        data-testid="button-back-to-checkout"
-      >
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Back to Checkout
-      </Button>
-
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900 mb-2">Complete Payment</h1>
-        <p className="text-gray-600">
-          Secure payment powered by {isCashfree ? 'Cashfree' : 'PhonePe'}
-        </p>
+      {/* Back Button and Title */}
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6">
+        <Button 
+          onClick={handleBackToCheckout}
+          variant="ghost" 
+          className="-ml-2 hover:bg-gray-100"
+          data-testid="button-back-to-checkout"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Checkout
+        </Button>
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900 mb-1">Complete Payment</h1>
+          <p className="text-gray-600">
+            Secure payment powered by {isCashfree ? 'Cashfree' : 'PhonePe'}
+          </p>
+        </div>
       </div>
 
       {/* Order Summary */}
