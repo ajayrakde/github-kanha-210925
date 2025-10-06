@@ -116,10 +116,29 @@ export default function Payment() {
         const orderInfo = JSON.parse(storedOrder) as OrderData;
         if (orderInfo.orderId === orderIdParam) {
           setOrderData(orderInfo);
-          // If we have a cashfreePaymentSessionId from checkout, use it immediately
+          // If we have a cashfreePaymentSessionId from checkout, create pending payment and start polling
           if (orderInfo.cashfreePaymentSessionId) {
             setCashfreePaymentSessionId(orderInfo.cashfreePaymentSessionId);
             setPaymentStatus('pending');
+            
+            // Create pending payment record for webhook tracking
+            apiRequest("POST", "/api/payments/create-pending-cashfree", {
+              orderId: orderIdParam,
+              paymentSessionId: orderInfo.cashfreePaymentSessionId,
+            })
+              .then(res => res.json())
+              .then(data => {
+                if (data.success && data.data.paymentId) {
+                  latestPaymentIdRef.current = data.data.paymentId;
+                  // Start polling for status updates
+                  setTimeout(() => {
+                    checkPaymentStatusMutation.mutate(data.data.paymentId);
+                  }, 3000);
+                }
+              })
+              .catch(err => {
+                console.error('Failed to create pending payment:', err);
+              });
           }
         }
       }
@@ -494,16 +513,13 @@ export default function Payment() {
   // Handle payment initiation
   const handleInitiatePayment = () => {
     if (currentOrderData) {
-      latestPaymentIdRef.current = null;
-      clearStatusPolling();
       if (isCashfree) {
-        // If we already have a payment session ID from checkout, skip creation
-        if (cashfreePaymentSessionId) {
-          setPaymentStatus('pending');
-        } else {
-          createCashfreePaymentMutation.mutate();
-        }
+        // For Cashfree, we already have payment session ID and pending payment from page load
+        // Payment record already exists and polling is active - don't clear them
+        setPaymentStatus('pending');
       } else {
+        latestPaymentIdRef.current = null;
+        clearStatusPolling();
         createPaymentMutation.mutate();
       }
     }

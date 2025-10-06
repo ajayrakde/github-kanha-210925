@@ -661,6 +661,111 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
   });
 
   /**
+   * Create a pending payment record for Cashfree order
+   * POST /api/payments/create-pending-cashfree
+   */
+  router.post('/create-pending-cashfree', async (req, res) => {
+    try {
+      const schema = z.object({
+        orderId: z.string(),
+        paymentSessionId: z.string(),
+      });
+
+      const validatedData = schema.parse(req.body);
+      const tenantId = (req.headers['x-tenant-id'] as string) || 'default';
+      const environment = (process.env.NODE_ENV === 'production' ? 'live' : 'test') as Environment;
+
+      // Get order details
+      const order = await ordersRepository.getOrderWithPayments(validatedData.orderId);
+      if (!order) {
+        return res.status(404).json({ error: 'Order not found' });
+      }
+
+      const expectedAmountMinor = Number(order.amountMinor);
+      if (!Number.isFinite(expectedAmountMinor) || expectedAmountMinor <= 0) {
+        return res.status(400).json({ error: 'Order amount unavailable' });
+      }
+
+      const currency = typeof order.currency === 'string' ? order.currency.trim().toUpperCase() : 'INR';
+
+      // Check if there's already a pending payment for this order
+      const existingPayment = await db.query.payments.findFirst({
+        where: and(
+          eq(paymentsTable.orderId, validatedData.orderId),
+          eq(paymentsTable.tenantId, tenantId),
+          eq(paymentsTable.status, 'PENDING')
+        ),
+      });
+
+      if (existingPayment) {
+        // Return existing payment ID
+        return res.json({
+          success: true,
+          data: {
+            paymentId: existingPayment.id,
+          },
+        });
+      }
+
+      // Create payment record
+      const paymentId = randomUUID();
+      const now = new Date();
+      
+      await db.insert(paymentsTable).values({
+        id: paymentId,
+        tenantId,
+        orderId: validatedData.orderId,
+        provider: 'cashfree',
+        environment,
+        providerOrderId: order.cashfreeOrderId || null,
+        amountAuthorizedMinor: expectedAmountMinor,
+        currency,
+        status: 'PENDING',
+        methodKind: 'upi',
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      // Log payment creation event
+      await db.insert(paymentEvents).values({
+        id: randomUUID(),
+        tenantId,
+        paymentId,
+        provider: 'cashfree',
+        type: 'payment_created',
+        data: {
+          orderId: validatedData.orderId,
+          amount: expectedAmountMinor,
+          currency,
+          method: { type: 'upi' },
+        },
+        occurredAt: now,
+      });
+
+      res.json({
+        success: true,
+        data: {
+          paymentId,
+        },
+      });
+    } catch (error) {
+      console.error('Pending payment creation error:', error);
+
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({
+          error: 'Invalid request data',
+          details: error.errors
+        });
+      }
+
+      res.status(500).json({
+        error: 'Failed to create pending payment',
+        message: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  /**
    * Initiate Cashfree UPI payment with VPA
    * POST /api/payments/initiate-upi
    */
