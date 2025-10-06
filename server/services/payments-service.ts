@@ -20,6 +20,9 @@ import type {
   PaymentEvent,
   HealthCheckResult,
   PaymentLifecycleStatus,
+  PaymentStatus,
+  Currency,
+  PaymentMethod,
 } from "../../shared/payment-types";
 
 import { adapterFactory } from "./adapter-factory";
@@ -223,6 +226,25 @@ export class PaymentsService {
         throw new PaymentError('Payment not found', 'PAYMENT_NOT_FOUND');
       }
 
+      // If payment hasn't been initiated with provider yet (no providerPaymentId or providerOrderId),
+      // just return the local payment status without calling the provider
+      if (!payment.providerPaymentId && !payment.providerOrderId) {
+        // Return local payment status for pending payments
+        return {
+          paymentId: payment.id,
+          providerPaymentId: payment.providerPaymentId || undefined,
+          providerOrderId: payment.providerOrderId || undefined,
+          status: payment.status as PaymentStatus,
+          amount: Number(payment.amountAuthorizedMinor || 0),
+          currency: (payment.currency as Currency) || 'INR',
+          provider: payment.provider as PaymentProvider,
+          environment: this.config.environment,
+          method: payment.methodKind ? { type: payment.methodKind as PaymentMethod } : undefined,
+          createdAt: payment.createdAt || new Date(),
+          updatedAt: payment.updatedAt || new Date(),
+        };
+      }
+
       // Get adapter for the provider
       const adapter = await adapterFactory.createAdapter(
         payment.provider as PaymentProvider,
@@ -230,8 +252,13 @@ export class PaymentsService {
         resolvedTenantId
       );
 
-      // Verify payment through adapter
-      const result = await adapter.verifyPayment(params);
+      // Verify payment through adapter using providerOrderId (for Cashfree) or providerPaymentId
+      const verifyParams: VerifyPaymentParams = {
+        paymentId: params.paymentId,
+        providerPaymentId: payment.providerPaymentId || payment.providerOrderId || undefined,
+      };
+
+      const result = await adapter.verifyPayment(verifyParams);
 
       // Update payment in database
       await this.updateStoredPayment(result, resolvedTenantId, {
