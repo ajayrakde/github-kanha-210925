@@ -278,15 +278,18 @@ export default function Payment() {
       return payload.data;
     },
     onSuccess: (data) => {
+      // Store the payment ID for status polling
+      latestPaymentIdRef.current = data.paymentId;
       setPaymentStatus('processing');
       toast({
         title: "Payment Initiated",
         description: "Please check your UPI app to approve the payment request.",
       });
 
-      if (latestPaymentIdRef.current) {
+      // Start polling for payment status
+      if (data.paymentId) {
         setTimeout(() => {
-          checkPaymentStatusMutation.mutate(latestPaymentIdRef.current!);
+          checkPaymentStatusMutation.mutate(data.paymentId);
         }, 3000);
       }
     },
