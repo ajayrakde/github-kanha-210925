@@ -2102,20 +2102,27 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     try {
       const provider = req.params.provider as PaymentProvider;
       
+      console.log(`[Webhook] 🔔 Incoming webhook from ${provider}`);
+      console.log(`[Webhook] Headers:`, JSON.stringify(req.headers, null, 2));
+      console.log(`[Webhook] Body type:`, typeof req.body);
+      console.log(`[Webhook] Body length:`, Buffer.isBuffer(req.body) ? req.body.length : 'N/A');
+      
       if (!provider) {
+        console.log(`[Webhook] ❌ No provider specified`);
         return res.status(400).json({
           error: 'Provider is required'
         });
       }
       
       // Process webhook through our unified webhook router
+      console.log(`[Webhook] 📨 Processing ${provider} webhook...`);
       const result = await webhookRouter.processWebhook(provider, req, res);
       
       // Response is already sent by webhookRouter
       return;
       
     } catch (error) {
-      console.error(`Webhook processing error for ${req.params.provider}:`, error);
+      console.error(`[Webhook] ❌ Webhook processing error for ${req.params.provider}:`, error);
       
       res.status(500).json({
         error: 'Webhook processing failed',
