@@ -250,6 +250,13 @@ export default function Payment() {
       latestPaymentIdRef.current = data.paymentId ?? null;
       setCashfreePaymentSessionId(data.providerData.paymentSessionId);
       setPaymentStatus('pending');
+
+      // Start polling for payment status (for QR code and app intent flows)
+      if (data.paymentId) {
+        setTimeout(() => {
+          checkPaymentStatusMutation.mutate(data.paymentId);
+        }, 3000);
+      }
     },
     onError: (error) => {
       console.error('Cashfree payment creation failed:', error);
