@@ -794,32 +794,55 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
 
       const currency = typeof order.currency === 'string' ? order.currency.trim().toUpperCase() : 'INR';
 
-      // Create payment record locally FIRST
-      const paymentId = randomUUID();
-      const now = new Date();
-      
-      await db.insert(paymentsTable).values({
-        id: paymentId,
-        tenantId,
-        orderId: validatedData.orderId,
-        provider: 'cashfree',
-        environment,
-        providerOrderId: order.cashfreeOrderId || null,
-        amountAuthorizedMinor: expectedAmountMinor,
-        currency,
-        status: 'PENDING',
-        methodKind: 'upi',
-        createdAt: now,
-        updatedAt: now,
+      // Check if there's already a pending payment for this order (from page load)
+      const existingPayment = await db.query.payments.findFirst({
+        where: and(
+          eq(paymentsTable.orderId, validatedData.orderId),
+          eq(paymentsTable.tenantId, tenantId),
+          eq(paymentsTable.status, 'PENDING')
+        ),
       });
 
-      // Log payment creation event
+      let paymentId: string;
+      const now = new Date();
+
+      if (existingPayment) {
+        // Reuse the existing pending payment record
+        paymentId = existingPayment.id;
+        
+        // Update with UPI details
+        await db.update(paymentsTable)
+          .set({
+            updatedAt: now,
+          })
+          .where(eq(paymentsTable.id, paymentId));
+      } else {
+        // Create new payment record if none exists
+        paymentId = randomUUID();
+        
+        await db.insert(paymentsTable).values({
+          id: paymentId,
+          tenantId,
+          orderId: validatedData.orderId,
+          provider: 'cashfree',
+          environment,
+          providerOrderId: order.cashfreeOrderId || null,
+          amountAuthorizedMinor: expectedAmountMinor,
+          currency,
+          status: 'PENDING',
+          methodKind: 'upi',
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+
+      // Log payment initiation event
       await db.insert(paymentEvents).values({
         id: randomUUID(),
         tenantId,
         paymentId,
         provider: 'cashfree',
-        type: 'payment_created',
+        type: existingPayment ? 'payment_upi_initiated' : 'payment_created',
         data: {
           orderId: validatedData.orderId,
           amount: expectedAmountMinor,
@@ -833,35 +856,77 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       // NOW call Cashfree
       const adapter = await adapterFactory.getAdapterWithFallback('cashfree', environment, tenantId);
       if (!adapter) {
-        return res.status(500).json({ error: 'Cashfree adapter not available' });
+        // Mark payment as failed
+        await db.update(paymentsTable)
+          .set({
+            status: 'FAILED',
+            updatedAt: new Date(),
+          })
+          .where(eq(paymentsTable.id, paymentId));
+        
+        return res.status(500).json({ error: 'Cashfree adapter not available', paymentId });
       }
 
       if (adapter.provider !== 'cashfree') {
-        return res.status(500).json({ error: 'Invalid provider adapter' });
+        // Mark payment as failed
+        await db.update(paymentsTable)
+          .set({
+            status: 'FAILED',
+            updatedAt: new Date(),
+          })
+          .where(eq(paymentsTable.id, paymentId));
+        
+        return res.status(500).json({ error: 'Invalid provider adapter', paymentId });
       }
 
       const cashfreeAdapter = adapter as any;
-      const result = await cashfreeAdapter.initiateUPIPayment({
-        paymentSessionId: validatedData.paymentSessionId,
-        upiId: validatedData.upiId,
-        orderId: validatedData.orderId,
-      });
+      
+      try {
+        const result = await cashfreeAdapter.initiateUPIPayment({
+          paymentSessionId: validatedData.paymentSessionId,
+          upiId: validatedData.upiId,
+          orderId: validatedData.orderId,
+        });
 
-      // Update payment record with Cashfree's payment ID
-      await db.update(paymentsTable)
-        .set({
-          providerPaymentId: result.cfPaymentId,
-          updatedAt: new Date(),
-        })
-        .where(eq(paymentsTable.id, paymentId));
+        // Update payment record with Cashfree's payment ID
+        await db.update(paymentsTable)
+          .set({
+            providerPaymentId: result.cfPaymentId,
+            updatedAt: new Date(),
+          })
+          .where(eq(paymentsTable.id, paymentId));
 
-      res.json({
-        success: true,
-        data: {
-          ...result,
-          paymentId, // Return our local payment ID
-        },
-      });
+        res.json({
+          success: true,
+          data: {
+            ...result,
+            paymentId, // Return our local payment ID
+          },
+        });
+      } catch (cashfreeError) {
+        // Mark payment as failed when Cashfree API fails
+        await db.update(paymentsTable)
+          .set({
+            status: 'FAILED',
+            updatedAt: new Date(),
+          })
+          .where(eq(paymentsTable.id, paymentId));
+
+        // Log the failure
+        await db.insert(paymentEvents).values({
+          id: randomUUID(),
+          tenantId,
+          paymentId,
+          provider: 'cashfree',
+          type: 'payment_failed',
+          data: {
+            error: cashfreeError instanceof Error ? cashfreeError.message : 'Unknown error',
+          },
+          occurredAt: new Date(),
+        });
+
+        throw cashfreeError; // Re-throw to be handled by outer catch
+      }
     } catch (error) {
       console.error('UPI payment initiation error:', error);
 
