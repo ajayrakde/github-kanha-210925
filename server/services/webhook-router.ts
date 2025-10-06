@@ -479,11 +479,20 @@ export class WebhookRouter {
           };
         }
 
+        // Debug: Log all promotion conditions
+        console.log(`[Webhook] 🔍 Checking promotion conditions for order ${paymentRecord.orderId}:`);
+        console.log(`  - options?.verified: ${options?.verified} (must be true)`);
+        console.log(`  - nextLifecycle: ${nextLifecycle} (must be 'COMPLETED')`);
+        console.log(`  - skipOrderPromotion: ${skipOrderPromotion} (must be false)`);
+        console.log(`  - transitionAllowed: ${transitionAllowed} (must be true)`);
+
         const shouldPromoteOrder =
           options?.verified === true &&
           nextLifecycle === 'COMPLETED' &&
           !skipOrderPromotion &&
           transitionAllowed;
+
+        console.log(`  ➡️ shouldPromoteOrder: ${shouldPromoteOrder}`);
 
         if (shouldPromoteOrder) {
           console.log(`[Webhook] ✅ Promoting order ${paymentRecord.orderId}:`);
