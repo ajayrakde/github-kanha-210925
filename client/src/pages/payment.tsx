@@ -564,7 +564,7 @@ export default function Payment() {
           data-testid="button-back-to-checkout"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Checkout
+          Back
         </Button>
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 mb-1">Complete Payment</h1>
@@ -751,7 +751,7 @@ export default function Payment() {
                       className="w-full"
                       data-testid="button-back-to-checkout-failed"
                     >
-                      Back to Checkout
+                      Back
                     </Button>
                   </div>
                 </div>
