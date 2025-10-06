@@ -200,6 +200,9 @@ export default function Payment() {
       const currentOrderData = orderData || order;
       if (!currentOrderData) throw new Error('No order data available');
 
+      // Generate unique idempotency key for this payment request
+      const idempotencyKey = crypto.randomUUID();
+
       const response = await apiRequest("POST", "/api/payments/create", {
         orderId: orderId,
         amount: parseFloat(currentOrderData.total),
@@ -220,6 +223,8 @@ export default function Payment() {
         failureUrl: `${window.location.origin}/payment-failed?orderId=${orderId}`,
         description: `Payment for order ${orderId}`,
         provider: 'cashfree',
+      }, {
+        'Idempotency-Key': idempotencyKey,
       });
 
       const payload = await response.json();
