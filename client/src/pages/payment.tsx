@@ -580,7 +580,7 @@ export default function Payment() {
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 mb-1">Complete Payment</h1>
           <p className="text-gray-600">
-            Secure payment powered by {isCashfree ? 'Cashfree' : 'PhonePe'}
+            Secure payment powered by UPI
           </p>
         </div>
       </div>
@@ -692,7 +692,7 @@ export default function Payment() {
                       ) : (
                         <>
                           <CreditCard className="mr-2 h-4 w-4" />
-                          {isCashfree ? 'Set Up Payment' : `Pay ₹${parseFloat(currentOrderData.total).toFixed(2)} with PhonePe`}
+                          Pay ₹{parseFloat(currentOrderData.total).toFixed(2)} with UPI
                         </>
                       )}
                     </Button>
@@ -706,10 +706,7 @@ export default function Payment() {
                     <Loader2 className="h-16 w-16 text-blue-600 animate-spin mx-auto mb-4" />
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">Processing Payment</h3>
                     <p className="text-gray-600">
-                      {isCashfree 
-                        ? 'Please complete the payment on the Cashfree payment page.'
-                        : 'Please complete the payment in the PhonePe app or website.'
-                      }
+                      Please complete the payment on the UPI payment page.
                     </p>
                   </div>
                 </div>
