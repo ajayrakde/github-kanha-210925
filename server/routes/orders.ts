@@ -210,6 +210,7 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
         deliveryAddressId,
       };
 
+      // Step 1: Create local order first
       const order = await ordersRepository.createOrder(orderData);
 
       const orderItems = cartItems.map(item => ({
@@ -231,13 +232,108 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
         await offersRepository.incrementOfferUsage(appliedOffer.id);
       }
 
-      await ordersRepository.clearCart(req.session.sessionId!);
+      // Step 2: For UPI payments (Cashfree), create Cashfree order immediately with retry
+      let cashfreeCreated = false;
+      let cashfreeOrderId: string | undefined;
+      let cashfreePaymentSessionId: string | undefined;
+      let cashfreeOrderStatus: string | undefined;
+      let cashfreeError: string | undefined;
+
+      if (resolvedPaymentMethod === 'cashfree') {
+        const { retryCashfreeOperation } = await import('../utils/retry');
+        const { CashfreeAdapter } = await import('../adapters/cashfree-adapter');
+        
+        try {
+          const environment = (process.env.NODE_ENV === 'production' ? 'live' : 'test') as 'test' | 'live';
+          const config = await configResolver.resolveConfig('cashfree', environment, 'default');
+          const cashfreeAdapter = new CashfreeAdapter(config);
+
+          // Get user details for Cashfree customer
+          const user = await usersRepository.getUser(userId);
+          if (!user) {
+            throw new Error('User not found');
+          }
+
+          const address = await usersRepository
+            .getUserAddresses(userId)
+            .then(addresses => addresses.find(addr => addr.id === deliveryAddressId));
+
+          // Attempt to create Cashfree order with retries
+          let attempts = 0;
+          const result = await retryCashfreeOperation(async () => {
+            attempts++;
+            
+            // Check if order already exists before creating
+            const existingOrder = await cashfreeAdapter.checkOrderExists(order.id);
+            if (existingOrder) {
+              console.log(`[Order ${order.id}] Cashfree order already exists, using existing order`);
+              return {
+                providerOrderId: existingOrder.order_id,
+                providerData: {
+                  paymentSessionId: existingOrder.payment_session_id,
+                },
+                status: cashfreeAdapter['mapPaymentStatus'](existingOrder.order_status),
+              };
+            }
+
+            console.log(`[Order ${order.id}] Attempt ${attempts}: Creating Cashfree order`);
+            return await cashfreeAdapter.createPayment({
+              orderId: order.id,
+              orderAmount: Math.round(total * 100),
+              currency: 'INR',
+              customer: {
+                id: user.id,
+                name: user.name || 'Customer',
+                email: user.email || undefined,
+                phone: user.phone,
+              },
+              successUrl: `${req.protocol}://${req.get('host')}/payment-success?orderId=${order.id}`,
+              failureUrl: `${req.protocol}://${req.get('host')}/payment-failed?orderId=${order.id}`,
+            });
+          }, (attempt, error) => {
+            console.log(`[Order ${order.id}] Retry attempt ${attempt} failed:`, error);
+          });
+
+          cashfreeCreated = true;
+          cashfreeOrderId = result.providerOrderId;
+          cashfreePaymentSessionId = result.providerData?.paymentSessionId;
+          cashfreeOrderStatus = result.status;
+
+          console.log(`[Order ${order.id}] Cashfree order created successfully after ${attempts} attempt(s)`);
+
+          // Update order with Cashfree details
+          await ordersRepository.updateCashfreeOrderDetails(order.id, {
+            cashfreeOrderId,
+            cashfreePaymentSessionId,
+            cashfreeOrderStatus,
+            cashfreeCreated: true,
+            cashfreeAttempts: attempts,
+          });
+        } catch (error) {
+          cashfreeError = error instanceof Error ? error.message : 'Unknown error';
+          console.error(`[Order ${order.id}] Failed to create Cashfree order after retries:`, error);
+
+          // Store failure details
+          await ordersRepository.updateCashfreeOrderDetails(order.id, {
+            cashfreeCreated: false,
+            cashfreeLastError: cashfreeError,
+            cashfreeAttempts: 3,
+          });
+        }
+      }
+
+      // Clear cart only for non-UPI or successful Cashfree creation
+      if (resolvedPaymentMethod !== 'upi' && resolvedPaymentMethod !== 'cashfree') {
+        await ordersRepository.clearCart(req.session.sessionId!);
+      }
 
       const fullOrderWithRelations = await ordersRepository.getOrder(order.id);
       if (!fullOrderWithRelations) {
         return res.status(500).json({ message: "Failed to retrieve created order" });
       }
 
+      const user = await usersRepository.getUser(userId);
+      
       const deliveryAddressString = [
         fullOrderWithRelations.deliveryAddress.address,
         `${fullOrderWithRelations.deliveryAddress.city}, ${fullOrderWithRelations.deliveryAddress.pincode}`
@@ -250,7 +346,26 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
         discountAmount: fullOrderWithRelations.discountAmount,
         paymentMethod: fullOrderWithRelations.paymentMethod,
         deliveryAddress: deliveryAddressString,
+        userInfo: {
+          name: user?.name || '',
+          email: user?.email || '',
+          phone: user?.phone || '',
+        },
+        cashfreeCreated,
+        cashfreePaymentSessionId,
       };
+
+      // Return appropriate response based on Cashfree creation status
+      if (resolvedPaymentMethod === 'cashfree') {
+        if (!cashfreeCreated) {
+          return res.status(201).json({
+            order: orderResponse,
+            message: "Order saved but payment gateway unavailable. Our team will contact you.",
+            cashfreeCreated: false,
+            error: cashfreeError,
+          });
+        }
+      }
 
       res.json({ order: orderResponse, message: "Order placed successfully" });
     } catch (error) {

@@ -79,6 +79,7 @@ interface OrderData {
     email: string;
     phone?: string;
   };
+  cashfreePaymentSessionId?: string;
 }
 
 export default function Payment() {
@@ -115,6 +116,11 @@ export default function Payment() {
         const orderInfo = JSON.parse(storedOrder) as OrderData;
         if (orderInfo.orderId === orderIdParam) {
           setOrderData(orderInfo);
+          // If we have a cashfreePaymentSessionId from checkout, use it immediately
+          if (orderInfo.cashfreePaymentSessionId) {
+            setCashfreePaymentSessionId(orderInfo.cashfreePaymentSessionId);
+            setPaymentStatus('pending');
+          }
         }
       }
     }
@@ -200,13 +206,10 @@ export default function Payment() {
       const currentOrderData = orderData || order;
       if (!currentOrderData) throw new Error('No order data available');
 
-      console.log('[Payment] Order data:', currentOrderData);
-      console.log('[Payment] User info:', currentOrderData.userInfo);
-
       // Generate unique idempotency key for this payment request
       const idempotencyKey = crypto.randomUUID();
 
-      const requestBody = {
+      const response = await apiRequest("POST", "/api/payments/create", {
         orderId: orderId,
         amount: parseFloat(currentOrderData.total),
         currency: 'INR',
@@ -226,16 +229,11 @@ export default function Payment() {
         failureUrl: `${window.location.origin}/payment-failed?orderId=${orderId}`,
         description: `Payment for order ${orderId}`,
         provider: 'cashfree',
-      };
-
-      console.log('[Payment] Request body:', JSON.stringify(requestBody, null, 2));
-
-      const response = await apiRequest("POST", "/api/payments/create", requestBody, {
+      }, {
         'Idempotency-Key': idempotencyKey,
       });
 
       const payload = await response.json();
-      console.log('[Payment] Response:', payload);
       return payload.data;
     },
     onSuccess: (data) => {
@@ -489,7 +487,12 @@ export default function Payment() {
       latestPaymentIdRef.current = null;
       clearStatusPolling();
       if (isCashfree) {
-        createCashfreePaymentMutation.mutate();
+        // If we already have a payment session ID from checkout, skip creation
+        if (cashfreePaymentSessionId) {
+          setPaymentStatus('pending');
+        } else {
+          createCashfreePaymentMutation.mutate();
+        }
       } else {
         createPaymentMutation.mutate();
       }

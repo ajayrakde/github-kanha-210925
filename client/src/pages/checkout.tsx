@@ -378,6 +378,19 @@ export default function Checkout() {
     onSuccess: async ({ result, orderUserInfo }) => {
       const isUpiPayment = paymentMethod === 'upi';
 
+      // Check if Cashfree order creation failed
+      if (result.cashfreeCreated === false) {
+        toast({
+          title: "Order Saved",
+          description: "Your order is saved but we couldn't connect to the payment gateway. Our team will contact you to complete the payment.",
+          variant: "default",
+        });
+        clearCart.mutate();
+        queryClient.invalidateQueries({ queryKey: ["/api/auth/orders"] });
+        setLocation("/");
+        return;
+      }
+
       // Clear the cart immediately only for non-UPI payments.
       // For UPI we keep the cart until the payment succeeds so buyers can retry without losing items.
       if (!isUpiPayment) {
@@ -394,7 +407,8 @@ export default function Checkout() {
         discountAmount: result.order.discountAmount,
         paymentMethod: result.order.paymentMethod,
         deliveryAddress: result.order.deliveryAddress,
-        userInfo: result.order.userInfo // Use userInfo from backend response (includes phone)
+        userInfo: result.order.userInfo, // Use userInfo from backend response (includes phone)
+        cashfreePaymentSessionId: result.order.cashfreePaymentSessionId,
       }));
 
       // Redirect based on payment method
