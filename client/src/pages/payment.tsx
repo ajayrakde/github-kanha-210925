@@ -116,29 +116,10 @@ export default function Payment() {
         const orderInfo = JSON.parse(storedOrder) as OrderData;
         if (orderInfo.orderId === orderIdParam) {
           setOrderData(orderInfo);
-          // If we have a cashfreePaymentSessionId from checkout, create pending payment and start polling
+          // Store cashfree session ID for use when user clicks Pay button
           if (orderInfo.cashfreePaymentSessionId) {
             setCashfreePaymentSessionId(orderInfo.cashfreePaymentSessionId);
-            setPaymentStatus('pending');
-            
-            // Create pending payment record for webhook tracking
-            apiRequest("POST", "/api/payments/create-pending-cashfree", {
-              orderId: orderIdParam,
-              paymentSessionId: orderInfo.cashfreePaymentSessionId,
-            })
-              .then(res => res.json())
-              .then(data => {
-                if (data.success && data.data.paymentId) {
-                  latestPaymentIdRef.current = data.data.paymentId;
-                  // Start polling for status updates
-                  setTimeout(() => {
-                    checkPaymentStatusMutation.mutate(data.data.paymentId);
-                  }, 3000);
-                }
-              })
-              .catch(err => {
-                console.error('Failed to create pending payment:', err);
-              });
+            console.log('[Payment] Order data loaded with Cashfree session ID, waiting for user action');
           }
         }
       }

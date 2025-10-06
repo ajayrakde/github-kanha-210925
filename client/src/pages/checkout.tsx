@@ -420,6 +420,31 @@ export default function Checkout() {
     },
   });
 
+  // Debug validation states for Place Order button
+  useEffect(() => {
+    console.log('[Checkout] Place Order Button Validation States:', {
+      step,
+      hasName: !!userInfo.name,
+      hasAddressLine1: !!userInfo.addressLine1,
+      hasAddressLine2: !!userInfo.addressLine2,
+      hasCity: !!userInfo.city,
+      hasPincode: !!userInfo.pincode,
+      isPincodeValid,
+      isCalculatingShipping,
+      isPlacingOrder: placeOrderMutation.isPending,
+      buttonShouldBeEnabled: step === "details" && 
+        userInfo.name && 
+        userInfo.addressLine1 && 
+        userInfo.addressLine2 && 
+        userInfo.city && 
+        userInfo.pincode && 
+        isPincodeValid && 
+        !isCalculatingShipping && 
+        !placeOrderMutation.isPending,
+      userInfo,
+    });
+  }, [step, userInfo, isPincodeValid, isCalculatingShipping, placeOrderMutation.isPending]);
+
   const total = subtotal + shippingCharge; // Add dynamic shipping charges
 
   if (!cartItems || cartItems.length === 0) {
@@ -985,7 +1010,10 @@ export default function Checkout() {
             {step === "details" && (
               <Button
                 className="w-full bg-green-600 hover:bg-green-700"
-                onClick={() => placeOrderMutation.mutate()}
+                onClick={() => {
+                  console.log('[Checkout] Place Order button clicked');
+                  placeOrderMutation.mutate();
+                }}
                 disabled={
                   !userInfo.name || 
                   !userInfo.addressLine1 || 
