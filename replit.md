@@ -6,6 +6,21 @@ The application features a modern tech stack with React/TypeScript frontend, Exp
 
 # Recent Changes
 
+## 2025-10-06 - Payment Page UX & Checkout Validation Debugging
+- **Payment Page Auto-Polling Fix**: Removed automatic payment creation and polling on page load to prevent premature API calls
+  - **Previous Behavior**: Payment page would auto-create pending payment and start polling immediately on load
+  - **New Behavior**: Payment page loads order data only, waits for user interaction before creating payment/polling
+  - **VPA Flow**: Create pending payment and start polling only when user clicks "Pay" button after entering UPI ID
+  - **QR/App Intent Flows**: Still auto-poll after payment creation since user interaction happens outside the app
+  - **Impact**: Better UX, reduced unnecessary API calls, polling starts at appropriate time for each payment method
+- **Checkout Validation Debugging**: Added comprehensive debug logging to track Place Order button validation states
+  - Logs all validation conditions: name, addressLine1, addressLine2, city, pincode validity, shipping calculation state
+  - Logs button enable/disable determination logic to browser console
+  - Helps diagnose issues where button appears disabled despite form being complete
+- **Files Modified**:
+  - `client/src/pages/payment.tsx`: Removed auto-polling from page load, added payment creation on Pay button click
+  - `client/src/pages/checkout.tsx`: Added useEffect with comprehensive validation state logging
+
 ## 2025-10-06 - Cashfree Webhook Currency Unit Conversion Fix
 - **Issue**: Cashfree success webhooks were returning 200 "processed" but not updating order payment status to "paid"
   - **Root Cause**: Currency unit mismatch - Cashfree sends payment amounts in rupees (e.g., 380) while database stores in paise (38,000). The webhook code detected this as potential tampering and skipped order promotion.
