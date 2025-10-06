@@ -185,6 +185,16 @@ export class OrdersRepository {
     };
   }
 
+  async getPendingByIntent(checkoutIntentId: string): Promise<Order | undefined> {
+    const existingOrder = await db.query.orders.findFirst({
+      where: and(
+        eq(orders.checkoutIntentId, checkoutIntentId),
+        eq(orders.paymentStatus, 'pending')
+      ),
+    });
+    return existingOrder;
+  }
+
   async createOrder(order: InsertOrder): Promise<Order> {
     const [createdOrder] = await db.insert(orders).values(order).returning();
     return createdOrder;
@@ -192,6 +202,13 @@ export class OrdersRepository {
 
   async createOrderItems(items: InsertOrderItem[]): Promise<OrderItem[]> {
     return await db.insert(orderItems).values(items).returning();
+  }
+
+  async deleteOrder(orderId: string): Promise<void> {
+    // Delete order items first (foreign key constraint)
+    await db.delete(orderItems).where(eq(orderItems.orderId, orderId));
+    // Then delete the order
+    await db.delete(orders).where(eq(orders.id, orderId));
   }
 
   async updateOrderStatus(id: string, status: string): Promise<Order> {
