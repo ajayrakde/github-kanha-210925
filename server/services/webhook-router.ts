@@ -122,7 +122,7 @@ export class WebhookRouter {
           if (!verifyResult.verified) {
             await this.storeWebhook(provider, dedupeKey, false, tenantId, {
               headers,
-              body: typeof body === 'string' ? body : JSON.stringify(body),
+              body: Buffer.isBuffer(body) ? body.toString('utf8') : (typeof body === 'string' ? body : JSON.stringify(body)),
               identifiers,
             });
 
@@ -151,7 +151,7 @@ export class WebhookRouter {
           try {
             await this.storeWebhook(provider, dedupeKey, true, tenantId, {
               headers,
-              body: typeof body === 'string' ? body : JSON.stringify(body),
+              body: Buffer.isBuffer(body) ? body.toString('utf8') : (typeof body === 'string' ? body : JSON.stringify(body)),
               identifiers,
             });
 
@@ -175,7 +175,7 @@ export class WebhookRouter {
           try {
             await this.storeWebhook(provider, dedupeKey, false, tenantId, {
               headers,
-              body: typeof body === 'string' ? body : JSON.stringify(body),
+              body: Buffer.isBuffer(body) ? body.toString('utf8') : (typeof body === 'string' ? body : JSON.stringify(body)),
               error: message,
               identifiers,
             });
@@ -210,7 +210,7 @@ export class WebhookRouter {
         const dedupeKey = this.createDedupeKey(providerParam, tenantId, body, identifiers);
         await this.storeWebhook(providerParam, dedupeKey, false, tenantId, {
           headers,
-          body: typeof body === 'string' ? body : JSON.stringify(body),
+          body: Buffer.isBuffer(body) ? body.toString('utf8') : (typeof body === 'string' ? body : JSON.stringify(body)),
           error: error instanceof Error ? error.message : 'Unknown error',
           identifiers,
         });
