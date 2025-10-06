@@ -253,10 +253,28 @@ export class WebhookRouter {
     let paymentUpdated = false;
     let refundUpdated = false;
     
-    // Log the webhook event
+    // Resolve actual payment ID from provider payment ID
+    let actualPaymentId = event.paymentId;
+    if (event.paymentId) {
+      const paymentRecord = await db.query.payments.findFirst({
+        where: and(
+          eq(payments.tenantId, tenantId),
+          or(
+            eq(payments.id, event.paymentId),
+            eq(payments.providerPaymentId, event.paymentId)
+          )
+        ),
+        columns: { id: true }
+      });
+      if (paymentRecord) {
+        actualPaymentId = paymentRecord.id;
+      }
+    }
+    
+    // Log the webhook event with actual payment ID
     await this.logWebhookEvent({
       id: eventId,
-      paymentId: event.paymentId,
+      paymentId: actualPaymentId,
       refundId: event.refundId,
       tenantId,
       provider,

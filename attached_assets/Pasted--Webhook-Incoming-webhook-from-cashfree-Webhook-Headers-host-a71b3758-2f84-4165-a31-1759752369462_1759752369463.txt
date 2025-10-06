@@ -1,0 +1,88 @@
+[Webhook] 🔔 Incoming webhook from cashfree
+[Webhook] Headers: {
+  "host": "a71b3758-2f84-4165-a317-0b628e1f46d0-00-aiwexbwursff.worf.replit.dev",
+  "user-agent": "ReactorNetty/1.1.11",
+  "content-length": "1245",
+  "accept": "*/*",
+  "accept-encoding": "gzip",
+  "content-type": "application/json",
+  "x-datadog-parent-id": "115906298688616923",
+  "x-datadog-sampling-priority": "1",
+  "x-datadog-trace-id": "1900078023391805131",
+  "x-forwarded-for": "52.66.25.127, 10.83.11.252",
+  "x-forwarded-proto": "https",
+  "x-idempotency-key": "uxPbd36acK6dwGS6QEbZmNCvtj7vKqVcgfXtZ7YCeGg=",
+  "x-replit-user-bio": "",
+  "x-replit-user-id": "",
+  "x-replit-user-name": "",
+  "x-replit-user-profile-image": "",
+  "x-replit-user-roles": "",
+  "x-replit-user-teams": "",
+  "x-replit-user-url": "",
+  "x-webhook-attempt": "3",
+  "x-webhook-signature": "KIyqd2JWiizVq3qqOrayqA/ODjNgl5zQ/VqZwHHqKW4=",
+  "x-webhook-timestamp": "1759751557976",
+  "x-webhook-version": "2025-01-01"
+}
+[Webhook] Body type: object
+[Webhook] Body length: 1245
+[Webhook] 📨 Processing cashfree webhook...
+[Webhook] req.body type: object isBuffer: true
+[Cashfree Webhook] Signature verification: {
+  timestamp: '1759751557976',
+  bodyLength: 1245,
+  bodyPreview: '{"data":{"order":{"order_id":"a3073563-6225-4501-9694-5cb91a943a7c","order_amount":380.00,"order_cur',
+  receivedSignature: 'KIyqd2JWiizVq3qqOrayqA/ODjNgl5zQ/VqZwHHqKW4=',
+  expectedSignature: 'KIyqd2JWiizVq3qqOrayqA/ODjNgl5zQ/VqZwHHqKW4=',
+  match: true
+}
+[Webhook] ✅ Signature verified, processing webhook...
+[Webhook] ❌ Error processing cashfree webhook: error: insert or update on table "payment_events" violates foreign key constraint "payment_events_payment_id_payments_id_fk"
+    at file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async WebhookRouter.logWebhookEvent (/home/runner/workspace/server/services/webhook-router.ts:1227:5)
+    at async WebhookRouter.processVerifiedWebhook (/home/runner/workspace/server/services/webhook-router.ts:257:5)
+    at async WebhookRouter.processWebhook (/home/runner/workspace/server/services/webhook-router.ts:152:33)
+    at async <anonymous> (/home/runner/workspace/server/routes/payments.ts:2125:22) {
+  length: 322,
+  severity: 'ERROR',
+  code: '23503',
+  detail: 'Key (payment_id)=(5114921234689) is not present in table "payments".',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'payment_events',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'payment_events_payment_id_payments_id_fk',
+  file: 'ri_triggers.c',
+  line: '2608',
+  routine: 'ri_ReportViolation'
+}
+Failed to store failed webhook: error: duplicate key value violates unique constraint "webhook_inbox_provider_dedupe_unique"
+    at file:///home/runner/workspace/node_modules/@neondatabase/serverless/index.mjs:1345:74
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async WebhookRouter.storeWebhook (/home/runner/workspace/server/services/webhook-router.ts:1194:5)
+    at async WebhookRouter.processWebhook (/home/runner/workspace/server/services/webhook-router.ts:181:13)
+    at async <anonymous> (/home/runner/workspace/server/routes/payments.ts:2125:22) {
+  length: 331,
+  severity: 'ERROR',
+  code: '23505',
+  detail: 'Key (provider, dedupe_key)=(cashfree, 35d710033cd6581cb69ed4fe07308d5d0021e32880dd86d25484a8f324edb1e4) already exists.',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'webhook_inbox',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'webhook_inbox_provider_dedupe_unique',
+  file: 'nbtinsert.c',
+  line: '666',
+  routine: '_bt_check_unique'
+}
