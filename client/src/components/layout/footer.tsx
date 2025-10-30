@@ -1,43 +1,70 @@
 import { Link } from "wouter";
 
 export default function Footer() {
+  const year = new Date().getFullYear();
+
   return (
-    <footer className="bg-gray-50 border-t border-gray-200 mt-auto">
-      <div className="max-w-4xl mx-auto px-4 py-3">
-        <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-gray-500">
-          <Link
-            href="/terms-of-service"
-            className="rounded hover:text-gray-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-50"
-            data-testid="link-terms-of-service"
-          >
-            Terms of service
-          </Link>
-          <span>•</span>
-          <Link
-            href="/refund-policy"
-            className="rounded hover:text-gray-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-50"
-            data-testid="link-refund-policy"
-          >
-            Refund Return cancellation policy
-          </Link>
-          <span>•</span>
-          <Link
-            href="/admin"
-            className="rounded hover:text-gray-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-50"
-            data-testid="button-admin"
-          >
-            Admin
-          </Link>
-          <span>•</span>
-          <Link
-            href="/influencer"
-            className="rounded hover:text-gray-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-50"
-            data-testid="button-influencer"
-          >
-            Influencer
-          </Link>
-          <span>•</span>
-          <span>contact: +919890894335/support@kanhaa.com</span>
+    <footer className="footer">
+      <div className="container">
+        <div className="footer-grid">
+          <div>
+            <h4>Kanhaa</h4>
+            <p>Kid-approved snacks and combos that make mealtimes magical.</p>
+            <div className="tags mt-4">
+              <span className="tag tag--yellow">Freshly packed</span>
+              <span className="tag tag--green">Kid approved</span>
+            </div>
+          </div>
+          <div>
+            <h4>Explore</h4>
+            <ul>
+              <li>
+                <Link
+                  href="/terms-of-service"
+                  className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                  data-testid="link-terms-of-service"
+                >
+                  Terms of service
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/refund-policy"
+                  className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                  data-testid="link-refund-policy"
+                >
+                  Refund &amp; cancellation policy
+                </Link>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h4>Team portals</h4>
+            <ul>
+              <li>
+                <Link
+                  href="/admin"
+                  className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                  data-testid="button-admin"
+                >
+                  Admin dashboard
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/influencer"
+                  className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                  data-testid="button-influencer"
+                >
+                  Influencer lounge
+                </Link>
+              </li>
+            </ul>
+            <p className="mt-4 text-sm">Contact: +919890894335 · support@kanhaa.com</p>
+          </div>
+        </div>
+        <div className="center mt-4 text-sm text-muted-foreground">
+          © {year} Kanhaa · Sprinkling joy across India
         </div>
       </div>
     </footer>

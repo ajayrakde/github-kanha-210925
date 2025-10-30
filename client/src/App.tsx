@@ -31,25 +31,27 @@ function Router() {
         
         {/* Regular layout for other pages */}
         <Route>
-          <div className="min-h-screen flex flex-col">
+          <div className="app-shell">
             <ErrorBoundary>
               <Header />
             </ErrorBoundary>
-            <main className="max-w-4xl mx-auto px-4 py-6 flex-1">
-              <ErrorBoundary>
-                <Switch>
-                  <Route path="/" component={Products} />
-                  <Route path="/product/:id" component={ProductDetails} />
-                  <Route path="/cart" component={Cart} />
-                  <Route path="/checkout" component={Checkout} />
-                  <Route path="/payment" component={Payment} />
-                  <Route path="/thank-you" component={ThankYou} />
-                  <Route path="/orders" component={UserOrders} />
-                  <Route path="/terms-of-service" component={TermsOfService} />
-                  <Route path="/refund-policy" component={RefundPolicy} />
-                  <Route component={NotFound} />
-                </Switch>
-              </ErrorBoundary>
+            <main className="page-main flex-1">
+              <div className="container page-container">
+                <ErrorBoundary>
+                  <Switch>
+                    <Route path="/" component={Products} />
+                    <Route path="/product/:id" component={ProductDetails} />
+                    <Route path="/cart" component={Cart} />
+                    <Route path="/checkout" component={Checkout} />
+                    <Route path="/payment" component={Payment} />
+                    <Route path="/thank-you" component={ThankYou} />
+                    <Route path="/orders" component={UserOrders} />
+                    <Route path="/terms-of-service" component={TermsOfService} />
+                    <Route path="/refund-policy" component={RefundPolicy} />
+                    <Route component={NotFound} />
+                  </Switch>
+                </ErrorBoundary>
+              </div>
             </main>
             <ErrorBoundary>
               <Footer />

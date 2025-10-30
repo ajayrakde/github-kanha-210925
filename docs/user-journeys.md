@@ -11,12 +11,15 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
 
 **SEO sitemap addition (current change):** the storefront now exposes `/sitemap.xml` alongside a public `robots.txt` so search engines can index buyer-facing pages while continuing to block admin, influencer, checkout, and API surfaces. These read-only endpoints do not alter any user journey flows.
 
+**Playful theme rollout (current change):** the kid-forward palette, typography, and rounded chrome now wrap every surface (buyer, checkout, admin, influencer) through shared utility overrides and a new gradient layout shell. The catalog hero markup stays in place for analytics and tests but is visually hidden per storefront requirements, leaving navigation flows unchanged.
+
 ---
 
 ## Buyer Flow
-1. **Browse Catalog**  
+1. **Browse Catalog**
    - `GET /api/products` and `GET /api/products/:id` now handled by `server/routes/products.ts`, backed by `productsRepository`.
    - API responses unchanged.
+   - Storefront product listings keep the playful kid-focused theme with brighter CTAs and context cards; the hero markup remains in place for analytics/test hooks but is visually hidden so buyers land directly on the grid while navigation flow and endpoints remain the same.
 
 2. **Manage Cart**
    - Endpoints:
