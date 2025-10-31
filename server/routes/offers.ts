@@ -30,6 +30,10 @@ export function createOffersRouter(requireAdmin: RequireAdminMiddleware) {
         sessionUserId ?? null,
         cartValue,
       );
+      if (validation.offer) {
+        const { commissionType, commissionValue, influencerId, ...publicOffer } = validation.offer;
+        return res.json({ ...validation, offer: publicOffer });
+      }
       res.json(validation);
     } catch (error) {
       console.error("Error validating offer:", error);

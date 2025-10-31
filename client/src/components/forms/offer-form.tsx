@@ -303,14 +303,16 @@ export default function OfferForm({ offer, onClose }: OfferFormProps) {
         <div>
           <Label htmlFor="influencerId">Assign to Influencer</Label>
           <Select
-            value={form.watch("influencerId") || ""}
-            onValueChange={(value) => form.setValue("influencerId", value)}
+            value={form.watch("influencerId") || "none"}
+            onValueChange={(value) =>
+              form.setValue("influencerId", value === "none" ? "" : value)
+            }
           >
             <SelectTrigger className="mt-2" data-testid="select-influencer">
               <SelectValue placeholder="Select an influencer" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">No influencer</SelectItem>
+              <SelectItem value="none">No influencer</SelectItem>
               {influencers?.map((influencer) => (
                 <SelectItem key={influencer.id} value={influencer.id}>
                   {influencer.name} {influencer.email ? `(${influencer.email})` : ''}
