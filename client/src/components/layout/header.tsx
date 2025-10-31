@@ -4,9 +4,9 @@ import { useCart } from "@/hooks/use-cart";
 import UserMenu from "./user-menu";
 
 export default function Header() {
-  const { cartItems } = useCart();
+  const { itemCount } = useCart();
 
-  const cartCount = cartItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+  const cartCount = itemCount;
 
   return (
     <header className="sticky top-0 z-50 bg-white/85 backdrop-blur-md shadow-sm">

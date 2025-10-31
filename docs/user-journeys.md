@@ -31,6 +31,7 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - Implemented in `server/routes/cart.ts`, using `ordersRepository` cart helpers.
    - The API now rejects non-integer or out-of-range quantities (`< 1` or `> 10`) with a `400` response before touching storage, ensuring storefront and admin flows receive immediate feedback on invalid updates.
    - `ordersRepository` clamps persisted quantities to the lower of product stock and the per-order maximum, so concurrent updates never push cart lines past available inventory.
+   - Storefront buyers now see their active cart status inline on the catalog: the "Proceed to Checkout" CTA sits to the right of the "Our Star Treats" heading with quantity and subtotal context, the product detail page offers a "Continue Shopping" action beneath checkout for in-cart items, and cart icons across desktop/mobile surface the live item count so shoppers can jump back into checkout without retracing steps.
 
 3. **Authenticate with OTP**
    - `POST /api/auth/send-otp`, `POST /api/auth/login` in `server/routes/auth.ts`, backed by `usersRepository`.

@@ -359,14 +359,25 @@ export default function ProductDetails() {
                   
                   {/* Proceed to Checkout Button */}
                   {cartItems && cartItems.length > 0 && (
-                    <Button
-                      onClick={() => navigate('/checkout')}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white"
-                      size="lg"
-                      data-testid="button-proceed-checkout"
-                    >
-                      Proceed to Checkout
-                    </Button>
+                    <>
+                      <Button
+                        onClick={() => navigate('/checkout')}
+                        className="w-full bg-green-600 hover:bg-green-700 text-white"
+                        size="lg"
+                        data-testid="button-proceed-checkout"
+                      >
+                        Proceed to Checkout
+                      </Button>
+                      <Button
+                        onClick={handleBack}
+                        variant="outline"
+                        className="w-full"
+                        size="lg"
+                        data-testid="button-continue-shopping"
+                      >
+                        Continue Shopping
+                      </Button>
+                    </>
                   )}
                 </div>
               ) : (
