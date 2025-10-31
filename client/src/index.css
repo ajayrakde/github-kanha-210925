@@ -622,7 +622,7 @@
 
 .page-main {
   flex: 1;
-  padding: 3rem 0 4rem;
+  padding: 1.5rem 0 4rem;
 }
 
 .page-container {
@@ -644,7 +644,23 @@
   .text-2xl {
     @apply text-xl;
   }
-  
+
+  .page-main {
+    padding: 1.5rem 0 3rem;
+  }
+
+  .hero {
+    padding: 2.5rem 1.25rem 2.75rem;
+  }
+
+  .section-heading {
+    margin-bottom: 1.75rem;
+  }
+
+  .product-section {
+    padding: 1.5rem 0 2.5rem;
+  }
+
   /* Mobile navigation item styling */
   .mobile-nav-item {
     @apply flex flex-col items-center p-2 text-gray-600 transition-colors;
@@ -904,7 +920,7 @@ a:hover {
 }
 
 .product-section {
-  padding: 3rem 0;
+  padding: 1.5rem 0 3rem;
 }
 
 .section-heading {
@@ -950,7 +966,6 @@ a:hover {
 }
 
 .card:hover {
-  transform: translateY(-6px) rotate(-1deg);
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
 }
 

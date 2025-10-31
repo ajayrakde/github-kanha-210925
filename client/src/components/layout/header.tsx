@@ -14,7 +14,7 @@ export default function Header() {
         <nav className="flex items-center justify-between" aria-label="Primary navigation">
           <Link
             href="/"
-            className="group flex items-center gap-3 rounded-full px-3 py-2 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+            className="group flex items-center gap-3 rounded-full px-3 py-2 transition-transform hover:no-underline focus-visible:outline-none focus-visible:no-underline focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-white"
             aria-label="Kanhaa home"
           >
             <span className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-primary shadow-md transition-transform group-hover:-translate-y-1">
