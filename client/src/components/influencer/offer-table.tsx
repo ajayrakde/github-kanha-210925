@@ -130,11 +130,6 @@ export default function InfluencerOfferTable() {
                           ? `Rs.${commissionValueDisplay}`
                           : `${commissionValueDisplay}%`}
                       </div>
-                      <div className="text-sm text-gray-500">
-                        {offer.commissionType === 'flat'
-                          ? 'Type Flat'
-                          : `Type ${commissionValueDisplay}%`}
-                      </div>
                     </div>
                   ) : (
                     <div className="text-sm text-gray-500">Not set</div>
