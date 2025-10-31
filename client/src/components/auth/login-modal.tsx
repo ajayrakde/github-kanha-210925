@@ -21,7 +21,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
 
   const sendOtpMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/auth/send-otp", { phone });
+      const response = await apiRequest("POST", "/api/auth/send-otp", { phone, userType: "buyer" });
       return await response.json();
     },
     onSuccess: () => {
@@ -42,7 +42,7 @@ export default function LoginModal({ isOpen, onClose, onSuccess }: LoginModalPro
 
   const verifyOtpMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest("POST", "/api/auth/login", { phone, otp });
+      const response = await apiRequest("POST", "/api/auth/login", { phone, otp, userType: "buyer" });
       return await response.json();
     },
     onSuccess: (data) => {
