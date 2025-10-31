@@ -453,10 +453,10 @@ export default function OfferTable({ onEdit }: OfferTableProps) {
                     Unique customers: {offer.uniqueCustomers ?? 0}
                   </div>
                   <div className="text-sm text-gray-500">
-                    # Orders: {offer.orderCount ?? 0}
+                    No. of Orders: {offer.orderCount ?? 0}
                   </div>
                   <div className="text-sm text-gray-500">
-                    AOV: ₹{safeAverageOrderValue.toFixed(2)}
+                    Avg.Order Value: ₹{safeAverageOrderValue.toFixed(2)}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" data-testid={`offer-expiry-${offer.id}`}>
