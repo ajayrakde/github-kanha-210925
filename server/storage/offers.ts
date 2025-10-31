@@ -1,6 +1,7 @@
 import {
   offers,
   offerRedemptions,
+  orders,
   influencers,
   type Offer,
   type InsertOffer,
@@ -14,11 +15,13 @@ type OfferWithStats = (Offer & { influencer: Influencer | null }) & {
   commissionEarned: string;
   uniqueCustomers: number;
   redemptionCount: number;
+  orderCount: number;
+  averageOrderValue: string;
 };
 
 export class OffersRepository {
   async getOffers(): Promise<OfferWithStats[]> {
-    const [offerRows, statsRows] = await Promise.all([
+    const [offerRows, statsRows, orderStatsRows] = await Promise.all([
       db.query.offers.findMany({
         with: {
           influencer: true,
@@ -35,10 +38,23 @@ export class OffersRepository {
         .from(offers)
         .leftJoin(offerRedemptions, eq(offers.id, offerRedemptions.offerId))
         .groupBy(offers.id),
+      db
+        .select({
+          offerId: offers.id,
+          orderCount: sql<number>`COUNT(${orders.id})`,
+          totalOrderValue: sql<string>`COALESCE(SUM(${orders.total}), '0')`,
+        })
+        .from(offers)
+        .leftJoin(orders, eq(offers.id, orders.offerId))
+        .groupBy(offers.id),
     ]);
 
     const statsMap = new Map(
       statsRows.map(row => [row.offerId, row])
+    );
+
+    const orderStatsMap = new Map(
+      orderStatsRows.map(row => [row.offerId, row])
     );
 
     return offerRows.map(offer => {
@@ -47,11 +63,18 @@ export class OffersRepository {
       const uniqueCustomers = stats ? Number(stats.uniqueCustomers ?? 0) : 0;
       const redemptionCount = stats ? Number(stats.redemptionCount ?? 0) : 0;
 
+      const orderStats = orderStatsMap.get(offer.id);
+      const orderCount = orderStats ? Number(orderStats.orderCount ?? 0) : 0;
+      const totalOrderValue = orderStats ? Number(orderStats.totalOrderValue ?? 0) : 0;
+      const averageOrderValue = orderCount > 0 ? totalOrderValue / orderCount : 0;
+
       return {
         ...offer,
         commissionEarned: commissionTotal.toFixed(2),
         uniqueCustomers,
         redemptionCount,
+        orderCount,
+        averageOrderValue: averageOrderValue.toFixed(2),
       };
     });
   }

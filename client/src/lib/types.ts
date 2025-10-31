@@ -104,6 +104,8 @@ export interface Offer {
   commissionEarned?: string;
   uniqueCustomers?: number;
   redemptionCount?: number;
+  orderCount?: number;
+  averageOrderValue?: string;
   createdAt: string;
 }
 

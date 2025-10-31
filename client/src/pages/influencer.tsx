@@ -208,10 +208,6 @@ export default function Influencer() {
                         <label className="text-sm font-medium text-gray-600">Email</label>
                         <p className="text-gray-900">{influencer?.email || 'Not provided'}</p>
                       </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-600">Lifetime Commission</label>
-                        <p className="text-gray-900">₹{stats.totalCommission.toFixed(2)}</p>
-                      </div>
                     </div>
                   </div>
                 </div>
