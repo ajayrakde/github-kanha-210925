@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import ProductCard from "@/components/product/product-card";
 import { ApiErrorMessage } from "@/components/ui/error-message";
 import { Product } from "@/lib/types";
-import { ShoppingCart, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
 
@@ -108,43 +108,29 @@ export default function Products() {
       {heroSection}
       <section className="product-section" id="shop">
         <div className="container">
-          {itemCount > 0 && (
-            <div
-              className="sticky top-20 z-20 mb-6 rounded-3xl border border-white/30 p-4 text-white shadow-xl backdrop-blur-sm sm:p-5"
-              style={{
-                background: "linear-gradient(120deg, rgba(58,175,97,0.95) 0%, rgba(106,76,147,0.95) 100%)",
-              }}
-            >
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-full bg-white/25 p-2">
-                    <ShoppingCart size={22} />
-                  </div>
-                  <div className="text-sm sm:text-base">
-                    <div className="font-semibold">
-                      {itemCount} {itemCount === 1 ? "treat" : "treats"} ready to ship
-                    </div>
-                    <div className="text-sm text-white/80">
-                      Total: ₹{subtotal.toFixed(2)} + delivery love
-                    </div>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setLocation("/checkout")}
-                  className="flex w-full items-center justify-center gap-2 rounded-full bg-white px-6 py-3 font-bold text-primary shadow-md transition-transform hover:-translate-y-1 sm:w-auto"
-                  data-testid="button-proceed-checkout"
-                >
-                  Proceed to Checkout
-                  <ArrowRight size={18} />
-                </button>
-              </div>
-            </div>
-          )}
-
           <div className="section-heading">
-            <h2 className="text-3xl font-bold text-primary">Our Star Treats</h2>
-            <p>Pick a playful snack to brighten your kiddo&apos;s day.</p>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-2">
+                <h2 className="text-3xl font-bold text-primary">Our Star Treats</h2>
+                <p>Pick a playful snack to brighten your kiddo&apos;s day.</p>
+              </div>
+              {itemCount > 0 && (
+                <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
+                  <button
+                    type="button"
+                    onClick={() => setLocation("/checkout")}
+                    className="flex w-full items-center justify-center gap-2 rounded-full bg-[linear-gradient(120deg,var(--accent),var(--purple))] px-5 py-2.5 font-bold text-white shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-white sm:w-auto sm:px-6"
+                    data-testid="button-proceed-checkout"
+                  >
+                    Proceed to Checkout
+                    <ArrowRight size={18} />
+                  </button>
+                  <span className="text-sm text-primary/80 sm:text-right">
+                    {itemCount} {itemCount === 1 ? "treat" : "treats"} · ₹{subtotal.toFixed(2)} + delivery love
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           {!products || products.length === 0 ? (

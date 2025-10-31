@@ -4,9 +4,9 @@ import { useCart } from "@/hooks/use-cart";
 import UserMenu from "./user-menu";
 
 export default function Header() {
-  const { cartItems } = useCart();
+  const { itemCount } = useCart();
 
-  const cartCount = cartItems?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+  const cartCount = itemCount;
 
   return (
     <header className="sticky top-0 z-50 bg-white/85 backdrop-blur-md shadow-sm">
@@ -20,9 +20,11 @@ export default function Header() {
             <span className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-primary shadow-md transition-transform group-hover:-translate-y-1">
               <i className="fas fa-store text-lg" aria-hidden="true"></i>
             </span>
-            <div className="leading-tight text-primary">
-              <h1 className="text-xl font-bold">Kanhaa</h1>
-              <span className="text-xs text-muted-foreground">Playful snacks &amp; treats</span>
+            <div className="rounded-lg px-2 py-1 leading-tight text-primary transition-all duration-200 group-hover:bg-secondary/15 group-hover:text-secondary group-focus-visible:bg-secondary/20 group-focus-visible:text-secondary">
+              <h1 className="text-xl font-bold transition-all duration-200">Kanhaa</h1>
+              <span className="text-xs text-muted-foreground transition-all duration-200 group-hover:text-secondary group-focus-visible:text-secondary">
+                Playful snacks &amp; treats
+              </span>
             </div>
           </Link>
           <div className="flex items-center gap-3">

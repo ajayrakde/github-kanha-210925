@@ -1,7 +1,10 @@
 import { useLocation } from "wouter";
 
+import { useCart } from "@/hooks/use-cart";
+
 export default function MobileNav() {
   const [location, setLocation] = useLocation();
+  const { itemCount } = useCart();
 
   const navItems = [
     { path: "/", icon: "fas fa-home", label: "Home" },
@@ -17,12 +20,20 @@ export default function MobileNav() {
           <button
             key={item.path}
             onClick={() => setLocation(item.path)}
-            className={`flex flex-col items-center p-2 transition-colors ${
+            className={`relative flex flex-col items-center p-2 transition-colors ${
               location === item.path ? 'text-blue-600' : 'text-gray-600 hover:text-blue-600'
             }`}
             data-testid={`nav-${item.label.toLowerCase()}`}
           >
             <i className={`${item.icon} text-lg`}></i>
+            {item.path === "/cart" && itemCount > 0 && (
+              <span
+                className="absolute -top-1 right-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-tertiary px-1 text-[10px] font-semibold text-white shadow"
+                data-testid="text-cart-count-mobile"
+              >
+                {itemCount}
+              </span>
+            )}
             <span className="text-xs mt-1">{item.label}</span>
           </button>
         ))}
