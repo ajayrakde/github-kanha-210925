@@ -15,6 +15,10 @@ interface Offer {
   currentUsage: number;
   isActive: boolean;
   endDate: string | null;
+  commissionType?: "percentage" | "flat" | null;
+  commissionValue?: string | null;
+  commissionEarned?: string;
+  uniqueCustomers?: number;
 }
 
 export default function InfluencerOfferTable() {
@@ -42,6 +46,7 @@ export default function InfluencerOfferTable() {
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Coupon Code</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commission</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiry</th>
             </tr>
@@ -55,19 +60,25 @@ export default function InfluencerOfferTable() {
                     <div className="h-3 bg-gray-200 rounded w-16"></div>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="space-y-2">
-                    <div className="h-4 bg-gray-200 rounded w-16"></div>
-                    <div className="h-3 bg-gray-200 rounded w-20"></div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="space-y-2">
-                    <div className="h-4 bg-gray-200 rounded w-12"></div>
-                    <div className="h-3 bg-gray-200 rounded w-16"></div>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="space-y-2">
+                  <div className="h-4 bg-gray-200 rounded w-16"></div>
+                  <div className="h-3 bg-gray-200 rounded w-20"></div>
+                </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="space-y-2">
+                  <div className="h-4 bg-gray-200 rounded w-16"></div>
+                  <div className="h-3 bg-gray-200 rounded w-16"></div>
+                </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="space-y-2">
+                  <div className="h-4 bg-gray-200 rounded w-12"></div>
+                  <div className="h-3 bg-gray-200 rounded w-16"></div>
+                </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
               </tr>
             ))}
           </tbody>
@@ -95,6 +106,7 @@ export default function InfluencerOfferTable() {
           <tr>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Coupon Code</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commission</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiry</th>
           </tr>
@@ -115,22 +127,29 @@ export default function InfluencerOfferTable() {
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm text-gray-900" data-testid={`offer-discount-${offer.id}`}>
-                  {offer.discountType === 'percentage' 
-                    ? `${offer.discountValue}% off` 
+                  {offer.discountType === 'percentage'
+                    ? `${offer.discountValue}% off`
                     : `₹${offer.discountValue} off`}
                 </div>
-                {offer.maxDiscount && (
-                  <div className="text-sm text-gray-500">
-                    Max: ₹{parseFloat(offer.maxDiscount).toFixed(0)}
-                  </div>
-                )}
+                <div className="text-sm text-gray-500">
+                  Min cart: ₹{parseFloat(offer.minCartValue).toFixed(0)}
+                </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="text-sm text-gray-900">
+                  {offer.commissionType === 'percentage' && offer.commissionValue
+                    ? `${parseFloat(offer.commissionValue).toFixed(2)}% of order value`
+                    : offer.commissionType === 'flat' && offer.commissionValue
+                      ? `₹${parseFloat(offer.commissionValue).toFixed(2)} per order`
+                      : 'Not set'}
+                </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm text-gray-900" data-testid={`offer-usage-${offer.id}`}>
-                  {offer.currentUsage}/{offer.globalUsageLimit || '∞'}
+                  Unique customers: {offer.uniqueCustomers ?? 0}
                 </div>
                 <div className="text-sm text-gray-500">
-                  Per user: {offer.perUserUsageLimit}
+                  Commission earned: ₹{offer.commissionEarned ? parseFloat(offer.commissionEarned).toFixed(2) : '0.00'}
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" data-testid={`offer-expiry-${offer.id}`}>

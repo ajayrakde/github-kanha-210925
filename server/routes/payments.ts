@@ -890,6 +890,22 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       const order = await ordersRepository.createOrder(orderData);
       console.log(`[PaymentStart] Created order ${order.id} with intent ${checkoutIntentId}`);
 
+      let commissionAmount = 0;
+      if (
+        appliedOffer &&
+        appliedOffer.influencerId &&
+        appliedOffer.commissionType &&
+        appliedOffer.commissionValue
+      ) {
+        const orderValueExcludingShipping = Math.max(subtotal - discountAmount, 0);
+        const commissionValue = parseFloat(appliedOffer.commissionValue.toString());
+        if (appliedOffer.commissionType === 'percentage') {
+          commissionAmount = (orderValueExcludingShipping * commissionValue) / 100;
+        } else {
+          commissionAmount = commissionValue;
+        }
+      }
+
       const orderItems = cartItems.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -905,6 +921,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           userId,
           orderId: order.id,
           discountAmount: discountAmount.toString(),
+          commissionAmount: commissionAmount.toFixed(2),
         });
         await offersRepository.incrementOfferUsage(appliedOffer.id);
       }

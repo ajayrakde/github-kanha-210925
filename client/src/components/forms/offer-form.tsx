@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -24,6 +25,34 @@ const offerSchema = z.object({
   startDate: z.string().optional(),
   endDate: z.string().optional(),
   isActive: z.boolean().default(true),
+  commissionType: z.preprocess(
+    value => value === "" ? undefined : value,
+    z.enum(["percentage", "flat"]).optional(),
+  ),
+  commissionValue: z.preprocess(
+    value => typeof value === "string" && value.trim() === "" ? undefined : value,
+    z.string()
+      .optional()
+      .refine(val => val === undefined || (!isNaN(Number(val)) && Number(val) > 0), "Commission value must be positive"),
+  ),
+}).superRefine((data, ctx) => {
+  const hasInfluencer = typeof data.influencerId === "string" && data.influencerId.trim() !== "";
+  if (hasInfluencer) {
+    if (!data.commissionType) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["commissionType"],
+        message: "Commission type is required when an influencer is assigned",
+      });
+    }
+    if (!data.commissionValue) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["commissionValue"],
+        message: "Commission value is required when an influencer is assigned",
+      });
+    }
+  }
 });
 
 type OfferFormData = z.infer<typeof offerSchema>;
@@ -42,6 +71,8 @@ interface Offer {
   startDate: string | null;
   endDate: string | null;
   isActive: boolean;
+  commissionType: "percentage" | "flat" | null;
+  commissionValue: string | null;
 }
 
 interface Influencer {
@@ -80,8 +111,19 @@ export default function OfferForm({ offer, onClose }: OfferFormProps) {
       startDate: offer?.startDate ? new Date(offer.startDate).toISOString().split('T')[0] : "",
       endDate: offer?.endDate ? new Date(offer.endDate).toISOString().split('T')[0] : "",
       isActive: offer?.isActive ?? true,
+      commissionType: offer?.commissionType ?? undefined,
+      commissionValue: offer?.commissionValue ?? undefined,
     },
   });
+
+  const influencerId = form.watch("influencerId");
+
+  useEffect(() => {
+    if (!influencerId || influencerId.trim() === "") {
+      form.setValue("commissionType", undefined);
+      form.setValue("commissionValue", undefined);
+    }
+  }, [form, influencerId]);
 
   const createOfferMutation = useMutation({
     mutationFn: async (data: OfferFormData) => {
@@ -92,7 +134,9 @@ export default function OfferForm({ offer, onClose }: OfferFormProps) {
         minCartValue: data.minCartValue,
         globalUsageLimit: data.globalUsageLimit ? parseInt(data.globalUsageLimit) : undefined,
         perUserUsageLimit: parseInt(data.perUserUsageLimit),
-        influencerId: data.influencerId && data.influencerId !== "none" ? data.influencerId : undefined,
+        influencerId: data.influencerId && data.influencerId.trim() !== "" ? data.influencerId : null,
+        commissionType: data.influencerId && data.influencerId.trim() !== "" ? data.commissionType ?? null : null,
+        commissionValue: data.influencerId && data.influencerId.trim() !== "" ? data.commissionValue ?? null : null,
         startDate: data.startDate ? new Date(data.startDate).toISOString() : undefined,
         endDate: data.endDate ? new Date(data.endDate).toISOString() : undefined,
       };
@@ -125,6 +169,8 @@ export default function OfferForm({ offer, onClose }: OfferFormProps) {
   };
 
   const discountType = form.watch("discountType");
+  const commissionType = form.watch("commissionType");
+  const hasInfluencer = Boolean(influencerId && influencerId.trim() !== "");
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -257,14 +303,14 @@ export default function OfferForm({ offer, onClose }: OfferFormProps) {
         <div>
           <Label htmlFor="influencerId">Assign to Influencer</Label>
           <Select
-            value={form.watch("influencerId")}
+            value={form.watch("influencerId") || ""}
             onValueChange={(value) => form.setValue("influencerId", value)}
           >
             <SelectTrigger className="mt-2" data-testid="select-influencer">
               <SelectValue placeholder="Select an influencer" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">No influencer</SelectItem>
+              <SelectItem value="">No influencer</SelectItem>
               {influencers?.map((influencer) => (
                 <SelectItem key={influencer.id} value={influencer.id}>
                   {influencer.name} {influencer.email ? `(${influencer.email})` : ''}
@@ -272,7 +318,52 @@ export default function OfferForm({ offer, onClose }: OfferFormProps) {
               ))}
             </SelectContent>
           </Select>
+          {form.formState.errors.influencerId && (
+            <p className="text-sm text-red-600 mt-1">{form.formState.errors.influencerId.message}</p>
+          )}
         </div>
+
+        {hasInfluencer && (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="commissionType">Commission Type *</Label>
+              <Select
+                value={commissionType || ""}
+                onValueChange={(value) => form.setValue("commissionType", value as "percentage" | "flat")}
+              >
+                <SelectTrigger className="mt-2" data-testid="select-commission-type">
+                  <SelectValue placeholder="Select commission type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="percentage">Percentage of order value</SelectItem>
+                  <SelectItem value="flat">Flat amount per order</SelectItem>
+                </SelectContent>
+              </Select>
+              {form.formState.errors.commissionType && (
+                <p className="text-sm text-red-600 mt-1">{form.formState.errors.commissionType.message}</p>
+              )}
+            </div>
+
+            <div>
+              <Label htmlFor="commissionValue">
+                Commission Value * {commissionType === "percentage" ? "(%)" : "(₹)"}
+              </Label>
+              <Input
+                id="commissionValue"
+                {...form.register("commissionValue")}
+                placeholder={commissionType === "percentage" ? "10" : "50"}
+                className="mt-2"
+                data-testid="input-commission-value"
+              />
+              {form.formState.errors.commissionValue && (
+                <p className="text-sm text-red-600 mt-1">{form.formState.errors.commissionValue.message}</p>
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                Percentage commissions are calculated on the order value before shipping and taxes.
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <div>

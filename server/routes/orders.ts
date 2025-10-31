@@ -197,6 +197,22 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
         }
       }
 
+      let commissionAmount = 0;
+      if (
+        appliedOffer &&
+        appliedOffer.influencerId &&
+        appliedOffer.commissionType &&
+        appliedOffer.commissionValue
+      ) {
+        const orderValueExcludingShipping = Math.max(subtotal - discountAmount, 0);
+        const commissionValue = parseFloat(appliedOffer.commissionValue.toString());
+        if (appliedOffer.commissionType === "percentage") {
+          commissionAmount = (orderValueExcludingShipping * commissionValue) / 100;
+        } else {
+          commissionAmount = commissionValue;
+        }
+      }
+
       const address = await usersRepository
         .getUserAddresses(userId)
         .then(addresses => addresses.find(addr => addr.id === deliveryAddressId));
@@ -267,6 +283,7 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
           userId,
           orderId: order.id,
           discountAmount: discountAmount.toString(),
+          commissionAmount: commissionAmount.toFixed(2),
         });
         await offersRepository.incrementOfferUsage(appliedOffer.id);
       }

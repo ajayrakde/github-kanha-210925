@@ -59,7 +59,7 @@ export default function Influencer() {
   const stats = {
     totalOffers: myOffers.length,
     activeOffers: myOffers.filter((o: any) => o.isActive).length,
-    totalUsage: myOffers.reduce((sum: number, offer: any) => sum + (offer.usageCount || 0), 0),
+    totalCommission: myOffers.reduce((sum: number, offer: any) => sum + (offer.commissionEarned ? parseFloat(offer.commissionEarned) : 0), 0),
   };
 
   const sidebarItems = [
@@ -186,8 +186,10 @@ export default function Influencer() {
                       <div className="text-sm text-gray-600">Active Offers</div>
                     </div>
                     <div className="bg-purple-50 p-4 rounded-lg">
-                      <div className="text-2xl font-bold text-purple-600" data-testid="stat-total-usage">{stats.totalUsage}</div>
-                      <div className="text-sm text-gray-600">Total Usage</div>
+                      <div className="text-2xl font-bold text-purple-600" data-testid="stat-total-commission">
+                        ₹{stats.totalCommission.toFixed(2)}
+                      </div>
+                      <div className="text-sm text-gray-600">Commission Earned</div>
                     </div>
                   </div>
 
@@ -207,8 +209,8 @@ export default function Influencer() {
                         <p className="text-gray-900">{influencer?.email || 'Not provided'}</p>
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-gray-600">Commission Rate</label>
-                        <p className="text-gray-900">10%</p>
+                        <label className="text-sm font-medium text-gray-600">Lifetime Commission</label>
+                        <p className="text-gray-900">₹{stats.totalCommission.toFixed(2)}</p>
                       </div>
                     </div>
                   </div>
