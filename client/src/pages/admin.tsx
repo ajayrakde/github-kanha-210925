@@ -18,6 +18,29 @@ import PaymentProvidersManagement from "@/components/admin/payment-providers-man
 import type { Product, Offer } from "@shared/schema";
 import type { AbandonedCart, PopularProduct, SalesTrend, ConversionMetrics } from "@/lib/types";
 
+function toNumeric(value: unknown): number | null {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+
+  if (typeof value === "string") {
+    const cleaned = value.replace(/[^0-9.\-]/g, "").trim();
+    if (!cleaned) {
+      return null;
+    }
+
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function formatCurrency(value: unknown): string {
+  const numeric = toNumeric(value);
+  return numeric !== null ? numeric.toFixed(2) : "0.00";
+}
+
 type TabValue = 'products' | 'orders' | 'offers' | 'users' | 'analytics' | 'shipping' | 'payments' | 'settings';
 
 interface OrderStats {
@@ -59,7 +82,7 @@ function AnalyticsTab({ abandonedCarts }: { abandonedCarts: AbandonedCart[] }) {
           <div className="text-xs lg:text-sm text-gray-600">Conversion Rate</div>
         </div>
         <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100">
-          <div className="text-xl lg:text-2xl font-bold text-yellow-600" data-testid="stat-avg-order-value">₹{(conversionMetrics as any).averageOrderValue || '0'}</div>
+          <div className="text-xl lg:text-2xl font-bold text-yellow-600" data-testid="stat-avg-order-value">₹{formatCurrency((conversionMetrics as any).averageOrderValue)}</div>
           <div className="text-xs lg:text-sm text-gray-600">Avg Order Value</div>
         </div>
       </div>
@@ -89,7 +112,7 @@ function AnalyticsTab({ abandonedCarts }: { abandonedCarts: AbandonedCart[] }) {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-semibold text-green-600 text-sm">₹{((product as any).totalRevenue || 0).toFixed(2)}</div>
+                  <div className="font-semibold text-green-600 text-sm">₹{formatCurrency((product as any).totalRevenue)}</div>
                 </div>
               </div>
             ))}
@@ -120,7 +143,7 @@ function AnalyticsTab({ abandonedCarts }: { abandonedCarts: AbandonedCart[] }) {
                 </div>
                 <div className="text-right">
                   <div className="font-semibold text-sm">{(trend as any).orderCount || 0} orders</div>
-                  <div className="text-xs text-green-600">₹{((trend as any).revenue || 0).toFixed(2)}</div>
+                  <div className="text-xs text-green-600">₹{formatCurrency((trend as any).revenue)}</div>
                 </div>
               </div>
             ))}
@@ -150,7 +173,7 @@ function AnalyticsTab({ abandonedCarts }: { abandonedCarts: AbandonedCart[] }) {
                     </div>
                     <div>
                       <div className="font-medium text-sm">Session: {cart.sessionId.slice(0, 8)}...</div>
-                      <div className="text-xs text-gray-600">{cart.items} items • ₹{(cart.totalValue || 0).toFixed(2)}</div>
+                      <div className="text-xs text-gray-600">{cart.items} items • ₹{formatCurrency(cart.totalValue)}</div>
                     </div>
                   </div>
                   <div className="text-right">
@@ -400,7 +423,7 @@ export default function Admin() {
                     <div className="text-xs lg:text-sm text-gray-600">Total Orders</div>
                   </div>
                   <div className="bg-green-50 p-3 rounded-lg border border-green-100">
-                    <div className="text-xl lg:text-2xl font-bold text-green-600" data-testid="stat-revenue">₹{stats.revenue.toFixed(2)}</div>
+                    <div className="text-xl lg:text-2xl font-bold text-green-600" data-testid="stat-revenue">₹{formatCurrency(stats.revenue)}</div>
                     <div className="text-xs lg:text-sm text-gray-600">Total Revenue</div>
                   </div>
                   <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100">
