@@ -30,6 +30,8 @@ interface Offer {
   commissionEarned?: string;
   uniqueCustomers?: number;
   redemptionCount?: number;
+  orderCount?: number;
+  averageOrderValue?: string;
 }
 
 interface Influencer {
@@ -381,105 +383,126 @@ export default function OfferTable({ onEdit }: OfferTableProps) {
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
-          {offers.map((offer) => (
-            <tr key={offer.id} data-testid={`offer-row-${offer.id}`}>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm font-medium text-gray-900 font-mono" data-testid={`offer-code-${offer.id}`}>
-                  {offer.code}
-                </div>
-                <div className="text-sm text-gray-500">
-                  {offer.name || 'Unnamed offer'}
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm text-gray-900" data-testid={`offer-discount-${offer.id}`}>
-                  {offer.discountType === 'percentage'
-                    ? `${offer.discountValue}% off`
-                    : `₹${offer.discountValue} off`}
-                </div>
-                <div className="text-sm text-gray-500">
-                  Min cart: ₹{parseFloat(offer.minCartValue).toFixed(0)}
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                {offer.influencer ? (
-                  <div>
-                    <div className="text-sm font-medium text-gray-900" data-testid={`offer-influencer-${offer.id}`}>
-                      {offer.influencer.name}
+          {offers.map((offer) => {
+            const numericCommissionValue = offer.commissionValue ? Number(offer.commissionValue) : null;
+            const hasCommissionValue =
+              offer.commissionType && numericCommissionValue !== null && !Number.isNaN(numericCommissionValue);
+            const commissionValueDisplay = hasCommissionValue && numericCommissionValue !== null
+              ? numericCommissionValue.toString()
+              : null;
+            const averageOrderValueNumber = offer.averageOrderValue ? Number(offer.averageOrderValue) : 0;
+            const safeAverageOrderValue = Number.isNaN(averageOrderValueNumber) ? 0 : averageOrderValueNumber;
+
+            return (
+              <tr key={offer.id} data-testid={`offer-row-${offer.id}`}>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm font-medium text-gray-900 font-mono" data-testid={`offer-code-${offer.id}`}>
+                    {offer.code}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    {offer.name || 'Unnamed offer'}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-900" data-testid={`offer-discount-${offer.id}`}>
+                    {offer.discountType === 'percentage'
+                      ? `${offer.discountValue}% off`
+                      : `₹${offer.discountValue} off`}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    Min cart: ₹{parseFloat(offer.minCartValue).toFixed(0)}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {offer.influencer ? (
+                    <div>
+                      <div className="text-sm font-medium text-gray-900" data-testid={`offer-influencer-${offer.id}`}>
+                        {offer.influencer.name}
+                      </div>
+                      <div className="text-sm text-gray-500">Assigned</div>
                     </div>
-                    <div className="text-sm text-gray-500">Assigned</div>
+                  ) : (
+                    <Badge variant="outline" className="text-gray-600">Unassigned</Badge>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {offer.influencer ? (
+                    hasCommissionValue ? (
+                      <div>
+                        <div className="text-sm text-gray-900">
+                          {offer.commissionType === 'flat'
+                            ? `Rs.${commissionValueDisplay}`
+                            : `${commissionValueDisplay}%`}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {offer.commissionType === 'flat' ? 'per order' : 'of order value'}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500">Not configured</div>
+                    )
+                  ) : (
+                    <div className="text-sm text-gray-500">Not applicable</div>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-900" data-testid={`offer-usage-${offer.id}`}>
+                    Redemptions: {offer.redemptionCount ?? offer.currentUsage}
                   </div>
-                ) : (
-                  <Badge variant="outline" className="text-gray-600">Unassigned</Badge>
-                )}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                {offer.influencer ? (
-                  <div className="text-sm text-gray-900">
-                    {offer.commissionType === 'percentage' && offer.commissionValue
-                      ? `${parseFloat(offer.commissionValue).toFixed(2)}% of order value`
-                      : offer.commissionType === 'flat' && offer.commissionValue
-                        ? `₹${parseFloat(offer.commissionValue).toFixed(2)} per order`
-                        : 'Not configured'}
+                  <div className="text-sm text-gray-500">
+                    Unique customers: {offer.uniqueCustomers ?? 0}
                   </div>
-                ) : (
-                  <div className="text-sm text-gray-500">Not applicable</div>
-                )}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm text-gray-900" data-testid={`offer-usage-${offer.id}`}>
-                  Redemptions: {offer.redemptionCount ?? offer.currentUsage}
-                </div>
-                <div className="text-sm text-gray-500">
-                  Unique customers: {offer.uniqueCustomers ?? 0}
-                </div>
-                <div className="text-sm text-gray-500">
-                  Commission earned: ₹{offer.commissionEarned ? parseFloat(offer.commissionEarned).toFixed(2) : '0.00'}
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" data-testid={`offer-expiry-${offer.id}`}>
-                {offer.endDate ? new Date(offer.endDate).toLocaleDateString() : 'No expiry'}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <Badge variant={offer.isActive ? "default" : "secondary"}>
-                  {offer.isActive ? "Active" : "Inactive"}
-                </Badge>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <div className="flex space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => onEdit(offer)}
-                    className="text-blue-600 hover:text-blue-700"
-                    data-testid={`button-edit-offer-${offer.id}`}
-                  >
-                    <i className="fas fa-edit"></i>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleOfferMutation.mutate({ id: offer.id, isActive: offer.isActive })}
-                    disabled={toggleOfferMutation.isPending}
-                    className={offer.isActive ? "text-yellow-600 hover:text-yellow-700" : "text-green-600 hover:text-green-700"}
-                    data-testid={`button-toggle-offer-${offer.id}`}
-                  >
-                    <i className={`fas ${offer.isActive ? 'fa-pause' : 'fa-play'}`}></i>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteOfferMutation.mutate(offer.id)}
-                    disabled={deleteOfferMutation.isPending}
-                    className="text-red-600 hover:text-red-700"
-                    data-testid={`button-delete-offer-${offer.id}`}
-                  >
-                    <i className="fas fa-trash"></i>
-                  </Button>
-                </div>
-              </td>
-            </tr>
-          ))}
+                  <div className="text-sm text-gray-500">
+                    # Orders: {offer.orderCount ?? 0}
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    AOV: ₹{safeAverageOrderValue.toFixed(2)}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" data-testid={`offer-expiry-${offer.id}`}>
+                  {offer.endDate ? new Date(offer.endDate).toLocaleDateString() : 'No expiry'}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <Badge variant={offer.isActive ? "default" : "secondary"}>
+                    {offer.isActive ? "Active" : "Inactive"}
+                  </Badge>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <div className="flex space-x-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onEdit(offer)}
+                      className="text-blue-600 hover:text-blue-700"
+                      data-testid={`button-edit-offer-${offer.id}`}
+                    >
+                      <i className="fas fa-edit"></i>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => toggleOfferMutation.mutate({ id: offer.id, isActive: offer.isActive })}
+                      disabled={toggleOfferMutation.isPending}
+                      className={offer.isActive ? "text-yellow-600 hover:text-yellow-700" : "text-green-600 hover:text-green-700"}
+                      data-testid={`button-toggle-offer-${offer.id}`}
+                    >
+                      <i className={`fas ${offer.isActive ? 'fa-pause' : 'fa-play'}`}></i>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteOfferMutation.mutate(offer.id)}
+                      disabled={deleteOfferMutation.isPending}
+                      className="text-red-600 hover:text-red-700"
+                      data-testid={`button-delete-offer-${offer.id}`}
+                    >
+                      <i className="fas fa-trash"></i>
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
       </div>

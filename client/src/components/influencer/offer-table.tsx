@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { Badge } from "@/components/ui/badge";
 import { useInfluencerAuth } from "@/hooks/use-auth";
 
 interface Offer {
@@ -55,30 +54,21 @@ export default function InfluencerOfferTable() {
             {Array(3).fill(0).map((_, i) => (
               <tr key={i}>
                 <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="h-4 bg-gray-200 rounded w-24"></div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="h-4 bg-gray-200 rounded w-20"></div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
                   <div className="space-y-2">
-                    <div className="h-4 bg-gray-200 rounded w-20"></div>
-                    <div className="h-3 bg-gray-200 rounded w-16"></div>
+                    <div className="h-4 bg-gray-200 rounded w-16"></div>
+                    <div className="h-3 bg-gray-200 rounded w-20"></div>
                   </div>
                 </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="space-y-2">
-                  <div className="h-4 bg-gray-200 rounded w-16"></div>
-                  <div className="h-3 bg-gray-200 rounded w-20"></div>
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="space-y-2">
-                  <div className="h-4 bg-gray-200 rounded w-16"></div>
-                  <div className="h-3 bg-gray-200 rounded w-16"></div>
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="space-y-2">
-                  <div className="h-4 bg-gray-200 rounded w-12"></div>
-                  <div className="h-3 bg-gray-200 rounded w-16"></div>
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="h-4 bg-gray-200 rounded w-24"></div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap"><div className="h-4 bg-gray-200 rounded w-20"></div></td>
               </tr>
             ))}
           </tbody>
@@ -112,51 +102,55 @@ export default function InfluencerOfferTable() {
           </tr>
         </thead>
         <tbody className="bg-white divide-y divide-gray-200">
-          {myActiveOffers.map((offer) => (
-            <tr key={offer.id} data-testid={`offer-row-${offer.id}`}>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm font-medium text-gray-900 font-mono" data-testid={`offer-code-${offer.id}`}>
-                  {offer.code}
-                </div>
-                <div className="text-sm text-gray-500">
-                  {offer.name || 'Unnamed offer'}
-                </div>
-                <div className="text-sm text-gray-500">
-                  Min: ₹{parseFloat(offer.minCartValue).toFixed(0)}
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm text-gray-900" data-testid={`offer-discount-${offer.id}`}>
-                  {offer.discountType === 'percentage'
-                    ? `${offer.discountValue}% off`
-                    : `₹${offer.discountValue} off`}
-                </div>
-                <div className="text-sm text-gray-500">
-                  Min cart: ₹{parseFloat(offer.minCartValue).toFixed(0)}
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm text-gray-900">
-                  {offer.commissionType === 'percentage' && offer.commissionValue
-                    ? `${parseFloat(offer.commissionValue).toFixed(2)}% of order value`
-                    : offer.commissionType === 'flat' && offer.commissionValue
-                      ? `₹${parseFloat(offer.commissionValue).toFixed(2)} per order`
-                      : 'Not set'}
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm text-gray-900" data-testid={`offer-usage-${offer.id}`}>
-                  Unique customers: {offer.uniqueCustomers ?? 0}
-                </div>
-                <div className="text-sm text-gray-500">
-                  Commission earned: ₹{offer.commissionEarned ? parseFloat(offer.commissionEarned).toFixed(2) : '0.00'}
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" data-testid={`offer-expiry-${offer.id}`}>
-                {offer.endDate ? new Date(offer.endDate).toLocaleDateString() : 'No expiry'}
-              </td>
-            </tr>
-          ))}
+          {myActiveOffers.map((offer) => {
+            const numericCommissionValue = offer.commissionValue ? parseFloat(offer.commissionValue) : null;
+            const hasCommissionValue =
+              offer.commissionType && numericCommissionValue !== null && !Number.isNaN(numericCommissionValue);
+            const commissionValueDisplay = hasCommissionValue ? numericCommissionValue.toString() : null;
+
+            return (
+              <tr key={offer.id} data-testid={`offer-row-${offer.id}`}>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm font-medium text-gray-900 font-mono" data-testid={`offer-code-${offer.id}`}>
+                    {offer.code}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-900" data-testid={`offer-discount-${offer.id}`}>
+                    {offer.discountType === 'percentage'
+                      ? `${offer.discountValue}% off`
+                      : `₹${offer.discountValue} off`}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  {hasCommissionValue ? (
+                    <div>
+                      <div className="text-sm text-gray-900">
+                        {offer.commissionType === 'flat'
+                          ? `Rs.${commissionValueDisplay}`
+                          : `${commissionValueDisplay}%`}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {offer.commissionType === 'flat'
+                          ? 'Type Flat'
+                          : `Type ${commissionValueDisplay}%`}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500">Not set</div>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-900" data-testid={`offer-usage-${offer.id}`}>
+                    Customers: {offer.uniqueCustomers ?? 0}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" data-testid={`offer-expiry-${offer.id}`}>
+                  {offer.endDate ? new Date(offer.endDate).toLocaleDateString() : 'No expiry'}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
