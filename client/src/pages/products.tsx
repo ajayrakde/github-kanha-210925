@@ -119,7 +119,7 @@ export default function Products() {
                   <button
                     type="button"
                     onClick={() => setLocation("/checkout")}
-                    className="flex w-full items-center justify-center gap-2 rounded-full bg-white px-5 py-2.5 font-bold text-primary shadow-md transition-transform hover:-translate-y-1 sm:w-auto sm:px-6"
+                    className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-secondary via-tertiary to-primary px-5 py-2.5 font-bold text-white shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-white sm:w-auto sm:px-6"
                     data-testid="button-proceed-checkout"
                   >
                     Proceed to Checkout
