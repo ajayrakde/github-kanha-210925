@@ -97,7 +97,7 @@ export default function InfluencerOfferTable() {
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Coupon Code</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commission</th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage(No of Customers)</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiry</th>
           </tr>
         </thead>
@@ -118,8 +118,8 @@ export default function InfluencerOfferTable() {
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-900" data-testid={`offer-discount-${offer.id}`}>
                     {offer.discountType === 'percentage'
-                      ? `${offer.discountValue}% off`
-                      : `₹${offer.discountValue} off`}
+                      ? `${offer.discountValue}%`
+                      : `₹${offer.discountValue}`}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -137,7 +137,7 @@ export default function InfluencerOfferTable() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm text-gray-900" data-testid={`offer-usage-${offer.id}`}>
-                    Customers: {offer.uniqueCustomers ?? 0}
+                    {offer.uniqueCustomers ?? 0}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" data-testid={`offer-expiry-${offer.id}`}>
