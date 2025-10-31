@@ -198,10 +198,10 @@ export default function ProductDetails() {
           
           {/* Back Button & Title - Mobile Only (Side by Side) */}
           <header className="sm:hidden flex items-start gap-2">
-            <Button 
+            <Button
               onClick={handleBack}
-              variant="ghost" 
-              className="flex-shrink-0 -ml-2 h-9 w-9 p-0 hover:bg-gray-100"
+              variant="ghost"
+              className="flex-shrink-0 -ml-2 h-9 w-9 p-0 text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-white"
               data-testid="button-back-to-products"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -300,10 +300,10 @@ export default function ProductDetails() {
             {/* Back Button & Title - Desktop Only */}
             <header className="hidden sm:block">
               <div className="flex items-start gap-2 mb-3">
-                <Button 
+                <Button
                   onClick={handleBack}
-                  variant="ghost" 
-                  className="flex-shrink-0 -ml-2 h-9 w-9 p-0 hover:bg-gray-100"
+                  variant="ghost"
+                  className="flex-shrink-0 -ml-2 h-9 w-9 p-0 text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-white"
                   data-testid="button-back-to-products"
                 >
                   <ArrowLeft className="h-5 w-5" />

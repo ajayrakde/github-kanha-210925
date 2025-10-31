@@ -9,7 +9,10 @@ export default function TermsOfService() {
       <div className="mb-6 flex items-center gap-3">
         <Link
           href="/"
-          className={cn(buttonVariants({ variant: "ghost" }), "-ml-2")}
+          className={cn(
+            buttonVariants({ variant: "ghost" }),
+            "-ml-2 text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-white"
+          )}
           data-testid="button-back-home"
         >
           <i className="fas fa-arrow-left mr-2" aria-hidden="true"></i>

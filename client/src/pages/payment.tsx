@@ -697,10 +697,10 @@ export default function Payment() {
       <div className="space-y-3 sm:space-y-6">
         {/* Back Button and Title */}
         <div className="flex sm:flex-row items-center sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-6">
-        <Button 
+        <Button
           onClick={handleBackToCheckout}
-          variant="ghost" 
-          className="-ml-2 hover:bg-gray-100"
+          variant="ghost"
+          className="-ml-2 text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-white"
           data-testid="button-back-to-checkout"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
