@@ -46,7 +46,7 @@ export default function InfluencerOfferTable() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Coupon Code</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commission</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage(Customers)</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiry</th>
             </tr>
           </thead>
@@ -127,7 +127,7 @@ export default function InfluencerOfferTable() {
                     <div>
                       <div className="text-sm text-gray-900">
                         {offer.commissionType === 'flat'
-                          ? `Rs.${commissionValueDisplay}`
+                          ? `₹${commissionValueDisplay}`
                           : `${commissionValueDisplay}%`}
                       </div>
                     </div>
