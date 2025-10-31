@@ -99,6 +99,11 @@ export interface Offer {
   startDate: string | null;
   endDate: string | null;
   influencerId: string | null;
+  commissionType?: "percentage" | "flat" | null;
+  commissionValue?: string | null;
+  commissionEarned?: string;
+  uniqueCustomers?: number;
+  redemptionCount?: number;
   createdAt: string;
 }
 

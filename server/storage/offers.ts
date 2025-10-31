@@ -10,13 +10,49 @@ import {
 import { db } from "../db";
 import { eq, desc, sql, and } from "drizzle-orm";
 
+type OfferWithStats = (Offer & { influencer: Influencer | null }) & {
+  commissionEarned: string;
+  uniqueCustomers: number;
+  redemptionCount: number;
+};
+
 export class OffersRepository {
-  async getOffers(): Promise<(Offer & { influencer: Influencer | null })[]> {
-    return await db.query.offers.findMany({
-      with: {
-        influencer: true,
-      },
-      orderBy: desc(offers.createdAt),
+  async getOffers(): Promise<OfferWithStats[]> {
+    const [offerRows, statsRows] = await Promise.all([
+      db.query.offers.findMany({
+        with: {
+          influencer: true,
+        },
+        orderBy: desc(offers.createdAt),
+      }),
+      db
+        .select({
+          offerId: offers.id,
+          totalCommission: sql<string>`COALESCE(SUM(${offerRedemptions.commissionAmount}), '0')`,
+          uniqueCustomers: sql<number>`COUNT(DISTINCT ${offerRedemptions.userId})`,
+          redemptionCount: sql<number>`COUNT(${offerRedemptions.id})`,
+        })
+        .from(offers)
+        .leftJoin(offerRedemptions, eq(offers.id, offerRedemptions.offerId))
+        .groupBy(offers.id),
+    ]);
+
+    const statsMap = new Map(
+      statsRows.map(row => [row.offerId, row])
+    );
+
+    return offerRows.map(offer => {
+      const stats = statsMap.get(offer.id);
+      const commissionTotal = stats ? Number(stats.totalCommission ?? 0) : 0;
+      const uniqueCustomers = stats ? Number(stats.uniqueCustomers ?? 0) : 0;
+      const redemptionCount = stats ? Number(stats.redemptionCount ?? 0) : 0;
+
+      return {
+        ...offer,
+        commissionEarned: commissionTotal.toFixed(2),
+        uniqueCustomers,
+        redemptionCount,
+      };
     });
   }
 
@@ -26,11 +62,15 @@ export class OffersRepository {
   }
 
   async createOffer(offer: InsertOffer): Promise<Offer> {
+    const { commissionType, commissionValue, influencerId, ...rest } = offer;
     const [createdOffer] = await db
       .insert(offers)
       .values({
-        ...offer,
+        ...rest,
         code: offer.code.toUpperCase(),
+        influencerId: influencerId ?? null,
+        commissionType: commissionType ?? null,
+        commissionValue: commissionValue ?? null,
       })
       .returning();
     return createdOffer;
@@ -40,6 +80,16 @@ export class OffersRepository {
     const updateData = { ...offer };
     if (updateData.code) {
       updateData.code = updateData.code.toUpperCase();
+    }
+    if (Object.prototype.hasOwnProperty.call(updateData, "influencerId")) {
+      // Normalize empty influencer assignments to null
+      updateData.influencerId = updateData.influencerId ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(updateData, "commissionType")) {
+      updateData.commissionType = updateData.commissionType ?? null;
+    }
+    if (Object.prototype.hasOwnProperty.call(updateData, "commissionValue")) {
+      updateData.commissionValue = updateData.commissionValue ?? null;
     }
     const [updatedOffer] = await db
       .update(offers)

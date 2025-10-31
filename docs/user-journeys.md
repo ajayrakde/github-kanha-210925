@@ -97,10 +97,11 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - Admin passwords are now stored as bcrypt hashes. Legacy plaintext credentials are rehashed automatically on successful login, keeping the dashboard sign-in flow unchanged while hardening storage.
    - Asset uploads via `POST /api/objects/upload` now rely on the same admin session guard, denying anonymous callers signed upload URLs.
 
-2. **Product & Offer Management**  
-   - CRUD operations under `/api/products` and `/api/admin/offers`.  
-   - Encapsulated in `server/routes/products.ts` and backed by `productsRepository` & `offersRepository`.  
+2. **Product & Offer Management**
+   - CRUD operations under `/api/products` and `/api/admin/offers`.
+   - Encapsulated in `server/routes/products.ts` and backed by `productsRepository` & `offersRepository`.
    - Validation and authorization unchanged.
+   - When an influencer is assigned to an offer the admin must now define the commission structure (percentage of order value before shipping/taxes or a flat amount per order); leaving the influencer blank skips commission tracking entirely.
 
 3. **Shipping Rule Configuration**  
    - `/api/admin/shipping-rules` in `server/routes/shipping.ts`, validated via Zod.  
@@ -148,6 +149,7 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
 3. **Coupon & Analytics**
    - Coupon redemption logic moved to `offersRepository`.
    - Analytics under `/api/analytics` reference influencer coupons and conversions.
+   - The influencer dashboard now surfaces lifetime commission earned per offer (and in aggregate) alongside unique customer counts so partners can track performance without exposing buyer-level details.
 4. **Order Visibility**
    - `/api/orders` returns only the orders attributed to the influencer's coupons when accessed with their authenticated session.
    - `/api/orders/:id` exposes full details for those same orders so influencers can confirm successful redemptions without viewing unrelated buyers.

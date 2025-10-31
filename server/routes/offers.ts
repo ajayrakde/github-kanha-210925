@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 
 import { offersRepository } from "../storage";
-import { insertOfferSchema } from "@shared/schema";
+import { insertOfferSchema, updateOfferSchema } from "@shared/schema";
 import type { SessionRequest, RequireAdminMiddleware } from "./types";
 
 export function createOffersRouter(requireAdmin: RequireAdminMiddleware) {
@@ -30,6 +30,10 @@ export function createOffersRouter(requireAdmin: RequireAdminMiddleware) {
         sessionUserId ?? null,
         cartValue,
       );
+      if (validation.offer) {
+        const { commissionType, commissionValue, influencerId, ...publicOffer } = validation.offer;
+        return res.json({ ...validation, offer: publicOffer });
+      }
       res.json(validation);
     } catch (error) {
       console.error("Error validating offer:", error);
@@ -95,7 +99,7 @@ export function createOffersRouter(requireAdmin: RequireAdminMiddleware) {
 
   router.patch("/:id", requireAdmin, async (req, res) => {
     try {
-      const offerData = insertOfferSchema.partial().parse(req.body);
+      const offerData = updateOfferSchema.parse(req.body);
       const offer = await offersRepository.updateOffer(req.params.id, offerData);
       res.json(offer);
     } catch (error) {

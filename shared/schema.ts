@@ -130,6 +130,8 @@ export const offers = pgTable("offers", {
   startDate: timestamp("start_date"),
   endDate: timestamp("end_date"),
   influencerId: varchar("influencer_id").references(() => influencers.id),
+  commissionType: varchar("commission_type", { length: 20 }),
+  commissionValue: decimal("commission_value", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -367,6 +369,7 @@ export const offerRedemptions = pgTable("offer_redemptions", {
   userId: varchar("user_id").references(() => users.id).notNull(),
   orderId: varchar("order_id").references(() => orders.id).notNull(),
   discountAmount: decimal("discount_amount", { precision: 10, scale: 2 }).notNull(),
+  commissionAmount: decimal("commission_amount", { precision: 10, scale: 2 }).default(sql`'0'`).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -485,10 +488,48 @@ export const insertProductSchema = createInsertSchema(products).omit({ id: true,
 });
 export const insertInfluencerSchema = createInsertSchema(influencers).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertAdminSchema = createInsertSchema(admins).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertOfferSchema = createInsertSchema(offers).omit({ id: true, createdAt: true, currentUsage: true }).extend({
+const baseInsertOfferSchema = createInsertSchema(offers).omit({ id: true, createdAt: true, currentUsage: true }).extend({
   startDate: z.string().optional().transform(val => val ? new Date(val) : undefined),
   endDate: z.string().optional().transform(val => val ? new Date(val) : undefined),
+  commissionType: z.preprocess(
+    value => value === '' ? null : value,
+    z.enum(["percentage", "flat"]).nullable().optional()
+  ),
+  commissionValue: z.preprocess(
+    value => {
+      if (value === '' || value === undefined) return null;
+      return value;
+    },
+    z
+      .string()
+      .nullable()
+      .optional()
+      .refine(val => val === null || (!isNaN(Number(val)) && Number(val) > 0), "Commission value must be a positive number")
+  ),
 });
+
+const validateCommissionRequirements = (data: any, ctx: z.RefinementCtx) => {
+  const hasInfluencer = typeof data.influencerId === 'string' && data.influencerId.trim() !== '';
+  if (hasInfluencer) {
+    if (!data.commissionType) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Commission type is required when an influencer is assigned",
+        path: ["commissionType"],
+      });
+    }
+    if (!data.commissionValue) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Commission value is required when an influencer is assigned",
+        path: ["commissionValue"],
+      });
+    }
+  }
+};
+
+export const insertOfferSchema = baseInsertOfferSchema.superRefine(validateCommissionRequirements);
+export const updateOfferSchema = baseInsertOfferSchema.partial().superRefine(validateCommissionRequirements);
 export const insertOrderSchema = createInsertSchema(orders).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOrderItemSchema = createInsertSchema(orderItems).omit({ id: true });
 export const insertCartItemSchema = createInsertSchema(cartItems).omit({ id: true, createdAt: true, updatedAt: true });

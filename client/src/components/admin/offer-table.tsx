@@ -25,6 +25,11 @@ interface Offer {
     name: string;
     username?: string;
   };
+  commissionType?: "percentage" | "flat" | null;
+  commissionValue?: string | null;
+  commissionEarned?: string;
+  uniqueCustomers?: number;
+  redemptionCount?: number;
 }
 
 interface Influencer {
@@ -368,6 +373,7 @@ export default function OfferTable({ onEdit }: OfferTableProps) {
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Coupon Code</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Influencer</th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commission</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiry</th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -382,32 +388,53 @@ export default function OfferTable({ onEdit }: OfferTableProps) {
                   {offer.code}
                 </div>
                 <div className="text-sm text-gray-500">
-                  Min: ₹{parseFloat(offer.minCartValue).toFixed(0)}
+                  {offer.name || 'Unnamed offer'}
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm text-gray-900" data-testid={`offer-discount-${offer.id}`}>
-                  {offer.discountType === 'percentage' 
-                    ? `${offer.discountValue}% off` 
+                  {offer.discountType === 'percentage'
+                    ? `${offer.discountValue}% off`
                     : `₹${offer.discountValue} off`}
                 </div>
-                {offer.maxDiscount && (
-                  <div className="text-sm text-gray-500">
-                    Max: ₹{parseFloat(offer.maxDiscount).toFixed(0)}
+                <div className="text-sm text-gray-500">
+                  Min cart: ₹{parseFloat(offer.minCartValue).toFixed(0)}
+                </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap">
+                {offer.influencer ? (
+                  <div>
+                    <div className="text-sm font-medium text-gray-900" data-testid={`offer-influencer-${offer.id}`}>
+                      {offer.influencer.name}
+                    </div>
+                    <div className="text-sm text-gray-500">Assigned</div>
                   </div>
+                ) : (
+                  <Badge variant="outline" className="text-gray-600">Unassigned</Badge>
                 )}
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm text-gray-900" data-testid={`offer-influencer-${offer.id}`}>
-                  {offer.influencer?.name || 'N/A'}
-                </div>
+                {offer.influencer ? (
+                  <div className="text-sm text-gray-900">
+                    {offer.commissionType === 'percentage' && offer.commissionValue
+                      ? `${parseFloat(offer.commissionValue).toFixed(2)}% of order value`
+                      : offer.commissionType === 'flat' && offer.commissionValue
+                        ? `₹${parseFloat(offer.commissionValue).toFixed(2)} per order`
+                        : 'Not configured'}
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500">Not applicable</div>
+                )}
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="text-sm text-gray-900" data-testid={`offer-usage-${offer.id}`}>
-                  {offer.currentUsage}/{offer.globalUsageLimit || '∞'}
+                  Redemptions: {offer.redemptionCount ?? offer.currentUsage}
                 </div>
                 <div className="text-sm text-gray-500">
-                  Per user: {offer.perUserUsageLimit}
+                  Unique customers: {offer.uniqueCustomers ?? 0}
+                </div>
+                <div className="text-sm text-gray-500">
+                  Commission earned: ₹{offer.commissionEarned ? parseFloat(offer.commissionEarned).toFixed(2) : '0.00'}
                 </div>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500" data-testid={`offer-expiry-${offer.id}`}>
