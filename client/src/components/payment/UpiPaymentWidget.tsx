@@ -14,10 +14,10 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 
-import gpayLogo from "@assets/stock_images/google_pay_gpay_logo_9144d703.jpg"
-import phonepeLogo from "@assets/stock_images/phonepe_logo_eac61617.jpg"
-import paytmLogo from "@assets/stock_images/paytm_logo_506e21bb.jpg"
-import bhimLogo from "@assets/stock_images/bhim_upi_logo_a5b09fc5.jpg"
+import gpayLogo from "@assets/google-pay-icon_1762008468355.png"
+import phonepeLogo from "@assets/phonepe-icon_1762008468355.png"
+import paytmLogo from "@assets/paytm-icon_1762008468354.png"
+import upiLogo from "@assets/upi-payment-icon_1762008468354.png"
 
 const APP_TILES = [
   {
@@ -42,7 +42,7 @@ const APP_TILES = [
     id: "other" as const,
     label: "Other Apps",
     shortLabel: "UPI",
-    logoUrl: bhimLogo,
+    logoUrl: upiLogo,
   },
 ]
 
