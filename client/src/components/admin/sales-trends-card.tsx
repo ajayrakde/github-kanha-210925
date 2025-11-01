@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -778,63 +778,57 @@ export function SalesTrendsCard() {
             </div>
           </div>
 
-          <div className="mt-4 h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#d1d5db" />
-                <XAxis dataKey="bucket" tickLine={false} axisLine={false} tick={{ fill: "#6b7280", fontSize: 12 }} />
-                <YAxis
-                  yAxisId="orders"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fill: "#6b7280", fontSize: 12 }}
-                  tickFormatter={value => formatInteger(value as number)}
-                  width={40}
-                />
-                <YAxis
-                  yAxisId="revenue"
-                  orientation="right"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fill: "#6b7280", fontSize: 12 }}
-                  tickFormatter={value => formatCurrency(value as number)}
-                  width={60}
-                />
-                <Tooltip cursor={{ strokeDasharray: "3 3", stroke: "#9ca3af" }} content={tooltipContent} />
-                <Legend
-                  verticalAlign="top"
-                  align="left"
-                  iconType="circle"
-                  payload={legendPayload}
-                  content={({ payload }) => (
-                    <div className="flex flex-wrap gap-2 pt-2" data-testid="sales-trends-legend">
-                      {(payload as LegendItem[] | undefined)?.map(item => {
-                        const isMuted = Boolean(mutedLines[item.dataKey as string]);
-                        const isHidden = Boolean(hiddenSplits[item.dataKey as string]);
-                        const active = !item.inactive && !(item.variant === "bar" && isHidden);
-                        const showIndicator = item.variant === "bar" ? !isHidden : true;
+          <div className="mt-4 space-y-3">
+            <div className="flex flex-wrap gap-2" data-testid="sales-trends-legend">
+              {legendPayload.map(item => {
+                const isMuted = Boolean(mutedLines[item.dataKey as string]);
+                const isHidden = Boolean(hiddenSplits[item.dataKey as string]);
+                const active = !item.inactive && !(item.variant === "bar" && isHidden);
+                const showIndicator = item.variant === "bar" ? !isHidden : true;
 
-                        return (
-                          <button
-                            key={item.dataKey}
-                            type="button"
-                            onClick={() => handleLegendClick(item)}
-                            className={legendItemClassName(active, isMuted)}
-                          >
-                            <span
-                              className="h-2 w-2 rounded-full"
-                              style={{
-                                backgroundColor: showIndicator ? item.color : "#d1d5db",
-                                opacity: item.variant === "line" && isMuted ? 0.4 : 1,
-                              }}
-                            />
-                            <span>{item.value}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                />
+                return (
+                  <button
+                    key={item.dataKey}
+                    type="button"
+                    onClick={() => handleLegendClick(item)}
+                    className={legendItemClassName(active, isMuted)}
+                  >
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{
+                        backgroundColor: showIndicator ? item.color : "#d1d5db",
+                        opacity: item.variant === "line" && isMuted ? 0.4 : 1,
+                      }}
+                    />
+                    <span>{item.value}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#d1d5db" />
+                  <XAxis dataKey="bucket" tickLine={false} axisLine={false} tick={{ fill: "#6b7280", fontSize: 12 }} />
+                  <YAxis
+                    yAxisId="orders"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: "#6b7280", fontSize: 12 }}
+                    tickFormatter={value => formatInteger(value as number)}
+                    width={40}
+                  />
+                  <YAxis
+                    yAxisId="revenue"
+                    orientation="right"
+                    tickLine={false}
+                    axisLine={false}
+                    tick={{ fill: "#6b7280", fontSize: 12 }}
+                    tickFormatter={value => formatCurrency(value as number)}
+                    width={60}
+                  />
+                  <Tooltip cursor={{ strokeDasharray: "3 3", stroke: "#9ca3af" }} content={tooltipContent} />
 
                 {splitSeries.map(series => (
                   <Bar
@@ -874,8 +868,9 @@ export function SalesTrendsCard() {
                     strokeOpacity={mutedLines.orders ? 0.4 : 1}
                   />
                 ) : null}
-              </ComposedChart>
-            </ResponsiveContainer>
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </div>
       </div>
