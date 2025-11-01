@@ -114,6 +114,9 @@ export default function Payment() {
   const pollTimeoutRef = useRef<number | null>(null);
   const widgetAwaitingSkipRef = useRef(false);
   const stepIntervalRef = useRef<number | null>(null);
+  const stepTransitionTimeoutRef = useRef<number | null>(null);
+  const processingInitializedRef = useRef(false);
+  const pendingAdvanceToStepRef = useRef<number | null>(null);
   
   const clearStatusPolling = () => {
     if (pollTimeoutRef.current !== null) {
@@ -127,7 +130,44 @@ export default function Payment() {
       window.clearInterval(stepIntervalRef.current);
       stepIntervalRef.current = null;
     }
+    if (stepTransitionTimeoutRef.current !== null) {
+      window.clearTimeout(stepTransitionTimeoutRef.current);
+      stepTransitionTimeoutRef.current = null;
+    }
   };
+
+  // Helper to advance to next step with 100% animation
+  const advanceToNextStep = useCallback((nextStep: number) => {
+    clearStepAdvance();
+    // Jump to 100% progress
+    setStepProgress(100);
+    
+    // After brief animation, move to next step and reset progress
+    stepTransitionTimeoutRef.current = window.setTimeout(() => {
+      setCurrentStep(nextStep);
+      setStepProgress(0);
+      
+      // Restart progress animation for new step
+      const startTime = Date.now();
+      const duration = 15000;
+      const targetProgress = 85;
+      
+      const interval = window.setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min((elapsed / duration) * targetProgress, targetProgress);
+        setStepProgress(progress);
+        
+        if (progress >= targetProgress) {
+          if (stepIntervalRef.current !== null) {
+            window.clearInterval(stepIntervalRef.current);
+            stepIntervalRef.current = null;
+          }
+        }
+      }, 100);
+      
+      stepIntervalRef.current = interval;
+    }, 300); // 300ms for 100% animation to be visible
+  }, []);
 
   // Payment steps configuration
   const paymentSteps = [
@@ -179,7 +219,10 @@ export default function Payment() {
 
   // Animate progress within each step: 0→85% over 15s, stay at 85%
   useEffect(() => {
-    if (paymentStatus === 'processing') {
+    if (paymentStatus === 'processing' && !processingInitializedRef.current) {
+      // Only initialize once when first entering 'processing' state
+      processingInitializedRef.current = true;
+      
       // Start at step 0 (Initiating) with 0% progress
       setCurrentStep(0);
       setStepProgress(0);
@@ -193,6 +236,21 @@ export default function Payment() {
         const elapsed = Date.now() - startTime;
         const progress = Math.min((elapsed / duration) * targetProgress, targetProgress);
         setStepProgress(progress);
+        
+        // Only check for pending advance after showing some progress (> 0)
+        if (progress > 0 && pendingAdvanceToStepRef.current !== null) {
+          const targetStep = pendingAdvanceToStepRef.current;
+          pendingAdvanceToStepRef.current = null;
+          
+          // Use double rAF to ensure browser paints the progress update first
+          // First rAF runs before current paint, second rAF runs after paint
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              advanceToNextStep(targetStep);
+            });
+          });
+          return;
+        }
         
         // Stop at 85% and wait for actual event
         if (progress >= targetProgress) {
@@ -210,13 +268,17 @@ export default function Payment() {
       clearStepAdvance();
       setCurrentStep(2);
       setStepProgress(100);
-    } else {
+      processingInitializedRef.current = false;
+      pendingAdvanceToStepRef.current = null;
+    } else if (paymentStatus !== 'processing') {
       // Reset for other states
       clearStepAdvance();
       setCurrentStep(0);
       setStepProgress(0);
+      processingInitializedRef.current = false;
+      pendingAdvanceToStepRef.current = null;
     }
-  }, [paymentStatus]);
+  }, [paymentStatus, advanceToNextStep]);
 
   // Create order from checkout intent with retry logic
   const startPaymentMutation = useMutation({
@@ -496,6 +558,9 @@ export default function Payment() {
         description: "Please check your UPI app to approve the payment request.",
       });
 
+      // Set pending advance - useEffect will handle it after initialization
+      pendingAdvanceToStepRef.current = 1;
+
       // Start polling for payment status
       if (data.paymentId) {
         scheduleStatusPolling(data.paymentId);
@@ -552,6 +617,9 @@ export default function Payment() {
       setPaymentStatus('processing');
       applyGatewayStatus('PENDING');
       latestPaymentIdRef.current = data.paymentId ?? null;
+      
+      // Set pending advance - useEffect will handle it after initialization
+      pendingAdvanceToStepRef.current = 1;
 
       try {
         const checkout = await loadPhonePeCheckout();
@@ -669,13 +737,23 @@ export default function Payment() {
         latestPaymentIdRef.current = null;
         setPaymentStatus('completed');
         applyGatewayStatus('COMPLETED', errorInfo?.code ?? null);
+        
+        // Advance to final Processed step with 100% progress
+        clearStepAdvance();
+        setCurrentStep(2);
+        setStepProgress(100);
+        
         toast({
           title: "Payment Successful",
           description: "Your payment has been completed successfully!",
         });
         clearCart.mutate();
-        const thankYouPath = orderId ? `/thank-you?orderId=${orderId}` : '/thank-you';
-        setLocation(thankYouPath);
+        
+        // Wait briefly to show the completed step animation before redirecting
+        setTimeout(() => {
+          const thankYouPath = orderId ? `/thank-you?orderId=${orderId}` : '/thank-you';
+          setLocation(thankYouPath);
+        }, 800);
         return;
       }
 
