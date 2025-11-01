@@ -82,7 +82,7 @@ function renderAdminWithData() {
     },
   });
 
-  const nowIso = new Date("2024-05-01T10:00:00Z").toISOString();
+  const nowIso = new Date().toISOString();
 
   queryClient.setQueryData(["/api/admin/stats"], {
     totalOrders: 42,
@@ -100,7 +100,7 @@ function renderAdminWithData() {
     },
   ] as any);
 
-  queryClient.setQueryData(["/api/analytics/sales-trends"], [
+  queryClient.setQueryData(["/api/analytics/sales-trends", "?days=365"], [
     {
       date: nowIso,
       orderCount: "3",
@@ -130,7 +130,7 @@ describe("Admin analytics tab", () => {
     global.fetch = originalFetch;
   });
 
-  it("renders monetary metrics when API responses are numeric strings", async () => {
+  it("renders analytics dashboard controls and metrics when API responses are numeric strings", async () => {
     useAdminAuthMock.mockReturnValue({
       isAuthenticated: true,
       isLoading: false,
@@ -159,6 +159,26 @@ describe("Admin analytics tab", () => {
 
     const popularProductRow = await screen.findByTestId("popular-product-0");
     expect(popularProductRow).toHaveTextContent("₹1,234");
+
+    const timeRangeSelect = screen.getByLabelText(/Time range/i);
+    expect(timeRangeSelect).toHaveValue("last_month");
+
+    const aggregateDayButton = screen.getByRole("button", { name: "D" });
+    expect(aggregateDayButton).toHaveAttribute("aria-pressed", "true");
+
+    const totalSalesToggle = screen.getByLabelText("Total sales");
+    expect(totalSalesToggle).toBeChecked();
+
+    const ordersToggle = screen.getByLabelText("Orders");
+    expect(ordersToggle).not.toBeChecked();
+
+    const allProductsButton = screen.getByRole("button", { name: "All products" });
+    expect(allProductsButton).toHaveAttribute("aria-pressed", "true");
+
+    const sampleProductButton = screen.getByRole("button", { name: "Sample Product" });
+    await user.click(sampleProductButton);
+    expect(allProductsButton).toHaveAttribute("aria-pressed", "false");
+    expect(sampleProductButton).toHaveAttribute("aria-pressed", "true");
 
     expect(screen.getByTestId("sales-trend-chart")).toBeInTheDocument();
   });
