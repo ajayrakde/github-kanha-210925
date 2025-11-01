@@ -33,6 +33,12 @@ const APP_TILES = [
     shortLabel: "Paytm",
     accentClass: "bg-[#00baf2]",
   },
+  {
+    id: "other" as const,
+    label: "Any Other Apps",
+    shortLabel: "UPI",
+    accentClass: "bg-gray-700",
+  },
 ]
 
 export type UpiPaymentMode = "intent" | "qr"
@@ -299,7 +305,7 @@ export function UpiPaymentWidget({
       className="w-full"
       data-current-mode={currentMode}
     >
-      <CardContent className="space-y-6 pt-6">
+      <CardContent className="space-y-4 pt-4 pb-4">
         <Tabs value={currentMode} onValueChange={handleModeChange} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="intent" aria-label="Pay using UPI intent">
@@ -310,52 +316,49 @@ export function UpiPaymentWidget({
             </TabsTrigger>
           </TabsList>
           <TabsContent value="intent" className="mt-4">
-            <section aria-label="UPI apps" className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <section aria-label="UPI apps" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {apps.map((app) => (
                 <Button
                   key={app.id}
                   type="button"
                   variant="outline"
-                  className="h-auto flex-col items-start gap-3 rounded-lg border bg-background p-4 text-left"
+                  className="h-auto flex-col items-start gap-2 rounded-lg border bg-background p-3 text-left"
                   onClick={() => onIntentAppSelect?.(app.id)}
                   aria-label={`Pay with ${app.label}`}
                 >
                   <span
                     aria-hidden="true"
                     className={cn(
-                      "flex h-12 w-12 items-center justify-center rounded-full text-sm font-semibold text-white",
+                      "flex h-10 w-10 items-center justify-center rounded-full text-xs font-semibold text-white",
                       app.accentClass ?? "bg-primary",
                     )}
                   >
                     {app.shortLabel}
                   </span>
                   <span className="text-sm font-medium text-foreground">{app.label}</span>
-                  <span className="text-xs text-muted-foreground">
-                    Opens the {app.label} app with your payment request.
-                  </span>
                 </Button>
               ))}
             </section>
           </TabsContent>
           <TabsContent value="qr" className="mt-4">
-            <section className="flex flex-col gap-4 md:flex-row md:items-start">
-              <div className="flex w-full flex-col items-center gap-3 rounded-lg border bg-muted/40 p-6 md:w-1/2">
+            <section className="flex flex-col items-center">
+              <div className="flex w-full flex-col items-center gap-2 rounded-lg border bg-muted/40 p-4">
                 {qrDataUrl ? (
                   <img
                     src={qrDataUrl}
                     alt="QR code for completing the UPI payment"
-                    className="h-48 w-48 rounded-md border bg-white object-cover"
+                    className="h-40 w-40 rounded-md border bg-white object-cover"
                   />
                 ) : (
                   <div
-                    className="flex h-48 w-48 items-center justify-center rounded-md border border-dashed text-center text-sm text-muted-foreground"
+                    className="flex h-40 w-40 items-center justify-center rounded-md border border-dashed text-center text-xs text-muted-foreground"
                     role="img"
                     aria-label="QR code placeholder"
                   >
-                    QR code will appear after we generate your payment request.
+                    QR code will appear here
                   </div>
                 )}
-                <span className="text-xs text-muted-foreground">Scan using any UPI-enabled app.</span>
+                <span className="text-xs text-muted-foreground">Scan using any UPI app</span>
               </div>
             </section>
           </TabsContent>
