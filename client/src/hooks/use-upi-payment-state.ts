@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { UseMutationResult } from "@tanstack/react-query";
-import { toDataURL } from "qrcode";
+import { generateUpiQrDataUrl } from "@/lib/upi-qr";
 
 export type UpiWidgetStatus = "awaiting" | "success" | "failed" | "expired";
 
@@ -239,19 +239,12 @@ export const useUpiPaymentState = (
         return;
       }
 
-      try {
-        const dataUrl = await toDataURL(upiUrl, {
-          errorCorrectionLevel: "M",
-          margin: 1,
-          scale: 6,
-        });
+      const dataUrl = await generateUpiQrDataUrl(upiUrl);
 
-        if (!isCancelled) {
+      if (!isCancelled) {
+        if (dataUrl) {
           setQrState({ source: upiUrl, dataUrl });
-        }
-      } catch (error) {
-        console.warn("Failed to generate UPI QR code", error);
-        if (!isCancelled) {
+        } else {
           setQrState({ dataUrl: UPI_QR_PLACEHOLDER_DATA_URL });
         }
       }

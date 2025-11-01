@@ -3,10 +3,10 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import useUpiPaymentState, { UPI_QR_PLACEHOLDER_DATA_URL } from "../use-upi-payment-state";
 import type { UseMutationResult } from "@tanstack/react-query";
 
-const toDataURLMock = vi.fn();
+const generateUpiQrDataUrlMock = vi.fn();
 
-vi.mock("qrcode", () => ({
-  toDataURL: (...args: unknown[]) => toDataURLMock(...args),
+vi.mock("@/lib/upi-qr", () => ({
+  generateUpiQrDataUrl: (...args: unknown[]) => generateUpiQrDataUrlMock(...args),
 }));
 
 const createMutationStub = <T,>(data?: T): UseMutationResult<T | undefined, unknown, void, unknown> =>
@@ -16,8 +16,8 @@ const createMutationStub = <T,>(data?: T): UseMutationResult<T | undefined, unkn
 
 describe("useUpiPaymentState", () => {
   beforeEach(() => {
-    toDataURLMock.mockReset();
-    toDataURLMock.mockResolvedValue("data:image/png;base64,qr");
+    generateUpiQrDataUrlMock.mockReset();
+    generateUpiQrDataUrlMock.mockResolvedValue("data:image/png;base64,qr");
   });
 
   it("builds a canonical UPI url with merchant metadata and merchant transaction id", async () => {
@@ -78,7 +78,7 @@ describe("useUpiPaymentState", () => {
   });
 
   it("falls back to the placeholder QR when generation fails", async () => {
-    toDataURLMock.mockRejectedValueOnce(new Error("boom"));
+    generateUpiQrDataUrlMock.mockResolvedValueOnce(undefined);
     const phonePeMutation = createMutationStub(undefined);
 
     const { result } = renderHook(() =>
