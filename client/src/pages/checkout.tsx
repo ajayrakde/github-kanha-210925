@@ -1018,72 +1018,6 @@ export default function Checkout() {
                 </RadioGroup>
               </div>
 
-              {/* Coupon Section */}
-              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-                <h3 className="text-sm sm:text-base font-medium text-gray-900 mb-3 sm:mb-4">Apply Coupon</h3>
-                {!appliedOffer ? (
-                  <>
-                    <div className="flex space-x-3">
-                      <Input
-                        type="text"
-                        placeholder="Enter coupon code"
-                        value={couponCode}
-                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                        className={`flex-1 ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
-                        data-testid="input-coupon-code"
-                      />
-                      <Button
-                        onClick={() => {
-                          if (couponCode.trim() && user?.id) {
-                            setCouponError("");
-                            validateOfferMutation.mutate({
-                              code: couponCode.trim(),
-                              userId: user.id,
-                              cartValue: subtotal
-                            });
-                          }
-                        }}
-                        disabled={!couponCode.trim() || validateOfferMutation.isPending || !user?.id}
-                        data-testid="button-apply-coupon"
-                      >
-                        {validateOfferMutation.isPending ? "Applying..." : "Apply"}
-                      </Button>
-                    </div>
-                    {couponError && (
-                      <div className="mt-2 text-sm text-red-600" data-testid="coupon-error">
-                        {couponError}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-green-600">
-                        <i className="fas fa-check-circle mr-1"></i>
-                        Coupon "{appliedOffer.code}" applied! You saved ₹{discount.toFixed(2)}
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setAppliedOffer(null);
-                          setCouponError("");
-                          setCouponCode("");
-                          queryClient.setQueryData(["checkout", "selectedOffer"], null);
-                          toast({
-                            title: "Coupon Removed",
-                            description: "The coupon has been removed from your order",
-                          });
-                        }}
-                        className="text-gray-500 hover:text-red-600"
-                        data-testid="button-remove-coupon"
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
             </>
           )}
         </div>
@@ -1142,7 +1076,73 @@ export default function Checkout() {
               </div>
             </div>
 
-            <div className="space-y-3 mb-3 sm:mb-6">
+            {/* Coupon Section */}
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <h3 className="text-sm font-medium text-gray-900 mb-3">Apply Coupon</h3>
+              {!appliedOffer ? (
+                <>
+                  <div className="flex space-x-2">
+                    <Input
+                      type="text"
+                      placeholder="Enter coupon code"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                      className={`flex-1 text-sm ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+                      data-testid="input-coupon-code"
+                    />
+                    <Button
+                      onClick={() => {
+                        if (couponCode.trim() && user?.id) {
+                          setCouponError("");
+                          validateOfferMutation.mutate({
+                            code: couponCode.trim(),
+                            userId: user.id,
+                            cartValue: subtotal
+                          });
+                        }
+                      }}
+                      disabled={!couponCode.trim() || validateOfferMutation.isPending || !user?.id}
+                      size="sm"
+                      data-testid="button-apply-coupon"
+                    >
+                      {validateOfferMutation.isPending ? "Applying..." : "Apply"}
+                    </Button>
+                  </div>
+                  {couponError && (
+                    <div className="mt-2 text-xs text-red-600" data-testid="coupon-error">
+                      {couponError}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex items-center justify-between bg-green-50 p-2 rounded">
+                  <div className="text-xs text-green-600">
+                    <i className="fas fa-check-circle mr-1"></i>
+                    "{appliedOffer.code}" applied
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setAppliedOffer(null);
+                      setCouponError("");
+                      setCouponCode("");
+                      queryClient.setQueryData(["checkout", "selectedOffer"], null);
+                      toast({
+                        title: "Coupon Removed",
+                        description: "The coupon has been removed from your order",
+                      });
+                    }}
+                    className="text-gray-500 hover:text-red-600 h-6 px-2 text-xs"
+                    data-testid="button-remove-coupon"
+                  >
+                    Remove
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3 mt-4 mb-3 sm:mb-6">
               <div className="text-xs text-gray-500 flex items-center">
                 <i className="fas fa-shield-alt mr-1"></i>
                 Secure checkout with 256-bit SSL encryption
