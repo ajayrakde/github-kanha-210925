@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Loader2, CreditCard, ArrowLeft, AlertCircle } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -1220,25 +1221,6 @@ export default function Payment() {
                 </div>
               ) : null}
 
-              {paymentStatus === 'processing' ? (
-                <div className="space-y-3 rounded-lg border-2 border-blue-200 bg-blue-50 p-5" data-testid="processing-indicator">
-                  <div className="flex items-center gap-3">
-                    <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-                    <div className="flex-1">
-                      <p className="font-medium text-blue-900">Processing Payment</p>
-                      <p className="text-sm text-blue-700">Waiting for confirmation from your UPI provider...</p>
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <Progress 
-                      value={processingProgress} 
-                      className="h-2 bg-blue-100"
-                      data-testid="payment-progress-bar"
-                    />
-                    <p className="text-xs text-blue-600 text-right">{Math.round(processingProgress)}%</p>
-                  </div>
-                </div>
-              ) : null}
 
               {paymentStatus === 'completed' ? (
                 <div className="flex items-center gap-3 rounded-lg border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-900">
@@ -1350,6 +1332,39 @@ export default function Payment() {
         </div>
       </div>
     </div>
+
+    {/* Processing Payment Modal */}
+    <Dialog open={paymentStatus === 'processing'} onOpenChange={() => {}}>
+      <DialogContent className="sm:max-w-md [&>button]:hidden" data-testid="processing-modal">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-3">
+            <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+            <span>Processing Payment</span>
+          </DialogTitle>
+          <DialogDescription>
+            Waiting for confirmation from your UPI provider
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Progress 
+              value={processingProgress} 
+              className="h-3 bg-blue-100"
+              data-testid="payment-progress-bar"
+            />
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-muted-foreground">Please wait...</span>
+              <span className="font-medium text-blue-600">{Math.round(processingProgress)}%</span>
+            </div>
+          </div>
+          <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
+            <p className="text-sm text-blue-900">
+              <strong>Do not close this window</strong> or refresh the page while the payment is being processed.
+            </p>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
     </div>
   );
 }
