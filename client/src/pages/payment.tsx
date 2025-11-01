@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { Loader2, CreditCard, ArrowLeft, AlertCircle } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -103,16 +104,26 @@ export default function Payment() {
   const [intentId, setIntentId] = useState<string>("");
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [isActionLocked, setIsActionLocked] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
   const { toast} = useToast();
   const { clearCart } = useCart();
   const checkoutLoaderRef = useRef<Promise<PhonePeCheckoutInstance> | null>(null);
   const latestPaymentIdRef = useRef<string | null>(null);
   const pollTimeoutRef = useRef<number | null>(null);
   const widgetAwaitingSkipRef = useRef(false);
+  const progressIntervalRef = useRef<number | null>(null);
+  
   const clearStatusPolling = () => {
     if (pollTimeoutRef.current !== null) {
       window.clearTimeout(pollTimeoutRef.current);
       pollTimeoutRef.current = null;
+    }
+  };
+
+  const clearProgressAnimation = () => {
+    if (progressIntervalRef.current !== null) {
+      window.clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
     }
   };
 
@@ -151,6 +162,44 @@ export default function Payment() {
   useEffect(() => {
     if (paymentStatus === 'completed' || paymentStatus === 'failed') {
       setIsActionLocked(false);
+    }
+  }, [paymentStatus]);
+
+  // Animate progress bar when payment is processing
+  useEffect(() => {
+    if (paymentStatus === 'processing') {
+      // Reset progress to 0
+      setProcessingProgress(0);
+      
+      // Animate progress from 0 to 85% over time
+      const startTime = Date.now();
+      const duration = 30000; // 30 seconds to reach 85%
+      const targetProgress = 85;
+      
+      const interval = window.setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min((elapsed / duration) * targetProgress, targetProgress);
+        setProcessingProgress(progress);
+        
+        // Stop at 85% and wait for actual completion
+        if (progress >= targetProgress) {
+          clearProgressAnimation();
+        }
+      }, 100);
+      
+      progressIntervalRef.current = interval;
+      
+      return () => {
+        clearProgressAnimation();
+      };
+    } else if (paymentStatus === 'completed') {
+      // Jump to 100% when completed
+      clearProgressAnimation();
+      setProcessingProgress(100);
+    } else {
+      // Reset progress for other states
+      clearProgressAnimation();
+      setProcessingProgress(0);
     }
   }, [paymentStatus]);
 
@@ -223,9 +272,8 @@ export default function Payment() {
         console.log('[Payment] Cashfree session ID set:', result.order.cashfreePaymentSessionId);
       }
 
-      // Clear the cart on the frontend
-      clearCart.mutate();
-      console.log('[Payment] Cart cleared');
+      // DO NOT clear cart here - only clear when payment is completed
+      // Cart will be cleared in checkPaymentStatusMutation.onSuccess when status is COMPLETED
 
       // Clear checkout intent from storage
       sessionStorage.removeItem('checkoutIntent');
@@ -1173,9 +1221,22 @@ export default function Payment() {
               ) : null}
 
               {paymentStatus === 'processing' ? (
-                <div className="flex items-center gap-3 rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>We're waiting for confirmation from your UPI provider.</span>
+                <div className="space-y-3 rounded-lg border-2 border-blue-200 bg-blue-50 p-5" data-testid="processing-indicator">
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                    <div className="flex-1">
+                      <p className="font-medium text-blue-900">Processing Payment</p>
+                      <p className="text-sm text-blue-700">Waiting for confirmation from your UPI provider...</p>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Progress 
+                      value={processingProgress} 
+                      className="h-2 bg-blue-100"
+                      data-testid="payment-progress-bar"
+                    />
+                    <p className="text-xs text-blue-600 text-right">{Math.round(processingProgress)}%</p>
+                  </div>
                 </div>
               ) : null}
 
