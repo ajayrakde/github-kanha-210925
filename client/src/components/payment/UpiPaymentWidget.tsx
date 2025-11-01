@@ -354,11 +354,11 @@ export function UpiPaymentWidget({
                   <img
                     src={qrDataUrl}
                     alt="QR code for completing the UPI payment"
-                    className="h-20 w-20 rounded-md border bg-white object-cover"
+                    className="h-14 w-14 rounded-md border bg-white object-cover"
                   />
                 ) : (
                   <div
-                    className="flex h-20 w-20 items-center justify-center rounded-md border border-dashed text-center text-xs text-muted-foreground"
+                    className="flex h-14 w-14 items-center justify-center rounded-md border border-dashed text-center text-xs text-muted-foreground"
                     role="img"
                     aria-label="QR code placeholder"
                   >
