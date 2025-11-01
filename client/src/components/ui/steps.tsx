@@ -22,8 +22,11 @@ export function Steps({ steps, currentStep, stepProgress = 0, className }: Steps
           const isCurrent = index === currentStep;
           const isUpcoming = index > currentStep;
 
-          // Determine progress for each step
-          const progress = isCompleted ? 100 : (isCurrent ? stepProgress : 0);
+          // Mini bar: just complete (100%) when active/completed, 0% otherwise
+          const miniBarProgress = (isCompleted || isCurrent) ? 100 : 0;
+
+          // Connector line progress: show gradual 0→85% animation for current step
+          const connectorProgress = isCurrent ? stepProgress : (isCompleted ? 100 : 0);
 
           return (
             <div key={index} className="flex flex-1 items-center">
@@ -45,7 +48,7 @@ export function Steps({ steps, currentStep, stepProgress = 0, className }: Steps
                   )}
                 </div>
 
-                {/* Mini progress bar below step circle */}
+                {/* Mini progress bar below step circle - just turns green when active */}
                 <div className="w-full mt-1.5 mb-1">
                   <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
                     <div
@@ -55,7 +58,7 @@ export function Steps({ steps, currentStep, stepProgress = 0, className }: Steps
                         isCurrent && "bg-blue-600",
                         isUpcoming && "bg-gray-300"
                       )}
-                      style={{ width: `${progress}%` }}
+                      style={{ width: `${miniBarProgress}%` }}
                       data-testid={`step-progress-${index}`}
                     />
                   </div>
@@ -78,15 +81,22 @@ export function Steps({ steps, currentStep, stepProgress = 0, className }: Steps
                 </div>
               </div>
 
-              {/* Connector line */}
+              {/* Connector line - shows gradual progress animation */}
               {index < steps.length - 1 && (
-                <div
-                  className={cn(
-                    "h-0.5 flex-1 transition-all -mt-8",
-                    isCompleted && "bg-green-600",
-                    (isCurrent || isUpcoming) && "bg-gray-300"
-                  )}
-                />
+                <div className="relative h-0.5 flex-1 -mt-8">
+                  {/* Background line */}
+                  <div className="absolute inset-0 bg-gray-300" />
+                  {/* Animated progress line */}
+                  <div
+                    className={cn(
+                      "absolute inset-y-0 left-0 transition-all duration-300 ease-out",
+                      isCompleted && "bg-green-600",
+                      isCurrent && "bg-blue-600"
+                    )}
+                    style={{ width: `${connectorProgress}%` }}
+                    data-testid={`connector-progress-${index}`}
+                  />
+                </div>
               )}
             </div>
           );
