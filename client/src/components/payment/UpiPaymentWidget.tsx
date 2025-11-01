@@ -299,79 +299,7 @@ export function UpiPaymentWidget({
       className="w-full"
       data-current-mode={currentMode}
     >
-      <CardHeader className="space-y-4">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex items-center gap-4">
-            {merchant.logoUrl ? (
-              <img
-                src={merchant.logoUrl}
-                alt={merchant.logoAlt ?? `${merchant.name} logo`}
-                className="h-12 w-12 rounded-full border object-cover"
-              />
-            ) : (
-              <div
-                aria-hidden="true"
-                className="flex h-12 w-12 items-center justify-center rounded-full border bg-muted text-lg font-semibold text-muted-foreground"
-              >
-                {merchant.name.at(0)}
-              </div>
-            )}
-            <div>
-              <CardTitle className="text-xl font-semibold">{merchant.name}</CardTitle>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                <span aria-label="Virtual payment address">{merchant.vpa}</span>
-                {renderCopyButton(`Copy ${merchant.vpa} VPA`, "vpa", onCopyVpa)}
-              </div>
-            </div>
-          </div>
-          <div className="flex flex-col items-start gap-2 text-right lg:items-end">
-            <Badge variant="secondary" className="text-sm">
-              {merchant.amount}
-            </Badge>
-            {merchant.orderLabel ? (
-              <CardDescription className="text-sm">
-                {merchant.orderLabel}
-              </CardDescription>
-            ) : null}
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span aria-label="Transaction reference">{transactionReference}</span>
-              {renderCopyButton("Copy transaction reference", "transactionReference", onCopyTransactionReference)}
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          {metadata.map((item) => (
-            <div key={item.label} className="flex items-center gap-2">
-              {item.icon}
-              <span className="font-medium text-foreground">{item.label}:</span>
-              <span>{item.value}</span>
-              {item.onCopy
-                ? renderCopyButton(
-                    item.copyAriaLabel ?? `Copy ${item.label}`,
-                    `meta-${item.label}`,
-                    item.onCopy,
-                  )
-                : null}
-            </div>
-          ))}
-          {timer ? (
-            <Badge
-              variant="outline"
-              className={cn(
-                "border-dashed text-xs font-medium",
-                remainingSeconds !== null && remainingSeconds <= 15
-                  ? "border-amber-500 text-amber-600"
-                  : "text-muted-foreground",
-              )}
-              aria-live="polite"
-            >
-              {timer.label}: {remainingSeconds !== null ? formatSeconds(remainingSeconds) : "--:--"}
-            </Badge>
-          ) : null}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {note ? <p className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">{note}</p> : null}
+      <CardContent className="space-y-6 pt-6">
         <Tabs value={currentMode} onValueChange={handleModeChange} className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="intent" aria-label="Pay using UPI intent">
@@ -408,25 +336,6 @@ export function UpiPaymentWidget({
                 </Button>
               ))}
             </section>
-            <div className="mt-4 flex flex-col gap-3">
-              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                <span>Need a link instead?</span>
-                <code className="rounded bg-muted px-2 py-1 text-xs text-foreground" aria-label="UPI deep-link">
-                  {upiUrl}
-                </code>
-                {renderCopyButton("Copy UPI deep link", "upiUrl", onCopyUpiUrl)}
-              </div>
-              {helperNotes?.length ? (
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  {helperNotes.map((item) => (
-                    <li key={item.id} className="flex gap-2">
-                      <span aria-hidden="true" className="mt-1 h-1.5 w-1.5 rounded-full bg-muted-foreground" />
-                      <span>{item.text}</span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
           </TabsContent>
           <TabsContent value="qr" className="mt-4">
             <section className="flex flex-col gap-4 md:flex-row md:items-start">
@@ -448,43 +357,10 @@ export function UpiPaymentWidget({
                 )}
                 <span className="text-xs text-muted-foreground">Scan using any UPI-enabled app.</span>
               </div>
-              <div className="flex w-full flex-col gap-4 md:w-1/2">
-                <div className="rounded-md bg-muted/30 p-4 text-sm text-muted-foreground">
-                  Show this QR code at checkout or scan it from another device to complete the payment securely.
-                </div>
-                {helperNotes?.length ? (
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    {helperNotes.map((item) => (
-                      <li key={item.id} className="flex gap-2">
-                        <span aria-hidden="true" className="mt-1 h-1.5 w-1.5 rounded-full bg-muted-foreground" />
-                        <span>{item.text}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
             </section>
           </TabsContent>
         </Tabs>
       </CardContent>
-      <Separator className="mx-6" />
-      <CardFooter className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-3" aria-live="polite">
-          <Badge className={cn("text-xs", activeStatus.badgeClasses)}>{activeStatus.label}</Badge>
-          <span className="text-sm text-muted-foreground">
-            Stay on this page while we confirm your payment with the provider.
-          </span>
-        </div>
-        <Button
-          type="button"
-          disabled={ctaDisabled}
-          aria-label={ctaLabel}
-          data-testid={ctaTestId}
-          onClick={() => onCtaClick?.(currentMode)}
-        >
-          {ctaLabel}
-        </Button>
-      </CardFooter>
     </Card>
   )
 }
