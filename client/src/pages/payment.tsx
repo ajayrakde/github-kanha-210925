@@ -106,6 +106,7 @@ export default function Payment() {
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [isActionLocked, setIsActionLocked] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
+  const [stepProgress, setStepProgress] = useState(0);
   const { toast} = useToast();
   const { clearCart } = useCart();
   const checkoutLoaderRef = useRef<Promise<PhonePeCheckoutInstance> | null>(null);
@@ -176,23 +177,28 @@ export default function Payment() {
   // Disable buttons and inputs during initiating and processing
   const isPaymentInProgress = paymentStatus === 'initiating' || paymentStatus === 'processing';
 
-  // Auto-advance payment steps when processing
+  // Animate progress within each step: 0→85% over 15s, stay at 85%
   useEffect(() => {
     if (paymentStatus === 'processing') {
-      // Start at step 0 (Initiating)
+      // Start at step 0 (Initiating) with 0% progress
       setCurrentStep(0);
+      setStepProgress(0);
       
-      // Auto-advance to next step every 15 seconds
+      const startTime = Date.now();
+      const duration = 15000; // 15 seconds to reach 85%
+      const targetProgress = 85;
+      
+      // Animate progress from 0 to 85% over 15 seconds
       const interval = window.setInterval(() => {
-        setCurrentStep((prev) => {
-          // Don't go past step 1 (Processing)
-          // Step 2 (Processed) is only reached when payment completes
-          if (prev < 1) {
-            return prev + 1;
-          }
-          return prev;
-        });
-      }, 15000); // 15 seconds
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min((elapsed / duration) * targetProgress, targetProgress);
+        setStepProgress(progress);
+        
+        // Stop at 85% and wait for actual event
+        if (progress >= targetProgress) {
+          clearStepAdvance();
+        }
+      }, 100);
       
       stepIntervalRef.current = interval;
       
@@ -200,13 +206,15 @@ export default function Payment() {
         clearStepAdvance();
       };
     } else if (paymentStatus === 'completed') {
-      // Jump to final step when completed
+      // Jump to final step with 100% progress
       clearStepAdvance();
       setCurrentStep(2);
+      setStepProgress(100);
     } else {
-      // Reset steps for other states
+      // Reset for other states
       clearStepAdvance();
       setCurrentStep(0);
+      setStepProgress(0);
     }
   }, [paymentStatus]);
 
@@ -1361,6 +1369,7 @@ export default function Payment() {
             <Steps 
               steps={paymentSteps} 
               currentStep={currentStep}
+              stepProgress={stepProgress}
               className="px-4"
             />
           )}
