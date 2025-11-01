@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, CreditCard, ArrowLeft, AlertCircle } from "lucide-react";
+import { Loader2, CreditCard, ArrowLeft, AlertCircle, Copy } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/hooks/use-cart";
+import useUpiPaymentState, { type PhonePeTokenUrlData } from "@/hooks/use-upi-payment-state";
 
 type PhonePeCheckoutEvent = {
   status?: string;
@@ -61,11 +62,7 @@ const PHONEPE_INSTRUMENT_OPTIONS: Array<{
   },
 ];
 
-interface PhonePeTokenResponse {
-  tokenUrl?: string;
-  merchantTransactionId?: string;
-  paymentId?: string;
-}
+type PhonePeTokenResponse = Partial<PhonePeTokenUrlData>;
 
 interface OrderData {
   orderId: string;
@@ -261,9 +258,16 @@ export default function Payment() {
     retry: false
   });
 
+  const currentOrderData = orderData || order;
   // Determine if we're using Cashfree or PhonePe
   const paymentMethod = orderData?.paymentMethod || order?.paymentMethod;
   const isCashfree = paymentMethod?.toLowerCase() === 'upi' || paymentMethod?.toLowerCase() === 'cashfree';
+  const merchantMetadata = useMemo(() => ({
+    name: "Kanha Retail",
+    vpa: "kanharetail@upi",
+    code: "0000",
+    transactionNote: currentOrderData?.orderId ? `Order ${currentOrderData.orderId}` : undefined,
+  }), [currentOrderData?.orderId]);
 
   const loadPhonePeCheckout = async () => {
     if (window.PhonePeCheckout) {
@@ -366,12 +370,14 @@ export default function Payment() {
           variant: "destructive"
         });
         setPaymentStatus('failed');
+        setWidgetStatus('failed');
         return;
       }
 
       latestPaymentIdRef.current = data.paymentId ?? null;
       setCashfreePaymentSessionId(data.providerData.paymentSessionId);
       setPaymentStatus('pending');
+      setWidgetStatus('awaiting');
 
       // Start polling for payment status (for QR code and app intent flows)
       if (data.paymentId) {
@@ -388,6 +394,7 @@ export default function Payment() {
         variant: "destructive"
       });
       setPaymentStatus('failed');
+      setWidgetStatus('failed');
     }
   });
 
@@ -410,6 +417,7 @@ export default function Payment() {
       // Store the payment ID for status polling
       latestPaymentIdRef.current = data.paymentId;
       setPaymentStatus('processing');
+      setWidgetStatus('awaiting');
       toast({
         title: "Payment Initiated",
         description: "Please check your UPI app to approve the payment request.",
@@ -430,6 +438,7 @@ export default function Payment() {
         variant: "destructive"
       });
       setPaymentStatus('failed');
+      setWidgetStatus('failed');
     }
   });
 
@@ -465,10 +474,12 @@ export default function Payment() {
           variant: "destructive"
         });
         setPaymentStatus('failed');
+        setWidgetStatus('failed');
         return;
       }
 
       setPaymentStatus('processing');
+      applyGatewayStatus('PENDING');
       latestPaymentIdRef.current = data.paymentId ?? null;
 
       try {
@@ -491,6 +502,7 @@ export default function Payment() {
               latestPaymentIdRef.current = null;
               clearStatusPolling();
               setPaymentStatus('failed');
+              applyGatewayStatus('FAILED', 'USER_CANCEL');
               toast({
                 title: "Payment Cancelled",
                 description: "You cancelled the PhonePe payment. Please try again if you wish to continue.",
@@ -526,7 +538,26 @@ export default function Payment() {
         variant: "destructive"
       });
       setPaymentStatus('failed');
+      setWidgetStatus('failed');
     }
+  });
+
+  const {
+    widgetStatus,
+    setWidgetStatus,
+    applyGatewayStatus,
+    upiUrl,
+    upiQrDataUrl,
+    isQrPlaceholder,
+    copyUpiUrl,
+    copyCheckoutUrl,
+    shareableCheckoutUrl,
+  } = useUpiPaymentState({
+    amount: currentOrderData?.total ?? 0,
+    currency: 'INR',
+    merchant: merchantMetadata,
+    phonePeMutation: createPaymentMutation,
+    cashfreeMutation: createCashfreePaymentMutation,
   });
 
   // Payment status checking mutation
@@ -537,12 +568,13 @@ export default function Payment() {
     },
     onSuccess: (data, paymentId) => {
       const status = data?.data?.status as string | undefined;
-      const errorInfo = data?.data?.error as { message?: string } | undefined;
+      const errorInfo = data?.data?.error as { message?: string; code?: string } | undefined;
 
       if (status === 'COMPLETED') {
         clearStatusPolling();
         latestPaymentIdRef.current = null;
         setPaymentStatus('completed');
+        applyGatewayStatus('COMPLETED', errorInfo?.code ?? null);
         toast({
           title: "Payment Successful",
           description: "Your payment has been completed successfully!",
@@ -557,6 +589,7 @@ export default function Payment() {
         clearStatusPolling();
         latestPaymentIdRef.current = null;
         setPaymentStatus('failed');
+        applyGatewayStatus('FAILED', errorInfo?.code ?? null);
         toast({
           title: "Payment Failed",
           description: errorInfo?.message || "Your payment could not be processed. Please try again.",
@@ -567,6 +600,7 @@ export default function Payment() {
 
       if (status === 'PENDING' && paymentId) {
         setPaymentStatus('processing');
+        applyGatewayStatus('PENDING');
         clearStatusPolling();
         pollTimeoutRef.current = window.setTimeout(() => {
           checkPaymentStatusMutation.mutate(paymentId);
@@ -585,6 +619,7 @@ export default function Payment() {
       clearStatusPolling();
       latestPaymentIdRef.current = null;
       setPaymentStatus('failed');
+      setWidgetStatus('failed');
       toast({
         title: "Status Check Failed",
         description: "We couldn't verify the payment status. Please try again.",
@@ -593,7 +628,6 @@ export default function Payment() {
     }
   });
 
-  const currentOrderData = orderData || order;
   const isLoading = isCreatingOrder || isLoadingOrder || createPaymentMutation.isPending || createCashfreePaymentMutation.isPending;
 
   // Handle back to checkout
@@ -604,6 +638,7 @@ export default function Payment() {
   // Handle retry payment
   const handleRetryPayment = () => {
     setPaymentStatus('pending');
+    setWidgetStatus('awaiting');
     latestPaymentIdRef.current = null;
     clearStatusPolling();
     if (isCashfree) {
@@ -620,12 +655,45 @@ export default function Payment() {
         // For Cashfree, we already have payment session ID and pending payment from page load
         // Payment record already exists and polling is active - don't clear them
         setPaymentStatus('pending');
+        setWidgetStatus('awaiting');
       } else {
         latestPaymentIdRef.current = null;
         clearStatusPolling();
+        setWidgetStatus('awaiting');
         createPaymentMutation.mutate();
       }
     }
+  };
+
+  const handleCopyUpiLink = async () => {
+    const copied = await copyUpiUrl();
+    toast({
+      title: copied ? "UPI link copied" : "Copy unavailable",
+      description: copied
+        ? "Paste the link into your preferred UPI app if scanning is not possible."
+        : "Copy access was blocked by your browser. Please copy the highlighted link manually.",
+      variant: copied ? undefined : "destructive",
+    });
+  };
+
+  const handleCopyCheckoutLink = async () => {
+    if (!shareableCheckoutUrl) {
+      toast({
+        title: "Checkout link unavailable",
+        description: "Launch the payment again to refresh the gateway link.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const copied = await copyCheckoutUrl();
+    toast({
+      title: copied ? "Checkout link copied" : "Copy unavailable",
+      description: copied
+        ? "Send the secure checkout URL to another device if needed."
+        : "Copy access was blocked by your browser. Please copy the link manually.",
+      variant: copied ? undefined : "destructive",
+    });
   };
 
   // Show loading state if we have an intentId but haven't created the order yet
@@ -722,6 +790,7 @@ export default function Payment() {
               <CardTitle className="flex items-center">
                 <CreditCard className="mr-2 h-5 w-5" />
                 Payment Status
+                <span className="sr-only" data-testid="text-upi-widget-status">{widgetStatus}</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -762,6 +831,52 @@ export default function Payment() {
                           </Button>
                         ))}
                       </div>
+                      {instrumentPreference === 'UPI_QR' && (
+                        <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
+                          <p className="text-sm font-semibold text-gray-900 mb-2">Scan &amp; Pay using any UPI app</p>
+                          <div className="flex flex-col sm:flex-row gap-4">
+                            <div
+                              className={`w-32 h-32 rounded-md border border-gray-200 flex items-center justify-center ${isQrPlaceholder ? 'animate-pulse bg-gray-100' : 'bg-white'}`}
+                              data-testid="container-upi-qr"
+                            >
+                              <img
+                                src={upiQrDataUrl}
+                                alt="Dynamic UPI QR"
+                                className="w-full h-full object-contain"
+                                data-testid="image-upi-qr"
+                              />
+                            </div>
+                            <div className="flex-1 space-y-2">
+                              <p className="text-xs text-gray-500 break-all" data-testid="text-upi-url">
+                                {upiUrl ?? 'The UPI payment link will appear as soon as it is ready.'}
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={handleCopyUpiLink}
+                                  data-testid="button-copy-upi-url"
+                                >
+                                  <Copy className="mr-2 h-4 w-4" />
+                                  Copy UPI Link
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={handleCopyCheckoutLink}
+                                  disabled={!shareableCheckoutUrl}
+                                  data-testid="button-copy-checkout-url"
+                                >
+                                  <Copy className="mr-2 h-4 w-4" />
+                                  Copy Checkout URL
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                   {isCashfree && cashfreePaymentSessionId && (
