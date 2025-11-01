@@ -82,8 +82,6 @@ function renderAdminWithData() {
     },
   });
 
-  const nowIso = new Date("2024-05-01T10:00:00Z").toISOString();
-
   queryClient.setQueryData(["/api/admin/stats"], {
     totalOrders: 42,
     revenue: "1000.5",
@@ -100,29 +98,13 @@ function renderAdminWithData() {
     },
   ] as any);
 
-  queryClient.setQueryData(["/api/analytics/sales-trends"], [
-    {
-      date: nowIso,
-      orderCount: "3",
-      revenue: "4321.8",
-    },
-  ] as any);
-
   queryClient.setQueryData(["/api/analytics/conversion-metrics"], {
-    totalSessions: "100",
-    ordersCompleted: "25",
-    conversionRate: "25%",
+    registeredUsers: "1234.9",
+    monthlyActiveUsers: "456.7",
+    ordersCompleted: "25.4",
+    conversionRate: "25.9",
     averageOrderValue: "250.456",
   } as any);
-
-  queryClient.setQueryData(["/api/abandoned-carts"], [
-    {
-      sessionId: "session-123",
-      items: "2",
-      totalValue: "98.765",
-      lastActivity: nowIso,
-    },
-  ] as any);
 
   render(
     <QueryClientProvider client={queryClient}>
@@ -138,7 +120,7 @@ describe("Admin analytics tab", () => {
     global.fetch = originalFetch;
   });
 
-  it("renders monetary metrics when API responses are numeric strings", async () => {
+  it("renders analytics dashboard controls and metrics when API responses are numeric strings", async () => {
     useAdminAuthMock.mockReturnValue({
       isAuthenticated: true,
       isLoading: false,
@@ -152,16 +134,36 @@ describe("Admin analytics tab", () => {
     const analyticsTab = await screen.findByTestId("nav-analytics");
     await user.click(analyticsTab);
 
+    const registeredUsersTile = screen.getByTestId("tile-registered-users");
+    expect(registeredUsersTile).toHaveTextContent("1,234");
+    expect(registeredUsersTile).toHaveTextContent("MAU last month · 456");
+
+    const ordersCompletedTile = screen.getByTestId("tile-orders-completed");
+    expect(ordersCompletedTile).toHaveTextContent("25");
+
+    const conversionRateTile = screen.getByTestId("tile-conversion-rate");
+    expect(conversionRateTile).toHaveTextContent("25%");
+
+    const avgOrderTile = screen.getByTestId("tile-avg-order-value");
+    expect(avgOrderTile).toHaveTextContent("₹250");
+
+    const timeRangeSelect = screen.getByLabelText(/Time range/i);
+    expect(timeRangeSelect).toHaveValue("this_month");
+
+    const aggregateDayButton = screen.getByRole("button", { name: "D" });
+    expect(aggregateDayButton).toHaveAttribute("aria-pressed", "true");
+
+    const salesToggle = screen.getByLabelText("Sales");
+    expect(salesToggle).toBeChecked();
+
+    const ordersToggle = screen.getByLabelText("Orders");
+    expect(ordersToggle).not.toBeChecked();
+
+    const splittingToggle = screen.getByLabelText("Apply splitting");
+    expect(splittingToggle).not.toBeChecked();
+
     const popularProductRow = await screen.findByTestId("popular-product-0");
-    expect(popularProductRow).toHaveTextContent("₹1234.50");
-
-    const salesTrendRow = await screen.findByTestId("sales-trend-0");
-    expect(salesTrendRow).toHaveTextContent("₹4321.80");
-
-    const abandonedCartRow = await screen.findByTestId("abandoned-cart-0");
-    expect(abandonedCartRow).toHaveTextContent("₹98.77");
-
-    expect(screen.getByTestId("stat-avg-order-value")).toHaveTextContent("₹250.46");
+    expect(popularProductRow).toHaveTextContent("₹1,234");
   });
 });
 

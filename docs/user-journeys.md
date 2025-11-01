@@ -111,7 +111,9 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - `/api/admin/orders` in `server/routes/admin.ts`, backed by `ordersRepository`.
    - `/api/orders` listings still require an admin session, while influencers automatically receive only orders that used their coupons and buyers can retrieve individual orders they own for checkout recovery.
    - `/api/analytics` in `server/routes/analytics.ts`.
-   - Returned datasets and dashboards unchanged.
+   - Conversion metrics now include registered user totals, monthly active users, last month's completed orders, conversion rate, and average order value to power the refreshed dashboard tiles.
+   - Analytics dashboard tiles now highlight registered users vs. last month's MAU, last month's completed orders, conversion rate, and average order value with integer rounding and comma separators while removing the abandoned-cart rollup from the page.
+   - The sales trends card now renders a lightweight two-column `SalesTrendsCard` component: the left rail exposes the time range dropdown (week through year) and the data toggles for **Sales** and **Orders**, while the right rail houses the dual-axis Recharts plot with aggregation buttons (**D/W/M/Q**) that auto-adjust to the active range (daily disabled for yearly windows). Enabling the splitting control lets admins spotlight the top/bottom N products for the single active metric with clustered bars that can be toggled from the legend without dismounting the series, and the cumulative line hides automatically so only the product bars remain. The popular products list still highlights the top three performers.
 
 5. **Settings**
    - `/api/admin/settings` in `server/routes/admin.ts`, backed by `settingsRepository`.

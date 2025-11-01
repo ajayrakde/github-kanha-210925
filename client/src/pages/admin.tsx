@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,7 +16,8 @@ import SettingsManagement from "@/components/admin/settings-management";
 import ShippingRulesManagement from "@/components/admin/shipping-rules-management";
 import PaymentProvidersManagement from "@/components/admin/payment-providers-management";
 import type { Product, Offer } from "@shared/schema";
-import type { AbandonedCart, PopularProduct, SalesTrend, ConversionMetrics } from "@/lib/types";
+import type { PopularProduct, ConversionMetrics } from "@/lib/types";
+import SalesTrendsCard from "@/components/admin/sales-trends-card";
 
 function toNumeric(value: unknown): number | null {
   if (typeof value === "number") {
@@ -41,6 +42,46 @@ function formatCurrency(value: unknown): string {
   return numeric !== null ? numeric.toFixed(2) : "0.00";
 }
 
+function toRoundedInteger(value: unknown): number {
+  const numeric = toNumeric(value);
+  if (numeric === null) {
+    return 0;
+  }
+
+  return Math.trunc(numeric);
+}
+
+function formatInteger(value: unknown): string {
+  return toRoundedInteger(value).toLocaleString("en-US");
+}
+
+function formatCurrencyInteger(value: unknown): string {
+  return formatInteger(value);
+}
+
+function formatPercentage(value: unknown): string {
+  return `${toRoundedInteger(value)}%`;
+}
+
+interface TileProps {
+  title: string;
+  big: string;
+  sub: string;
+  bg: string;
+}
+
+function Tile({ title, big, sub, bg }: TileProps) {
+  const testId = `tile-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`;
+
+  return (
+    <div className={cn("rounded-xl border p-4 shadow-sm", bg)} data-testid={testId}>
+      <div className="text-sm font-medium text-gray-600">{title}</div>
+      <div className="mt-2 text-3xl font-semibold text-current">{big}</div>
+      {sub ? <div className="mt-1 text-xs text-gray-500">{sub}</div> : null}
+    </div>
+  );
+}
+
 type TabValue = 'products' | 'orders' | 'offers' | 'users' | 'analytics' | 'shipping' | 'payments' | 'settings';
 
 interface OrderStats {
@@ -50,141 +91,125 @@ interface OrderStats {
   cancelledOrders: number;
 }
 
-function AnalyticsTab({ abandonedCarts }: { abandonedCarts: AbandonedCart[] }) {
+function AnalyticsTab() {
   const { data: popularProducts = [] } = useQuery<PopularProduct[]>({
     queryKey: ['/api/analytics/popular-products'],
   });
 
-  const { data: salesTrends = [] } = useQuery<SalesTrend[]>({
-    queryKey: ['/api/analytics/sales-trends'],
-  });
-
-  const { data: conversionMetrics = { totalSessions: '0', ordersCompleted: '0', conversionRate: '0%', averageOrderValue: '0' } } = useQuery<ConversionMetrics>({
+  const { data: conversionMetricsData } = useQuery<ConversionMetrics>({
     queryKey: ['/api/analytics/conversion-metrics'],
   });
+
+  const conversionMetrics = conversionMetricsData ?? {
+    registeredUsers: 0,
+    monthlyActiveUsers: 0,
+    ordersCompleted: 0,
+    conversionRate: 0,
+    averageOrderValue: 0,
+  };
+
+  const registeredUsers = formatInteger(conversionMetrics.registeredUsers);
+  const monthlyActiveUsers = formatInteger(conversionMetrics.monthlyActiveUsers);
+  const ordersCompleted = formatInteger(conversionMetrics.ordersCompleted);
+  const conversionRate = formatPercentage(conversionMetrics.conversionRate);
+  const averageOrderValue = `₹${formatCurrencyInteger(conversionMetrics.averageOrderValue)}`;
+
+  const topProducts = useMemo(() => {
+    const seen = new Set<string>();
+    return popularProducts
+      .map((product, index) => {
+        const popularProduct = product as PopularProduct & {
+          name?: string;
+          orderCount?: unknown;
+          totalRevenue?: unknown;
+          productId?: string;
+        };
+
+        const productId =
+          popularProduct.product?.id || popularProduct.productId || `popular-${index}`;
+        if (!productId || seen.has(productId)) {
+          return null;
+        }
+        seen.add(productId);
+
+        const name = popularProduct.product?.name ?? popularProduct.name ?? "Unknown Product";
+        const orderCount = formatInteger(popularProduct.orderCount ?? 0);
+        const revenue = formatCurrencyInteger(popularProduct.totalRevenue ?? 0);
+
+        return {
+          id: productId,
+          name,
+          orderCount,
+          revenue,
+        };
+      })
+      .filter(Boolean)
+      .slice(0, 3) as Array<{ id: string; name: string; orderCount: string; revenue: string }>;
+  }, [popularProducts]);
 
   return (
     <div className="space-y-6">
       <h3 className="text-lg font-semibold text-gray-900">Analytics Dashboard</h3>
-      
-      {/* Key Metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
-          <div className="text-xl lg:text-2xl font-bold text-blue-600" data-testid="stat-total-sessions">{conversionMetrics.totalSessions}</div>
-          <div className="text-xs lg:text-sm text-gray-600">Total Sessions</div>
-        </div>
-        <div className="bg-green-50 p-3 rounded-lg border border-green-100">
-          <div className="text-xl lg:text-2xl font-bold text-green-600" data-testid="stat-orders-completed">{conversionMetrics.ordersCompleted}</div>
-          <div className="text-xs lg:text-sm text-gray-600">Orders Completed</div>
-        </div>
-        <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
-          <div className="text-xl lg:text-2xl font-bold text-purple-600" data-testid="stat-conversion-rate">{conversionMetrics.conversionRate}</div>
-          <div className="text-xs lg:text-sm text-gray-600">Conversion Rate</div>
-        </div>
-        <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-100">
-          <div className="text-xl lg:text-2xl font-bold text-yellow-600" data-testid="stat-avg-order-value">₹{formatCurrency((conversionMetrics as any).averageOrderValue)}</div>
-          <div className="text-xs lg:text-sm text-gray-600">Avg Order Value</div>
-        </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Tile
+          title="Registered Users"
+          big={registeredUsers}
+          sub={`MAU last month · ${monthlyActiveUsers}`}
+          bg="bg-blue-50 border-blue-200 text-blue-700"
+        />
+        <Tile
+          title="Orders Completed"
+          big={ordersCompleted}
+          sub="Last month"
+          bg="bg-green-50 border-green-200 text-green-700"
+        />
+        <Tile
+          title="Conversion Rate"
+          big={conversionRate}
+          sub="Abandoned carts last month"
+          bg="bg-purple-50 border-purple-200 text-purple-700"
+        />
+        <Tile
+          title="Avg Order Value"
+          big={averageOrderValue}
+          sub=""
+          bg="bg-amber-50 border-amber-200 text-amber-700"
+        />
       </div>
 
-      {/* Popular Products */}
-      <div className="bg-white p-4 rounded-lg border">
-        <h4 className="text-md font-semibold text-gray-800 mb-3">Popular Products</h4>
-        {popularProducts.length === 0 ? (
-          <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-            <div className="mx-auto w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mb-3">
-              <i className="fas fa-chart-line text-gray-400 text-xl"></i>
+      <SalesTrendsCard />
+
+      <div className="rounded-lg border bg-white p-4">
+        <h4 className="mb-3 text-md font-semibold text-gray-800">Popular Products</h4>
+        {topProducts.length === 0 ? (
+          <div className="rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 py-8 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-200">
+              <i className="fas fa-chart-line text-xl text-gray-400"></i>
             </div>
-            <div className="text-gray-600 font-medium">No Product Data Available</div>
-            <div className="text-sm text-gray-500 mt-1">Start getting orders to see popular products here</div>
+            <div className="font-medium text-gray-600">No Product Data Available</div>
+            <div className="mt-1 text-sm text-gray-500">
+              Start getting orders to see popular products here
+            </div>
           </div>
         ) : (
           <div className="space-y-2">
-            {popularProducts.slice(0, 5).map((product, index) => (
-              <div key={(product as any).productId || index} className="flex justify-between items-center bg-gray-50 p-2 rounded border" data-testid={`popular-product-${index}`}>
+            {topProducts.map((product, index) => (
+              <div
+                key={product.id}
+                className="flex items-center justify-between rounded border bg-gray-50 p-2"
+                data-testid={`popular-product-${index}`}
+              >
                 <div className="flex items-center">
-                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-sm mr-3">
+                  <div className="mr-3 flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-600">
                     {index + 1}
                   </div>
                   <div>
-                    <div className="font-medium text-sm">{(product as any).name || 'Unknown Product'}</div>
-                    <div className="text-xs text-gray-600">{(product as any).orderCount || 0} orders</div>
+                    <div className="text-sm font-medium text-gray-800">{product.name}</div>
+                    <div className="text-xs text-gray-600">{product.orderCount} orders</div>
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="font-semibold text-green-600 text-sm">₹{formatCurrency((product as any).totalRevenue)}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Sales Trends */}
-      <div className="bg-white p-4 rounded-lg border">
-        <h4 className="text-md font-semibold text-gray-800 mb-3">Sales Trends (Last 7 Days)</h4>
-        {salesTrends.length === 0 ? (
-          <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
-            <div className="mx-auto w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mb-3">
-              <i className="fas fa-chart-bar text-gray-400 text-xl"></i>
-            </div>
-            <div className="text-gray-600 font-medium">No Sales Data Available</div>
-            <div className="text-sm text-gray-500 mt-1">Start making sales to see trends here</div>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {salesTrends.map((trend, index) => (
-              <div key={(trend as any).date || index} className="flex justify-between items-center bg-gray-50 p-2 rounded border" data-testid={`sales-trend-${index}`}>
-                <div className="flex items-center">
-                  <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center text-purple-600 text-xs mr-3">
-                    <i className="fas fa-calendar-alt"></i>
-                  </div>
-                  <div className="font-medium text-sm">{new Date((trend as any).date || new Date()).toLocaleDateString()}</div>
-                </div>
-                <div className="text-right">
-                  <div className="font-semibold text-sm">{(trend as any).orderCount || 0} orders</div>
-                  <div className="text-xs text-green-600">₹{formatCurrency((trend as any).revenue)}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Abandoned Carts */}
-      <div className="bg-white p-4 rounded-lg border">
-        <h4 className="text-md font-semibold text-gray-800 mb-3">Recent Abandoned Carts</h4>
-        {abandonedCarts.length === 0 ? (
-          <div className="text-center py-8 bg-green-50 rounded-lg border-2 border-dashed border-green-200">
-            <div className="mx-auto w-12 h-12 bg-green-200 rounded-full flex items-center justify-center mb-3">
-              <i className="fas fa-check-circle text-green-500 text-xl"></i>
-            </div>
-            <div className="text-green-700 font-medium">Great News!</div>
-            <div className="text-sm text-green-600 mt-1">No abandoned carts - customers are completing purchases!</div>
-          </div>
-        ) : (
-          <div className="space-y-2 max-h-60 overflow-y-auto">
-            {abandonedCarts.slice(0, 10).map((cart, index) => (
-              <div key={cart.sessionId} className="bg-amber-50 p-2 rounded border border-amber-200" data-testid={`abandoned-cart-${index}`}>
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 bg-amber-200 rounded-full flex items-center justify-center text-amber-700 text-xs mr-3">
-                      <i className="fas fa-shopping-cart"></i>
-                    </div>
-                    <div>
-                      <div className="font-medium text-sm">Session: {cart.sessionId.slice(0, 8)}...</div>
-                      <div className="text-xs text-gray-600">{cart.items} items • ₹{formatCurrency(cart.totalValue)}</div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-gray-500">
-                      {new Date(cart.lastActivity).toLocaleDateString()}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {new Date(cart.lastActivity).toLocaleTimeString()}
-                    </div>
-                  </div>
-                </div>
+                <div className="text-right text-sm font-semibold text-green-600">₹{product.revenue}</div>
               </div>
             ))}
           </div>
@@ -206,12 +231,6 @@ export default function Admin() {
   // Order statistics
   const { data: stats = { totalOrders: 0, revenue: 0, pendingOrders: 0, cancelledOrders: 0 } } = useQuery<OrderStats>({
     queryKey: ['/api/admin/stats'],
-    enabled: isAuthenticated,
-  });
-
-  // Abandoned cart analytics
-  const { data: abandonedCarts = [] } = useQuery<AbandonedCart[]>({
-    queryKey: ['/api/abandoned-carts'],
     enabled: isAuthenticated,
   });
 
@@ -480,7 +499,7 @@ export default function Admin() {
             <TabsContent value="analytics" className="h-full">
               <div className="h-full flex flex-col bg-gray-50">
                 <div className="flex-1 overflow-y-auto p-4">
-                  <AnalyticsTab abandonedCarts={abandonedCarts} />
+                  <AnalyticsTab />
                 </div>
               </div>
             </TabsContent>

@@ -5,6 +5,7 @@ import {
   products,
   offers,
   checkoutIntents,
+  users,
   type Order,
   type InsertOrder,
   type OrderItem,
@@ -18,10 +19,12 @@ import {
 } from "@shared/schema";
 import type { AbandonedCart } from "@/lib/types";
 import { db } from "../db";
-import { eq, and, desc, sql, gte, lt, inArray, gt } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lt, inArray, gt, or } from "drizzle-orm";
 
 export const MIN_CART_ITEM_QUANTITY = 1;
 export const MAX_CART_ITEM_QUANTITY = 10;
+
+const CONFIRMED_ORDER_STATUSES = ["confirmed", "processing", "shipped", "delivered"];
 
 export class CartQuantityError extends Error {
   constructor(message: string) {
@@ -469,28 +472,64 @@ export class OrdersRepository {
   }
 
   async getConversionMetrics(): Promise<{
-    totalSessions: number;
+    registeredUsers: number;
+    monthlyActiveUsers: number;
     ordersCompleted: number;
     conversionRate: number;
+    averageOrderValue: number;
   }> {
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    const lastMonthOrdersWhere = and(
+      gte(orders.createdAt, lastMonthStart),
+      lt(orders.createdAt, currentMonthStart),
+      or(inArray(orders.status, CONFIRMED_ORDER_STATUSES), eq(orders.paymentStatus, "paid")),
+    );
+
+    const [{ registeredUsers } = { registeredUsers: 0 }] = await db
+      .select({
+        registeredUsers: sql<number>`count(${users.id})`,
+      })
+      .from(users);
+
+    const [{ monthlyActiveUsers } = { monthlyActiveUsers: 0 }] = await db
+      .select({
+        monthlyActiveUsers: sql<number>`count(distinct ${orders.userId})`,
+      })
+      .from(orders)
+      .where(lastMonthOrdersWhere);
+
+    const [{ ordersCompleted, totalRevenue } = { ordersCompleted: 0, totalRevenue: 0 }] = await db
+      .select({
+        ordersCompleted: sql<number>`count(${orders.id})`,
+        totalRevenue: sql<number>`coalesce(sum(cast(${orders.total} as decimal)), 0)`,
+      })
+      .from(orders)
+      .where(lastMonthOrdersWhere);
+
     const [{ totalSessions } = { totalSessions: 0 }] = await db
       .select({
         totalSessions: sql<number>`count(distinct ${cartItems.sessionId})`,
       })
-      .from(cartItems);
+      .from(cartItems)
+      .where(
+        and(
+          gte(cartItems.updatedAt, lastMonthStart),
+          lt(cartItems.updatedAt, currentMonthStart),
+        ),
+      );
 
-    const [{ ordersCompleted } = { ordersCompleted: 0 }] = await db
-      .select({
-        ordersCompleted: sql<number>`count(${orders.id})`,
-      })
-      .from(orders);
-
+    const averageOrderValue = ordersCompleted > 0 ? totalRevenue / ordersCompleted : 0;
     const conversionRate = totalSessions > 0 ? (ordersCompleted / totalSessions) * 100 : 0;
 
     return {
-      totalSessions: totalSessions || 0,
-      ordersCompleted: ordersCompleted || 0,
+      registeredUsers,
+      monthlyActiveUsers,
+      ordersCompleted,
       conversionRate,
+      averageOrderValue,
     };
   }
 
