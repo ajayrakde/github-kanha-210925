@@ -992,32 +992,6 @@ export default function Checkout() {
                 )}
               </div>
 
-              {/* Payment Method */}
-              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-                <h3 className="font-semibold text-gray-900 mb-2 sm:mb-4 flex items-center">
-                  <i className="fas fa-credit-card text-blue-600 mr-2"></i>
-                  Payment Method
-                </h3>
-                <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <div className="flex items-center space-x-3 p-4 border border-gray-300 rounded-lg">
-                    <RadioGroupItem value="upi" id="upi" />
-                    <Label htmlFor="upi" className="flex items-center cursor-pointer">
-                      <i className="fas fa-mobile-alt text-green-600 mr-2"></i>
-                      <span className="font-medium">UPI Payment</span>
-                      <span className="ml-2 text-sm text-gray-500">(Recommended)</span>
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-3 p-4 border border-gray-300 rounded-lg opacity-50">
-                    <RadioGroupItem value="cod" id="cod" disabled />
-                    <Label htmlFor="cod" className="flex items-center">
-                      <i className="fas fa-credit-card text-gray-400 mr-2"></i>
-                      <span className="font-medium">Card/Netbanking</span>
-                      <span className="ml-2 text-sm text-gray-500">(Coming Soon)</span>
-                    </Label>
-                  </div>
-                </RadioGroup>
-              </div>
-
             </>
           )}
         </div>
