@@ -98,7 +98,7 @@ export default function Payment() {
   const [location, setLocation] = useLocation();
   const [orderData, setOrderData] = useState<OrderData | null>(null);
   const [orderId, setOrderId] = useState<string>("");
-  const [paymentStatus, setPaymentStatus] = useState<'pending' | 'processing' | 'completed' | 'failed'>('pending');
+  const [paymentStatus, setPaymentStatus] = useState<'pending' | 'initiating' | 'processing' | 'completed' | 'failed'>('pending');
   const [instrumentPreference, setInstrumentPreference] = useState<PhonePeInstrumentPreference>("UPI_INTENT");
   const [cashfreePaymentSessionId, setCashfreePaymentSessionId] = useState<string | null>(null);
   const [upiId, setUpiId] = useState<string>('');
@@ -165,6 +165,9 @@ export default function Payment() {
       setIsActionLocked(false);
     }
   }, [paymentStatus]);
+
+  // Disable buttons and inputs during initiating and processing
+  const isPaymentInProgress = paymentStatus === 'initiating' || paymentStatus === 'processing';
 
   // Animate progress bar when payment is processing
   useEffect(() => {
@@ -725,16 +728,17 @@ export default function Payment() {
   // Handle retry payment
   const handleRetryPayment = () => {
     if (isActionLocked) return;
-    setPaymentStatus('pending');
     setWidgetStatusWithSkip('awaiting');
     latestPaymentIdRef.current = null;
     clearStatusPolling();
     if (isCashfree) {
       // For Cashfree, don't set lock as user still needs to choose payment method after retry
+      setPaymentStatus('pending');
       createCashfreePaymentMutation.mutate();
     } else {
-      // For PhonePe, set lock as we're calling the mutation
+      // For PhonePe, set lock and initiating status to show instant feedback
       setIsActionLocked(true);
+      setPaymentStatus('initiating');
       createPaymentMutation.mutate();
     }
   };
@@ -752,6 +756,7 @@ export default function Payment() {
       } else {
         // For PhonePe, set lock as we're about to call a mutation
         setIsActionLocked(true);
+        setPaymentStatus('initiating');
         latestPaymentIdRef.current = null;
         clearStatusPolling();
         setWidgetStatusWithSkip('awaiting');
@@ -1159,7 +1164,7 @@ export default function Payment() {
                   isActionLocked ||
                   createPaymentMutation.isPending || 
                   createCashfreePaymentMutation.isPending || 
-                  paymentStatus === 'processing'
+                  isPaymentInProgress
                 }
               />
 
@@ -1180,7 +1185,7 @@ export default function Payment() {
                         initiateUPIPaymentMutation.isPending || 
                         createPaymentMutation.isPending || 
                         createCashfreePaymentMutation.isPending || 
-                        paymentStatus === 'processing'
+                        isPaymentInProgress
                       }
                       data-testid="input-upi-id"
                       className="w-full"
@@ -1191,6 +1196,7 @@ export default function Payment() {
                     onClick={() => {
                       if (isActionLocked) return;
                       setIsActionLocked(true);
+                      setPaymentStatus('initiating');
                       handleWidgetCollectTriggered();
                       initiateUPIPaymentMutation.mutate();
                     }}
@@ -1200,7 +1206,7 @@ export default function Payment() {
                       initiateUPIPaymentMutation.isPending || 
                       createPaymentMutation.isPending || 
                       createCashfreePaymentMutation.isPending || 
-                      paymentStatus === 'processing'
+                      isPaymentInProgress
                     }
                     size="lg"
                     className="w-full"
@@ -1333,33 +1339,45 @@ export default function Payment() {
       </div>
     </div>
 
-    {/* Processing Payment Modal */}
-    <Dialog open={paymentStatus === 'processing'} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-md [&>button]:hidden" data-testid="processing-modal">
+    {/* Payment Status Modal */}
+    <Dialog open={paymentStatus === 'initiating' || paymentStatus === 'processing'} onOpenChange={() => {}}>
+      <DialogContent className="sm:max-w-md [&>button]:hidden" data-testid="payment-status-modal">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-            <span>Processing Payment</span>
+            <span>{paymentStatus === 'initiating' ? 'Initiating Payment' : 'Processing Payment'}</span>
           </DialogTitle>
           <DialogDescription>
-            Waiting for confirmation from your UPI provider
+            {paymentStatus === 'initiating' 
+              ? 'Please wait while we set up your payment...' 
+              : 'Waiting for confirmation from your UPI provider'}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Progress 
-              value={processingProgress} 
-              className="h-3 bg-blue-100"
-              data-testid="payment-progress-bar"
-            />
-            <div className="flex justify-between items-center text-sm">
-              <span className="text-muted-foreground">Please wait...</span>
-              <span className="font-medium text-blue-600">{Math.round(processingProgress)}%</span>
+          {paymentStatus === 'processing' && (
+            <div className="space-y-2">
+              <Progress 
+                value={processingProgress} 
+                className="h-3 bg-blue-100"
+                data-testid="payment-progress-bar"
+              />
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-muted-foreground">Please wait...</span>
+                <span className="font-medium text-blue-600">{Math.round(processingProgress)}%</span>
+              </div>
             </div>
-          </div>
+          )}
+          {paymentStatus === 'initiating' && (
+            <div className="flex items-center justify-center py-4">
+              <div className="flex flex-col items-center gap-2">
+                <div className="h-12 w-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin"></div>
+                <p className="text-sm text-muted-foreground">Setting up your payment...</p>
+              </div>
+            </div>
+          )}
           <div className="rounded-lg bg-blue-50 border border-blue-200 p-4">
             <p className="text-sm text-blue-900">
-              <strong>Do not close this window</strong> or refresh the page while the payment is being processed.
+              <strong>Do not close this window</strong> or refresh the page while the payment is being {paymentStatus === 'initiating' ? 'set up' : 'processed'}.
             </p>
           </div>
         </div>
