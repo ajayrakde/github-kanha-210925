@@ -111,6 +111,69 @@ export type PaymentStatus = 'created' | 'initiated' | 'processing' | 'authorized
 export type RefundStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
 export type PaymentMethod = 'card' | 'upi' | 'netbanking' | 'wallet' | 'emi' | 'paylater' | 'qr';
 
+export interface BasePaymentInstrumentResponse {
+  type?: string;
+  redirectInfo?: { url?: string; method?: string } | null;
+  intentUrl?: string;
+  qrData?: string;
+  qrString?: string;
+  qrPayload?: string;
+  qrCode?: string;
+  qrExpiresAt?: string | number | Date;
+  qrExpiry?: string | number | Date;
+  expiresAt?: string | number | Date;
+  expireAt?: string | number | Date;
+  expiry?: string | number | Date;
+  expiryTime?: string | number | Date;
+  expireAfter?: number | string;
+  validUntil?: string | number | Date;
+  validUpto?: string | number | Date;
+  merchantVpa?: string;
+  merchantName?: string;
+  note?: string;
+  amount?: string | number;
+}
+
+export type PaymentInstrumentResponse = BasePaymentInstrumentResponse & Record<string, unknown>;
+
+export interface BasePaymentProviderData {
+  merchantTransactionId?: string;
+  transactionId?: string;
+  providerTransactionId?: string;
+  providerReferenceId?: string;
+  state?: string;
+  responseCode?: string;
+  utr?: string;
+  upiUtr?: string;
+  payerVpa?: string;
+  upiPayerHandle?: string;
+  expireAfterSeconds?: number | string;
+  expireAfter?: number | string;
+  tokenUrl?: string;
+  upiUrl?: string;
+  upiUrlRaw?: string;
+  upiUrlCanonical?: string;
+  upiUrlEncodedQuery?: string;
+  upiAmount?: string;
+  upiAmountNormalized?: string;
+  upiNote?: string;
+  upiNoteNormalized?: string;
+  qrData?: string;
+  qrString?: string;
+  qrPayload?: string;
+  qrExpiresAt?: string;
+  qrExpiresAtNormalized?: string;
+  merchantVpa?: string;
+  merchantVpaNormalized?: string;
+  merchantName?: string;
+  merchantNameNormalized?: string;
+  instrumentResponse?: PaymentInstrumentResponse | null;
+  paymentInstrument?: Record<string, unknown> | null;
+  data?: Record<string, unknown> | null;
+}
+
+export type PaymentProviderData = BasePaymentProviderData & Record<string, unknown>;
+
 /**
  * Parameters for creating a payment
  */
@@ -199,7 +262,7 @@ export interface PaymentResult {
   qrCodeData?: string;
   
   // Provider-specific response data
-  providerData?: Record<string, any>;
+  providerData?: PaymentProviderData;
   
   // Error information (if failed)
   error?: {
@@ -219,7 +282,7 @@ export interface PaymentResult {
 export interface VerifyPaymentParams {
   paymentId: string;
   providerPaymentId?: string;
-  providerData?: Record<string, any>; // Callback/webhook data
+  providerData?: PaymentProviderData; // Callback/webhook data
 }
 
 /**
@@ -272,7 +335,7 @@ export interface RefundResult {
   notes?: string;
   
   // Provider-specific response data
-  providerData?: Record<string, any>;
+  providerData?: PaymentProviderData;
 
   // UPI identifiers
   upiUtr?: string;
@@ -324,7 +387,7 @@ export interface WebhookVerifyResult {
   };
   
   // Provider-specific data
-  providerData?: Record<string, any>;
+  providerData?: PaymentProviderData;
 }
 
 /**
