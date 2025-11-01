@@ -564,10 +564,6 @@ export default function Payment() {
       latestPaymentIdRef.current = data.paymentId;
       setPaymentStatus('processing');
       setWidgetStatusWithSkip('awaiting', { skipPollingClear: true });
-      toast({
-        title: "Payment Initiated",
-        description: "Please check your UPI app to approve the payment request.",
-      });
 
       // Set pending advance - useEffect will handle it after initialization
       pendingAdvanceToStepRef.current = 1;
@@ -754,17 +750,13 @@ export default function Payment() {
         setCurrentStep(2);
         setStepProgress(100);
         
-        toast({
-          title: "Payment Successful",
-          description: "Your payment has been completed successfully!",
-        });
         clearCart.mutate();
         
-        // Wait 1 second to show the completed step animation before redirecting
+        // Wait 2.5 seconds to show the completed step animation before redirecting
         setTimeout(() => {
           const thankYouPath = orderId ? `/thank-you?orderId=${orderId}` : '/thank-you';
           setLocation(thankYouPath);
-        }, 1000);
+        }, 2500);
         return;
       }
 
@@ -1328,12 +1320,6 @@ export default function Payment() {
               ) : null}
 
 
-              {paymentStatus === 'completed' ? (
-                <div className="flex items-center gap-3 rounded-lg border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-900">
-                  <CreditCard className="h-4 w-4" />
-                  <span>Payment successful! Redirecting you to the thank-you page.</span>
-                </div>
-              ) : null}
 
               {paymentStatus === 'failed' ? (
                 <div className="space-y-3 rounded-lg border border-red-100 bg-red-50 p-4">
@@ -1455,13 +1441,39 @@ export default function Payment() {
         </DialogHeader>
         <div className="space-y-6">
           {(paymentStatus === 'processing' || paymentStatus === 'completed' || paymentStatus === 'failed') && (
-            <Steps 
-              steps={paymentSteps} 
-              currentStep={currentStep}
-              stepProgress={stepProgress}
-              status={finalStatus}
-              className="px-4"
-            />
+            <>
+              <Steps 
+                steps={paymentSteps} 
+                currentStep={currentStep}
+                stepProgress={stepProgress}
+                status={finalStatus}
+                className="px-4"
+              />
+              
+              {paymentStatus === 'completed' && (
+                <div className="flex items-center justify-center gap-3 rounded-lg border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-950 p-4 text-emerald-900 dark:text-emerald-100 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500">
+                    <CreditCard className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">Payment Successful!</p>
+                    <p className="text-sm text-emerald-700 dark:text-emerald-300">Your order has been confirmed</p>
+                  </div>
+                </div>
+              )}
+              
+              {paymentStatus === 'failed' && (
+                <div className="flex items-center justify-center gap-3 rounded-lg border-2 border-red-500 bg-red-50 dark:bg-red-950 p-4 text-red-900 dark:text-red-100 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500">
+                    <AlertCircle className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-semibold">Payment Failed</p>
+                    <p className="text-sm text-red-700 dark:text-red-300">Please try again or choose another method</p>
+                  </div>
+                </div>
+              )}
+            </>
           )}
           {paymentStatus === 'initiating' && (
             <div className="flex items-center justify-center py-4">
