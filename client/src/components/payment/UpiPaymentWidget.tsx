@@ -121,7 +121,7 @@ export interface UpiPaymentWidgetProps {
   }
   metadata?: MerchantMetadataItem[]
   transactionReference: string
-  note?: string
+  note?: ReactNode
   helperNotes?: HelperNote[]
   timer?: UpiPaymentTimer
   /** Optional custom label for the call-to-action button. */
@@ -155,6 +155,8 @@ export interface UpiPaymentWidgetProps {
     shortLabel: string
     accentClass?: string
   }[]
+  ctaTestId?: string
+  onCollectTriggered?: () => void
 }
 
 function formatSeconds(seconds: number) {
@@ -185,6 +187,7 @@ export function UpiPaymentWidget({
   onCopyTransactionReference,
   copyFeedbackDuration = COPY_FEEDBACK_DURATION,
   apps = APP_TILES,
+  ctaTestId,
 }: UpiPaymentWidgetProps) {
   const isControlled = mode !== undefined
   const getResponsiveDefault = () => {
@@ -475,8 +478,9 @@ export function UpiPaymentWidget({
         <Button
           type="button"
           disabled={ctaDisabled}
-          onClick={() => onCtaClick?.(currentMode)}
           aria-label={ctaLabel}
+          data-testid={ctaTestId}
+          onClick={() => onCtaClick?.(currentMode)}
         >
           {ctaLabel}
         </Button>
