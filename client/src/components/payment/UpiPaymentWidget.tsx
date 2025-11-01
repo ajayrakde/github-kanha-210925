@@ -349,16 +349,16 @@ export function UpiPaymentWidget({
           </TabsContent>
           <TabsContent value="qr" className="mt-4">
             <section className="flex flex-col items-center">
-              <div className="flex w-full flex-col items-center gap-2 rounded-lg border bg-muted/40 p-4">
+              <div className="flex w-full flex-col items-center gap-1 rounded-lg border bg-muted/40 p-3">
                 {qrDataUrl ? (
                   <img
                     src={qrDataUrl}
                     alt="QR code for completing the UPI payment"
-                    className="h-40 w-40 rounded-md border bg-white object-cover"
+                    className="h-28 w-28 rounded-md border bg-white object-cover"
                   />
                 ) : (
                   <div
-                    className="flex h-40 w-40 items-center justify-center rounded-md border border-dashed text-center text-xs text-muted-foreground"
+                    className="flex h-28 w-28 items-center justify-center rounded-md border border-dashed text-center text-xs text-muted-foreground"
                     role="img"
                     aria-label="QR code placeholder"
                   >
