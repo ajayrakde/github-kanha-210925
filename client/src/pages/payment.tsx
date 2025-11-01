@@ -107,6 +107,7 @@ export default function Payment() {
   const [isActionLocked, setIsActionLocked] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [stepProgress, setStepProgress] = useState(0);
+  const [finalStatus, setFinalStatus] = useState<'success' | 'failure' | null>(null);
   const { toast} = useToast();
   const { clearCart } = useCart();
   const checkoutLoaderRef = useRef<Promise<PhonePeCheckoutInstance> | null>(null);
@@ -264,10 +265,19 @@ export default function Payment() {
         clearStepAdvance();
       };
     } else if (paymentStatus === 'completed') {
-      // Jump to final step with 100% progress
+      // Jump to final step with 100% progress and show success
       clearStepAdvance();
       setCurrentStep(2);
       setStepProgress(100);
+      setFinalStatus('success');
+      processingInitializedRef.current = false;
+      pendingAdvanceToStepRef.current = null;
+    } else if (paymentStatus === 'failed') {
+      // Jump to final step with 100% progress and show failure
+      clearStepAdvance();
+      setCurrentStep(2);
+      setStepProgress(100);
+      setFinalStatus('failure');
       processingInitializedRef.current = false;
       pendingAdvanceToStepRef.current = null;
     } else if (paymentStatus !== 'processing') {
@@ -275,6 +285,7 @@ export default function Payment() {
       clearStepAdvance();
       setCurrentStep(0);
       setStepProgress(0);
+      setFinalStatus(null);
       processingInitializedRef.current = false;
       pendingAdvanceToStepRef.current = null;
     }
@@ -749,11 +760,11 @@ export default function Payment() {
         });
         clearCart.mutate();
         
-        // Wait briefly to show the completed step animation before redirecting
+        // Wait 1 second to show the completed step animation before redirecting
         setTimeout(() => {
           const thankYouPath = orderId ? `/thank-you?orderId=${orderId}` : '/thank-you';
           setLocation(thankYouPath);
-        }, 800);
+        }, 1000);
         return;
       }
 
@@ -1443,11 +1454,12 @@ export default function Payment() {
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-6">
-          {paymentStatus === 'processing' && (
+          {(paymentStatus === 'processing' || paymentStatus === 'completed' || paymentStatus === 'failed') && (
             <Steps 
               steps={paymentSteps} 
               currentStep={currentStep}
               stepProgress={stepProgress}
+              status={finalStatus}
               className="px-4"
             />
           )}

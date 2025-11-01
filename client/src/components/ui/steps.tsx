@@ -1,4 +1,4 @@
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Step {
@@ -10,10 +10,11 @@ interface StepsProps {
   steps: Step[];
   currentStep: number;
   stepProgress?: number;
+  status?: 'success' | 'failure' | null;
   className?: string;
 }
 
-export function Steps({ steps, currentStep, stepProgress = 0, className }: StepsProps) {
+export function Steps({ steps, currentStep, stepProgress = 0, status = null, className }: StepsProps) {
   return (
     <div className={cn("w-full", className)}>
       <div className="flex items-center justify-between">
@@ -21,6 +22,8 @@ export function Steps({ steps, currentStep, stepProgress = 0, className }: Steps
           const isCompleted = index < currentStep;
           const isCurrent = index === currentStep;
           const isUpcoming = index > currentStep;
+          const isFinalStep = index === steps.length - 1;
+          const showFinalStatus = isFinalStep && isCurrent && status !== null;
 
           // Connector line progress: show gradual 0→85% animation for current step
           const connectorProgress = isCurrent ? stepProgress : (isCompleted ? 100 : 0);
@@ -32,13 +35,21 @@ export function Steps({ steps, currentStep, stepProgress = 0, className }: Steps
                 <div
                   className={cn(
                     "relative flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all duration-300",
-                    isCompleted && "border-green-600 bg-green-600 text-white",
-                    isCurrent && "border-blue-600 bg-blue-600 text-white shadow-lg scale-110",
-                    isUpcoming && "border-gray-300 bg-white text-gray-400"
+                    showFinalStatus && status === 'success' && "border-green-600 bg-green-600 text-white",
+                    showFinalStatus && status === 'failure' && "border-red-600 bg-red-600 text-white",
+                    !showFinalStatus && isCompleted && "border-green-600 bg-green-600 text-white",
+                    !showFinalStatus && isCurrent && "border-blue-600 bg-blue-600 text-white shadow-lg scale-110",
+                    !showFinalStatus && isUpcoming && "border-gray-300 bg-white text-gray-400"
                   )}
                   data-testid={`step-${index}`}
                 >
-                  {isCompleted ? (
+                  {showFinalStatus ? (
+                    status === 'success' ? (
+                      <Check className="h-5 w-5" />
+                    ) : (
+                      <X className="h-5 w-5" />
+                    )
+                  ) : isCompleted ? (
                     <Check className="h-5 w-5" />
                   ) : isCurrent ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
