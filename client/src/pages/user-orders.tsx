@@ -1,9 +1,11 @@
+import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Download, Loader2, Printer } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { downloadElementAsImage, printElementWithStyles } from "@/lib/export-order";
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   cod: "Cash on Delivery",
@@ -72,6 +74,17 @@ const formatMinorAmount = (amount?: number | null) => {
   return (amount / 100).toFixed(2);
 };
 
+const parsePrice = (value?: string | null) => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+};
+
 const getLatestPayment = (payments?: PaymentRecord[]): PaymentRecord | undefined => {
   if (!payments || payments.length === 0) {
     return undefined;
@@ -108,24 +121,76 @@ interface Order {
     updatedAt: string;
   };
   createdAt: string;
-  items?: any[];
+  items?: OrderItem[];
   payments?: PaymentRecord[];
+}
+
+interface OrderItem {
+  id: string;
+  productId: string;
+  quantity: number;
+  price: string;
+  product?: {
+    id: string;
+    name: string;
+    displayImageUrl?: string | null;
+    imageUrl?: string | null;
+  };
 }
 
 export default function UserOrders() {
   const [, setLocation] = useLocation();
-  
+  const orderRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
+  const [savingSnapshotId, setSavingSnapshotId] = useState<string | null>(null);
+
   // Check authentication status first
   const { data: authData } = useQuery<{ authenticated: boolean; user?: any }>({
     queryKey: ["/api/auth/me"],
     retry: false,
   });
-  
+
   const { data: orders, isLoading } = useQuery<Order[]>({
     queryKey: ["/api/auth/orders"],
     enabled: authData?.authenticated || false, // Only run when authenticated
     retry: false,
   });
+
+  const attachOrderRef = (orderId: string) => (element: HTMLDivElement | null) => {
+    if (element) {
+      orderRefs.current.set(orderId, element);
+    } else {
+      orderRefs.current.delete(orderId);
+    }
+  };
+
+  const handlePrintOrder = (orderId: string) => {
+    const element = orderRefs.current.get(orderId);
+    if (!element) {
+      return;
+    }
+
+    try {
+      printElementWithStyles(element, { title: `Order ${orderId.toUpperCase()}` });
+    } catch (error) {
+      console.error('Failed to open print dialog for order summary:', error);
+    }
+  };
+
+  const handleSaveOrder = async (orderId: string) => {
+    const element = orderRefs.current.get(orderId);
+    if (!element) {
+      return;
+    }
+
+    try {
+      setSavingSnapshotId(orderId);
+      await downloadElementAsImage(element, `order-${orderId}.png`);
+    } catch (error) {
+      console.error('Failed to save order snapshot:', error);
+    } finally {
+      setSavingSnapshotId(null);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { color: string; label: string }> = {
@@ -202,15 +267,21 @@ export default function UserOrders() {
         <div className="space-y-4">
           {orders.map(order => {
             const latestPayment = getLatestPayment(order.payments);
+            const orderItems = order.items ?? [];
+            const isSavingSnapshot = savingSnapshotId === order.id;
 
             return (
               <div key={order.id} className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
-                <div className="flex justify-between items-start mb-2 sm:mb-4">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">
-                      Order #{order.id.slice(0, 8).toUpperCase()}
-                    </h3>
-                    <p className="text-sm text-gray-500 mt-1">
+                <div
+                  ref={attachOrderRef(order.id)}
+                  className="space-y-4"
+                >
+                  <div className="flex justify-between items-start mb-2 sm:mb-4">
+                    <div>
+                      <h3 className="font-semibold text-gray-900">
+                        Order #{order.id.slice(0, 8).toUpperCase()}
+                      </h3>
+                      <p className="text-sm text-gray-500 mt-1">
                       {new Date(order.createdAt).toLocaleDateString('en-IN', {
                         year: 'numeric',
                         month: 'long',
@@ -221,105 +292,172 @@ export default function UserOrders() {
                     </p>
                   </div>
                   {getStatusBadge(order.status)}
-                </div>
-
-                <Separator className="mb-2 sm:mb-4" />
-
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Subtotal:</span>
-                    <span>₹{parseFloat(order.subtotal).toFixed(2)}</span>
                   </div>
-                  {parseFloat(order.discountAmount) > 0 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Discount:</span>
-                      <span>-₹{parseFloat(order.discountAmount).toFixed(2)}</span>
+
+                  <Separator className="mb-2 sm:mb-4" />
+
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Subtotal:</span>
+                      <span>₹{parsePrice(order.subtotal).toFixed(2)}</span>
                     </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Shipping:</span>
-                    <span>₹{parseFloat(order.shippingCharge).toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between font-semibold text-base pt-2 border-t">
-                    <span>Total:</span>
-                    <span>₹{parseFloat(order.total).toFixed(2)}</span>
-                  </div>
-                </div>
-
-                <Separator className="my-4" />
-
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-start">
-                    <span className="text-gray-600 mr-2">Delivery Address:</span>
-                    <span className="flex-1">
-                      {order.deliveryAddress.address}, {order.deliveryAddress.city} - {order.deliveryAddress.pincode}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-gray-600">Payment:</span>
-                    <span>{formatPaymentMethod(order.paymentMethod)}</span>
-                    {renderPaymentStatusBadge(order.paymentStatus)}
-                  </div>
-                </div>
-
-                {latestPayment && (
-                  <div className="mt-3 bg-gray-50 rounded-md p-4 text-sm text-gray-600 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span>Gateway Status:</span>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="uppercase tracking-wide text-xs">
-                          {latestPayment.provider}
-                        </Badge>
-                        {renderPaymentStatusBadge(latestPayment.status)}
-                      </div>
-                    </div>
-                    {formatIdentifier(latestPayment.providerPaymentId || latestPayment.providerReferenceId) && (
-                      <div className="flex justify-between">
-                        <span>Merchant Txn ID:</span>
-                        <span className="font-mono text-xs">
-                          {formatIdentifier(latestPayment.providerPaymentId || latestPayment.providerReferenceId)}
-                        </span>
-                      </div>
-                    )}
-                    {latestPayment.providerTransactionId && (
-                      <div className="flex justify-between">
-                        <span>Provider Txn ID:</span>
-                        <span className="font-mono text-xs">{formatIdentifier(latestPayment.providerTransactionId)}</span>
-                      </div>
-                    )}
-                    {latestPayment.upiUtr && (
-                      <div className="flex justify-between">
-                        <span>UTR:</span>
-                        <span className="font-mono text-xs">{latestPayment.upiUtr}</span>
-                      </div>
-                    )}
-                    {latestPayment.upiPayerHandle && (
-                      <div className="flex justify-between">
-                        <span>Payer VPA:</span>
-                        <span className="font-mono text-xs break-all">{latestPayment.upiPayerHandle}</span>
+                    {parsePrice(order.discountAmount) > 0 && (
+                      <div className="flex justify-between text-green-600">
+                        <span>Discount:</span>
+                        <span>-₹{parsePrice(order.discountAmount).toFixed(2)}</span>
                       </div>
                     )}
                     <div className="flex justify-between">
-                      <span>Amount Paid:</span>
-                      <span className="font-medium text-green-600">
-                        ₹{formatMinorAmount(latestPayment.amountCapturedMinor ?? latestPayment.amountAuthorizedMinor ?? 0)}
+                      <span className="text-gray-600">Shipping:</span>
+                      <span>₹{parsePrice(order.shippingCharge).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold text-base pt-2 border-t">
+                      <span>Total:</span>
+                      <span>₹{parsePrice(order.total).toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {orderItems.length > 0 && (
+                    <div className="my-4 space-y-3">
+                      <Separator />
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-900 mb-2">Items</h4>
+                        <div className="space-y-3">
+                          {orderItems.map((item) => {
+                            const unitPrice = parsePrice(item.price);
+                            const lineTotal = unitPrice * item.quantity;
+                            return (
+                              <div
+                                key={item.id}
+                                className="flex items-start justify-between gap-4 rounded-lg border border-gray-100 bg-gray-50 p-3 sm:p-4"
+                              >
+                                <div className="flex items-start gap-3">
+                                  {item.product?.displayImageUrl || item.product?.imageUrl ? (
+                                    <img
+                                      src={item.product.displayImageUrl ?? item.product.imageUrl ?? undefined}
+                                      alt={item.product?.name ?? 'Product image'}
+                                      className="h-12 w-12 rounded-md object-cover border border-gray-200"
+                                    />
+                                  ) : null}
+                                  <div>
+                                    <p className="font-medium text-gray-900">{item.product?.name ?? 'Product'}</p>
+                                    <p className="text-xs text-gray-500 mt-1">Qty: {item.quantity}</p>
+                                    <p className="text-xs text-gray-400">Product ID: {item.productId.slice(0, 8).toUpperCase()}</p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-semibold text-gray-900">₹{lineTotal.toFixed(2)}</p>
+                                  <p className="text-xs text-gray-500">₹{unitPrice.toFixed(2)} each</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <Separator className="my-4" />
+
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-start">
+                      <span className="text-gray-600 mr-2">Delivery Address:</span>
+                      <span className="flex-1">
+                        {order.deliveryAddress.address}, {order.deliveryAddress.city} - {order.deliveryAddress.pincode}
                       </span>
                     </div>
-                    {latestPayment.receiptUrl && (
-                      <div className="flex justify-between items-center">
-                        <span>Receipt:</span>
-                        <a
-                          href={latestPayment.receiptUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-600 hover:underline"
-                        >
-                          View Receipt
-                        </a>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-gray-600">Payment:</span>
+                      <span>{formatPaymentMethod(order.paymentMethod)}</span>
+                      {renderPaymentStatusBadge(order.paymentStatus)}
+                    </div>
                   </div>
-                )}
+
+                  {latestPayment && (
+                    <div className="mt-3 bg-gray-50 rounded-md p-4 text-sm text-gray-600 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span>Gateway Status:</span>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="uppercase tracking-wide text-xs">
+                            {latestPayment.provider}
+                          </Badge>
+                          {renderPaymentStatusBadge(latestPayment.status)}
+                        </div>
+                      </div>
+                      {formatIdentifier(latestPayment.providerPaymentId || latestPayment.providerReferenceId) && (
+                        <div className="flex justify-between">
+                          <span>Merchant Txn ID:</span>
+                          <span className="font-mono text-xs">
+                            {formatIdentifier(latestPayment.providerPaymentId || latestPayment.providerReferenceId)}
+                          </span>
+                        </div>
+                      )}
+                      {latestPayment.providerTransactionId && (
+                        <div className="flex justify-between">
+                          <span>Provider Txn ID:</span>
+                          <span className="font-mono text-xs">{formatIdentifier(latestPayment.providerTransactionId)}</span>
+                        </div>
+                      )}
+                      {latestPayment.upiUtr && (
+                        <div className="flex justify-between">
+                          <span>UTR:</span>
+                          <span className="font-mono text-xs">{latestPayment.upiUtr}</span>
+                        </div>
+                      )}
+                      {latestPayment.upiPayerHandle && (
+                        <div className="flex justify-between">
+                          <span>Payer VPA:</span>
+                          <span className="font-mono text-xs break-all">{latestPayment.upiPayerHandle}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span>Amount Paid:</span>
+                        <span className="font-medium text-green-600">
+                          ₹{formatMinorAmount(latestPayment.amountCapturedMinor ?? latestPayment.amountAuthorizedMinor ?? 0)}
+                        </span>
+                      </div>
+                      {latestPayment.receiptUrl && (
+                        <div className="flex justify-between items-center">
+                          <span>Receipt:</span>
+                          <a
+                            href={latestPayment.receiptUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline"
+                          >
+                            View Receipt
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 flex flex-col sm:flex-row sm:justify-end gap-2 sm:gap-3" data-print-hidden="true">
+                  <Button
+                    variant="outline"
+                    className="sm:w-auto"
+                    onClick={() => handlePrintOrder(order.id)}
+                    data-testid={`button-print-order-${order.id}`}
+                  >
+                    <Printer className="h-4 w-4 mr-2" />
+                    Print Summary
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="sm:w-auto"
+                    onClick={() => handleSaveOrder(order.id)}
+                    disabled={isSavingSnapshot}
+                    data-testid={`button-save-order-${order.id}`}
+                  >
+                    {isSavingSnapshot ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4 mr-2" />
+                    )}
+                    {isSavingSnapshot ? 'Saving…' : 'Save Snapshot'}
+                  </Button>
+                </div>
               </div>
             );
           })}

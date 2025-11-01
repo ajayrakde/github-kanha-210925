@@ -2320,6 +2320,15 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         phone: order.user?.phone || '',
       };
 
+      const orderItems = (order.items ?? []).map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        name: item.product?.name ?? "Product",
+        quantity: item.quantity,
+        price: item.price,
+        imageUrl: item.product?.displayImageUrl ?? item.product?.imageUrl ?? null,
+      }));
+
       res.json({
         order: {
           id: order.id,
@@ -2336,6 +2345,7 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           shippingCharge: order.shippingCharge,
           deliveryAddress: deliveryAddressString,
           userInfo: userInfo,
+          items: orderItems,
           createdAt: order.createdAt instanceof Date ? order.createdAt.toISOString() : order.createdAt,
           updatedAt: order.updatedAt instanceof Date ? order.updatedAt.toISOString() : order.updatedAt,
         },

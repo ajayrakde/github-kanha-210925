@@ -105,6 +105,20 @@ const buildOrderRecord = (overrides: Record<string, any> = {}) => ({
   createdAt: new Date(),
   updatedAt: new Date(),
   payments: [],
+  items: [
+    {
+      id: "item-1",
+      productId: "product-1",
+      quantity: 1,
+      price: "10.00",
+      product: {
+        id: "product-1",
+        name: "Sample Product",
+        displayImageUrl: null,
+        imageUrl: null,
+      },
+    },
+  ],
   user: {},
   deliveryAddress: {},
   ...overrides,
@@ -1141,6 +1155,20 @@ describe("payments router", () => {
       createdAt: new Date("2024-01-01T00:00:00Z"),
       updatedAt: new Date("2024-01-01T00:00:00Z"),
       payments: [] as any[],
+      items: [
+        {
+          id: "item-1",
+          productId: "product-1",
+          quantity: 2,
+          price: "50.00",
+          product: {
+            id: "product-1",
+            name: "Sample Product",
+            displayImageUrl: null,
+            imageUrl: null,
+          },
+        },
+      ],
       user: {},
       deliveryAddress: {},
       offer: { influencerId: "inf-1" },
@@ -1250,6 +1278,16 @@ describe("payments router", () => {
       const res = await invoke({ payments: [] });
 
       expect(res.jsonPayload.order.paymentStatus).toBe("pending");
+      expect(res.jsonPayload.order.items).toEqual([
+        expect.objectContaining({
+          id: "item-1",
+          productId: "product-1",
+          quantity: 2,
+          price: "50.00",
+          name: "Sample Product",
+          imageUrl: null,
+        }),
+      ]);
       expect(res.jsonPayload.payment).toBeNull();
       expect(res.jsonPayload.latestTransaction).toBeUndefined();
       expect(res.jsonPayload.latestTransactionFailed).toBe(false);
