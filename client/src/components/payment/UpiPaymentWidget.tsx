@@ -14,30 +14,35 @@ import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 
+import gpayLogo from "@assets/stock_images/google_pay_gpay_logo_9144d703.jpg"
+import phonepeLogo from "@assets/stock_images/phonepe_logo_eac61617.jpg"
+import paytmLogo from "@assets/stock_images/paytm_logo_506e21bb.jpg"
+import bhimLogo from "@assets/stock_images/bhim_upi_logo_a5b09fc5.jpg"
+
 const APP_TILES = [
   {
     id: "google-pay" as const,
     label: "Google Pay",
     shortLabel: "GPay",
-    accentClass: "bg-[#1a73e8]",
+    logoUrl: gpayLogo,
   },
   {
     id: "phonepe" as const,
     label: "PhonePe",
     shortLabel: "PhonePe",
-    accentClass: "bg-[#5f259f]",
+    logoUrl: phonepeLogo,
   },
   {
     id: "paytm" as const,
     label: "Paytm",
     shortLabel: "Paytm",
-    accentClass: "bg-[#00baf2]",
+    logoUrl: paytmLogo,
   },
   {
     id: "other" as const,
-    label: "Any Other Apps",
+    label: "Other Apps",
     shortLabel: "UPI",
-    accentClass: "bg-gray-700",
+    logoUrl: bhimLogo,
   },
 ]
 
@@ -161,7 +166,7 @@ export interface UpiPaymentWidgetProps {
     id: AppTileId
     label: string
     shortLabel: string
-    accentClass?: string
+    logoUrl?: string
   }[]
   ctaTestId?: string
   onCollectTriggered?: () => void
@@ -319,27 +324,25 @@ export function UpiPaymentWidget({
             </TabsTrigger>
           </TabsList>
           <TabsContent value="intent" className="mt-4">
-            <section aria-label="UPI apps" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <section aria-label="UPI apps" className="grid grid-cols-4 gap-2">
               {apps.map((app) => (
                 <Button
                   key={app.id}
                   type="button"
-                  variant="outline"
-                  className="h-auto flex-col items-start gap-2 rounded-lg border bg-background p-3 text-left"
+                  variant="ghost"
+                  className="h-auto flex-col items-center gap-1 p-2 hover:bg-accent"
                   onClick={() => onIntentAppSelect?.(app.id)}
                   disabled={disabled}
                   aria-label={`Pay with ${app.label}`}
                 >
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "flex h-10 w-10 items-center justify-center rounded-full text-xs font-semibold text-white",
-                      app.accentClass ?? "bg-primary",
-                    )}
-                  >
-                    {app.shortLabel}
-                  </span>
-                  <span className="text-sm font-medium text-foreground">{app.label}</span>
+                  {app.logoUrl && (
+                    <img
+                      src={app.logoUrl}
+                      alt={app.label}
+                      className="h-12 w-12 rounded-lg object-contain"
+                    />
+                  )}
+                  <span className="text-xs font-medium text-foreground">{app.shortLabel}</span>
                 </Button>
               ))}
             </section>
