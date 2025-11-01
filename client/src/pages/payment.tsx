@@ -113,6 +113,7 @@ export default function Payment() {
   const pollTimeoutRef = useRef<number | null>(null);
   const widgetAwaitingSkipRef = useRef(false);
   const progressIntervalRef = useRef<number | null>(null);
+  const progressStartTimeRef = useRef<number | null>(null);
   
   const clearStatusPolling = () => {
     if (pollTimeoutRef.current !== null) {
@@ -126,6 +127,7 @@ export default function Payment() {
       window.clearInterval(progressIntervalRef.current);
       progressIntervalRef.current = null;
     }
+    progressStartTimeRef.current = null;
   };
 
   // Extract intentId or orderId from URL parameters
@@ -172,29 +174,35 @@ export default function Payment() {
   // Animate progress bar when payment is processing
   useEffect(() => {
     if (paymentStatus === 'processing') {
-      // Reset progress to 0
-      setProcessingProgress(0);
-      
-      // Animate progress from 0 to 85% over time
-      const startTime = Date.now();
-      const duration = 30000; // 30 seconds to reach 85%
-      const targetProgress = 85;
-      
-      const interval = window.setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min((elapsed / duration) * targetProgress, targetProgress);
-        setProcessingProgress(progress);
+      // Only start a new animation if we don't already have one running
+      if (progressStartTimeRef.current === null) {
+        progressStartTimeRef.current = Date.now();
+        setProcessingProgress(0);
         
-        // Stop at 85% and wait for actual completion
-        if (progress >= targetProgress) {
-          clearProgressAnimation();
-        }
-      }, 100);
-      
-      progressIntervalRef.current = interval;
+        const duration = 30000; // 30 seconds to reach 85%
+        const targetProgress = 85;
+        
+        const interval = window.setInterval(() => {
+          if (progressStartTimeRef.current === null) return;
+          
+          const elapsed = Date.now() - progressStartTimeRef.current;
+          const progress = Math.min((elapsed / duration) * targetProgress, targetProgress);
+          setProcessingProgress(progress);
+          
+          // Stop at 85% and wait for actual completion
+          if (progress >= targetProgress) {
+            clearProgressAnimation();
+          }
+        }, 100);
+        
+        progressIntervalRef.current = interval;
+      }
       
       return () => {
-        clearProgressAnimation();
+        // Don't clear on unmount if still processing
+        if (paymentStatus !== 'processing') {
+          clearProgressAnimation();
+        }
       };
     } else if (paymentStatus === 'completed') {
       // Jump to 100% when completed
