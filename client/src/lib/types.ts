@@ -171,7 +171,9 @@ export interface SalesTrend {
 }
 
 export interface ConversionMetrics {
-  totalSessions: number;
+  registeredUsers: number;
+  monthlyActiveUsers: number;
   ordersCompleted: number;
   conversionRate: number;
+  averageOrderValue: number;
 }
