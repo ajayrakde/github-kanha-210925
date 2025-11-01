@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Step {
@@ -40,6 +40,8 @@ export function Steps({ steps, currentStep, stepProgress = 0, className }: Steps
                 >
                   {isCompleted ? (
                     <Check className="h-5 w-5" />
+                  ) : isCurrent ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
                     <span className="text-sm font-semibold">{index + 1}</span>
                   )}
@@ -65,6 +67,14 @@ export function Steps({ steps, currentStep, stepProgress = 0, className }: Steps
               {/* Connector line - shows gradual progress animation */}
               {index < steps.length - 1 && (
                 <div className="relative h-1 flex-1 -mt-8">
+                  {/* Progress percentage text - positioned above the line */}
+                  {isCurrent && connectorProgress > 0 && (
+                    <div className="absolute -top-6 left-1/2 -translate-x-1/2">
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded shadow-sm">
+                        {Math.round(connectorProgress)}%
+                      </span>
+                    </div>
+                  )}
                   {/* Background line */}
                   <div className="absolute inset-0 bg-gray-300 rounded-full" />
                   {/* Animated progress line */}
@@ -77,14 +87,6 @@ export function Steps({ steps, currentStep, stepProgress = 0, className }: Steps
                     style={{ width: `${connectorProgress}%` }}
                     data-testid={`connector-progress-${index}`}
                   />
-                  {/* Progress percentage text */}
-                  {isCurrent && connectorProgress > 0 && (
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded shadow-sm">
-                        {Math.round(connectorProgress)}%
-                      </span>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
