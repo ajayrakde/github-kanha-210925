@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
+import { Steps } from "@/components/ui/steps";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Loader2, CreditCard, ArrowLeft, AlertCircle } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -105,15 +105,14 @@ export default function Payment() {
   const [intentId, setIntentId] = useState<string>("");
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
   const [isActionLocked, setIsActionLocked] = useState(false);
-  const [processingProgress, setProcessingProgress] = useState(0);
+  const [currentStep, setCurrentStep] = useState(0);
   const { toast} = useToast();
   const { clearCart } = useCart();
   const checkoutLoaderRef = useRef<Promise<PhonePeCheckoutInstance> | null>(null);
   const latestPaymentIdRef = useRef<string | null>(null);
   const pollTimeoutRef = useRef<number | null>(null);
   const widgetAwaitingSkipRef = useRef(false);
-  const progressIntervalRef = useRef<number | null>(null);
-  const progressStartTimeRef = useRef<number | null>(null);
+  const stepIntervalRef = useRef<number | null>(null);
   
   const clearStatusPolling = () => {
     if (pollTimeoutRef.current !== null) {
@@ -122,13 +121,20 @@ export default function Payment() {
     }
   };
 
-  const clearProgressAnimation = () => {
-    if (progressIntervalRef.current !== null) {
-      window.clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
+  const clearStepAdvance = () => {
+    if (stepIntervalRef.current !== null) {
+      window.clearInterval(stepIntervalRef.current);
+      stepIntervalRef.current = null;
     }
-    progressStartTimeRef.current = null;
   };
+
+  // Payment steps configuration
+  const paymentSteps = [
+    { label: 'Initiated', description: 'Starting payment' },
+    { label: 'Processing', description: 'Verifying details' },
+    { label: 'Waiting for confirmation', description: 'Awaiting UPI app' },
+    { label: 'Processed', description: 'Payment complete' },
+  ];
 
   // Extract intentId or orderId from URL parameters
   useEffect(() => {
@@ -171,47 +177,37 @@ export default function Payment() {
   // Disable buttons and inputs during initiating and processing
   const isPaymentInProgress = paymentStatus === 'initiating' || paymentStatus === 'processing';
 
-  // Animate progress bar when payment is processing
+  // Auto-advance payment steps when processing
   useEffect(() => {
     if (paymentStatus === 'processing') {
-      // Only start a new animation if we don't already have one running
-      if (progressStartTimeRef.current === null) {
-        progressStartTimeRef.current = Date.now();
-        setProcessingProgress(0);
-        
-        const duration = 30000; // 30 seconds to reach 85%
-        const targetProgress = 85;
-        
-        const interval = window.setInterval(() => {
-          if (progressStartTimeRef.current === null) return;
-          
-          const elapsed = Date.now() - progressStartTimeRef.current;
-          const progress = Math.min((elapsed / duration) * targetProgress, targetProgress);
-          setProcessingProgress(progress);
-          
-          // Stop at 85% and wait for actual completion
-          if (progress >= targetProgress) {
-            clearProgressAnimation();
+      // Start at step 0 (Initiated)
+      setCurrentStep(0);
+      
+      // Auto-advance to next step every 15 seconds
+      const interval = window.setInterval(() => {
+        setCurrentStep((prev) => {
+          // Don't go past step 2 (Waiting for confirmation)
+          // Step 3 (Processed) is only reached when payment completes
+          if (prev < 2) {
+            return prev + 1;
           }
-        }, 100);
-        
-        progressIntervalRef.current = interval;
-      }
+          return prev;
+        });
+      }, 15000); // 15 seconds
+      
+      stepIntervalRef.current = interval;
       
       return () => {
-        // Don't clear on unmount if still processing
-        if (paymentStatus !== 'processing') {
-          clearProgressAnimation();
-        }
+        clearStepAdvance();
       };
     } else if (paymentStatus === 'completed') {
-      // Jump to 100% when completed
-      clearProgressAnimation();
-      setProcessingProgress(100);
+      // Jump to final step when completed
+      clearStepAdvance();
+      setCurrentStep(3);
     } else {
-      // Reset progress for other states
-      clearProgressAnimation();
-      setProcessingProgress(0);
+      // Reset steps for other states
+      clearStepAdvance();
+      setCurrentStep(0);
     }
   }, [paymentStatus]);
 
@@ -1349,31 +1345,25 @@ export default function Payment() {
 
     {/* Payment Status Modal */}
     <Dialog open={paymentStatus === 'initiating' || paymentStatus === 'processing'} onOpenChange={() => {}}>
-      <DialogContent className="sm:max-w-md [&>button]:hidden" data-testid="payment-status-modal">
+      <DialogContent className="sm:max-w-2xl [&>button]:hidden" data-testid="payment-status-modal">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-3">
             <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-            <span>{paymentStatus === 'initiating' ? 'Initiating Payment' : 'Processing Payment'}</span>
+            <span>{paymentStatus === 'initiating' ? 'Initiating Payment' : paymentSteps[currentStep]?.label}</span>
           </DialogTitle>
           <DialogDescription>
             {paymentStatus === 'initiating' 
               ? 'Please wait while we set up your payment...' 
-              : 'Waiting for confirmation from your UPI provider'}
+              : 'Your payment is being processed'}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="space-y-6">
           {paymentStatus === 'processing' && (
-            <div className="space-y-2">
-              <Progress 
-                value={processingProgress} 
-                className="h-3 bg-blue-100"
-                data-testid="payment-progress-bar"
-              />
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground">Please wait...</span>
-                <span className="font-medium text-blue-600">{Math.round(processingProgress)}%</span>
-              </div>
-            </div>
+            <Steps 
+              steps={paymentSteps} 
+              currentStep={currentStep}
+              className="px-4"
+            />
           )}
           {paymentStatus === 'initiating' && (
             <div className="flex items-center justify-center py-4">
