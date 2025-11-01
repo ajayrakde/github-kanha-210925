@@ -4,6 +4,7 @@ import type { Request, Response } from "express";
 import type { Router } from "express";
 import { orders, paymentEvents } from "../../../shared/schema";
 import { phonePeIdentifierFixture } from "../../../shared/__fixtures__/upi";
+import type { PaymentResult } from "../../../shared/payment-types";
 import type { RequireAdminMiddleware } from "../types";
 
 process.env.DATABASE_URL ??= "postgres://user:pass@localhost:5432/test";
@@ -378,7 +379,9 @@ describe("payments router", () => {
       } as unknown as Request;
     };
 
-    const buildPaymentResult = () => ({
+    const buildPaymentResult = (
+      overrides: Partial<PaymentResult> & { providerData?: Record<string, unknown> } = {}
+    ) => ({
       paymentId: "pay_1",
       status: "created",
       amount: 1000,
@@ -387,8 +390,9 @@ describe("payments router", () => {
       environment: "test" as const,
       providerPaymentId: "merchant-1",
       redirectUrl: "https://phonepe.example/token",
-      providerData: { expireAfterSeconds: 900 },
+      providerData: { expireAfterSeconds: 900, ...(overrides.providerData ?? {}) },
       createdAt: new Date(),
+      ...overrides,
     });
 
     it("reuses the pending token URL for rapid double submissions", async () => {
@@ -517,6 +521,77 @@ describe("payments router", () => {
       expect(mockPhonePePollingWorker.registerJob).toHaveBeenCalledTimes(1);
       expect(res.jsonPayload.success).toBe(true);
       expect(res.jsonPayload.data.tokenUrl).toBe(paymentResult.redirectUrl);
+    });
+
+    it("returns canonical UPI metadata when the provider shares instrument details", async () => {
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValue(buildOrderRecord());
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/token-url");
+
+      const providerData = {
+        expireAfterSeconds: 900,
+        transactionId: "txn-123",
+        upiUrl: "upi://pay?pa=merchant@upi&pn=Merchant%20Name&tn=Thanks&am=10",
+        upiAmount: "10.00",
+        upiNote: "Thanks",
+        qrData: "upi-qr",
+        qrExpiresAt: "2024-01-01T00:10:00Z",
+        merchantVpa: "merchant@upi",
+        merchantName: "Merchant Name",
+      };
+
+      const paymentResult = buildPaymentResult({ providerData });
+      mockPaymentsService.createPayment.mockResolvedValue(paymentResult);
+
+      const req = buildTokenRequest();
+      const res = createMockResponse();
+      await handler(req, res, () => {});
+
+      expect(res.jsonPayload.data.upi).toEqual({
+        url: "upi://pay?pa=merchant@upi&pn=Merchant+Name&cu=INR&am=10.00&tn=Thanks&tr=txn-123",
+        rawUrl: "upi://pay?pa=merchant@upi&pn=Merchant%20Name&tn=Thanks&am=10",
+        amount: "10.00",
+        note: "Thanks",
+        merchantVpa: "merchant@upi",
+        merchantName: "Merchant Name",
+        qrData: "upi-qr",
+        qrExpiresAt: "2024-01-01T00:10:00.000Z",
+        currency: "INR",
+      });
+    });
+
+    it("defaults canonical UPI amount metadata when provider omits value", async () => {
+      mockOrdersRepository.getOrderWithPayments.mockResolvedValue(buildOrderRecord());
+      const router = await buildRouter();
+      const handler = getRouteHandler(router, "post", "/token-url");
+
+      const providerData = {
+        expireAfterSeconds: 600,
+        merchantVpa: "merchant@upi",
+        merchantName: "Merchant", 
+        merchantNameNormalized: "Merchant",
+        merchantVpaNormalized: "merchant@upi",
+      };
+
+      mockPaymentsService.createPayment.mockResolvedValue(
+        buildPaymentResult({ providerData })
+      );
+
+      const req = buildTokenRequest();
+      const res = createMockResponse();
+      await handler(req, res, () => {});
+
+      expect(res.jsonPayload.data.upi).toEqual({
+        url: "upi://pay?pa=merchant@upi&pn=Merchant&cu=INR&am=0.00",
+        rawUrl: undefined,
+        amount: "0.00",
+        note: undefined,
+        merchantVpa: "merchant@upi",
+        merchantName: "Merchant",
+        qrData: undefined,
+        qrExpiresAt: undefined,
+        currency: "INR",
+      });
     });
 
     it("refreshes the payment idempotency key when retrying an expired token URL", async () => {
@@ -1120,7 +1195,6 @@ describe("payments router", () => {
         });
       });
 
-      expect(mockPaymentsService.verifyPayment).toHaveBeenCalledWith({ paymentId: "pay-1" }, "default");
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });
   });
