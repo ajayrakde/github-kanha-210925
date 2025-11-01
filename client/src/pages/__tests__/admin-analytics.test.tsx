@@ -82,8 +82,6 @@ function renderAdminWithData() {
     },
   });
 
-  const nowIso = new Date().toISOString();
-
   queryClient.setQueryData(["/api/admin/stats"], {
     totalOrders: 42,
     revenue: "1000.5",
@@ -97,14 +95,6 @@ function renderAdminWithData() {
       name: "Sample Product",
       orderCount: "5",
       totalRevenue: "1234.5",
-    },
-  ] as any);
-
-  queryClient.setQueryData(["/api/analytics/sales-trends", "?days=365"], [
-    {
-      date: nowIso,
-      orderCount: "3",
-      revenue: "4321.8",
     },
   ] as any);
 
@@ -157,30 +147,23 @@ describe("Admin analytics tab", () => {
     const avgOrderTile = screen.getByTestId("tile-avg-order-value");
     expect(avgOrderTile).toHaveTextContent("₹250");
 
-    const popularProductRow = await screen.findByTestId("popular-product-0");
-    expect(popularProductRow).toHaveTextContent("₹1,234");
-
     const timeRangeSelect = screen.getByLabelText(/Time range/i);
-    expect(timeRangeSelect).toHaveValue("last_month");
+    expect(timeRangeSelect).toHaveValue("this_month");
 
     const aggregateDayButton = screen.getByRole("button", { name: "D" });
     expect(aggregateDayButton).toHaveAttribute("aria-pressed", "true");
 
-    const totalSalesToggle = screen.getByLabelText("Total sales");
-    expect(totalSalesToggle).toBeChecked();
+    const salesToggle = screen.getByLabelText("Sales");
+    expect(salesToggle).toBeChecked();
 
     const ordersToggle = screen.getByLabelText("Orders");
     expect(ordersToggle).not.toBeChecked();
 
-    const allProductsButton = screen.getByRole("button", { name: "All products" });
-    expect(allProductsButton).toHaveAttribute("aria-pressed", "true");
+    const splittingToggle = screen.getByLabelText("Apply splitting");
+    expect(splittingToggle).not.toBeChecked();
 
-    const sampleProductButton = screen.getByRole("button", { name: "Sample Product" });
-    await user.click(sampleProductButton);
-    expect(allProductsButton).toHaveAttribute("aria-pressed", "false");
-    expect(sampleProductButton).toHaveAttribute("aria-pressed", "true");
-
-    expect(screen.getByTestId("sales-trend-chart")).toBeInTheDocument();
+    const popularProductRow = await screen.findByTestId("popular-product-0");
+    expect(popularProductRow).toHaveTextContent("₹1,234");
   });
 });
 
