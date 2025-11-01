@@ -15,6 +15,7 @@ import type {
   Currency,
   PaymentStatus,
   RefundStatus,
+  PaymentProviderData,
 } from "../../shared/payment-types";
 import type { PaymentProvider, Environment } from "../../shared/payment-providers";
 import type { ResolvedConfig } from "../services/config-resolver";
@@ -138,7 +139,7 @@ export class BillDeskAdapter implements PaymentsAdapter {
         provider: "billdesk",
         environment: this.environment,
         method: response.payment_mode ? { type: this.detectMethod(response.payment_mode) } : undefined,
-        providerData: response,
+        providerData: response as unknown as PaymentProviderData,
         createdAt: response.payment_time ? new Date(response.payment_time) : new Date(),
         updatedAt: new Date(),
       };
@@ -203,7 +204,7 @@ export class BillDeskAdapter implements PaymentsAdapter {
         environment: this.environment,
         reason: params.reason,
         notes: params.notes,
-        providerData: response,
+        providerData: response as unknown as PaymentProviderData,
         createdAt: response.initiated_at ? new Date(response.initiated_at) : new Date(),
       };
 
@@ -234,7 +235,7 @@ export class BillDeskAdapter implements PaymentsAdapter {
         status: this.mapRefundStatus(response.refund_status),
         provider: "billdesk",
         environment: this.environment,
-        providerData: response,
+        providerData: response as unknown as PaymentProviderData,
         createdAt: response.initiated_at ? new Date(response.initiated_at) : new Date(),
         updatedAt: new Date(),
       };
@@ -276,7 +277,7 @@ export class BillDeskAdapter implements PaymentsAdapter {
           status: payload.data?.status,
           data: payload.data || payload,
         },
-        providerData: payload,
+        providerData: payload as PaymentProviderData,
       };
     } catch (error) {
       console.error("BillDesk webhook verification failed:", error);

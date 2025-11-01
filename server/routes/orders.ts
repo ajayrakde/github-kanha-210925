@@ -352,7 +352,11 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
 
           cashfreeCreated = true;
           cashfreeOrderId = result.providerOrderId;
-          cashfreePaymentSessionId = result.providerData?.paymentSessionId;
+          const providerData = result.providerData as Record<string, unknown> | undefined;
+          const sessionIdValue = typeof providerData?.paymentSessionId === "string"
+            ? providerData.paymentSessionId
+            : undefined;
+          cashfreePaymentSessionId = sessionIdValue;
           cashfreeOrderStatus = result.status;
 
           console.log(`[Order ${order.id}] Cashfree order created successfully after ${attempts} attempt(s)`);

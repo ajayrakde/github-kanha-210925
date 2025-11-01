@@ -65,7 +65,7 @@ describe("Payment page", () => {
       total: "499.00",
       subtotal: "475.00",
       discountAmount: "-24.00",
-      paymentMethod: "upi",
+      paymentMethod: "phonepe",
       deliveryAddress: "Line 1",
       userInfo: {
         name: "Test User",
@@ -84,10 +84,21 @@ describe("Payment page", () => {
     window.PhonePeCheckout = originalCheckout;
   });
 
-  it("moves from pending to processing when a PhonePe payment is initiated", async () => {
+  it("surfaces UPI intent metadata and launch control after initiation", async () => {
     const queryClient = new QueryClient();
     apiRequestMock.mockResolvedValue({
-      json: async () => ({ data: { tokenUrl: "https://phonepe.example/pay", merchantTransactionId: "merchant-1" } }),
+      json: async () => ({
+        data: {
+          tokenUrl: "https://phonepe.example/pay",
+          merchantTransactionId: "merchant-1",
+          paymentId: "pay_intent",
+          upi: {
+            url: "upi://pay?pa=merchant@upi&pn=Demo%20Store&am=499.00",
+            merchantName: "Demo Store",
+            amount: "499.00",
+          },
+        },
+      }),
     } as any);
 
     const user = userEvent.setup();
@@ -97,31 +108,45 @@ describe("Payment page", () => {
       </QueryClientProvider>
     );
 
-    const payButton = await screen.findByTestId("button-initiate-payment");
+    const [payButton] = await screen.findAllByTestId("button-initiate-payment");
     await user.click(payButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/Processing Payment/i)).toBeInTheDocument();
+      expect(apiRequestMock).toHaveBeenCalledWith(
+        "POST",
+        "/api/payments/token-url",
+        expect.objectContaining({
+          orderId: "order-1",
+          instrumentPreference: "UPI_INTENT",
+          payPageType: "IFRAME",
+        })
+      );
     });
 
-    expect(apiRequestMock).toHaveBeenCalledWith(
-      "POST",
-      "/api/payments/token-url",
-      expect.objectContaining({ orderId: "order-1", instrumentPreference: "UPI_INTENT", payPageType: 'IFRAME' })
-    );
+    expect(window.PhonePeCheckout?.transact).not.toHaveBeenCalled();
 
-    expect(window.PhonePeCheckout?.transact).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tokenUrl: "https://phonepe.example/pay",
-        type: 'IFRAME',
-      })
-    );
+    expect(await screen.findByTestId("upi-merchant-name")).toHaveTextContent("Demo Store");
+
+    const launchIntentButton = await screen.findByTestId("button-launch-upi-intent");
+    await user.click(launchIntentButton);
+
+    expect(window.location.href).toBe("upi://pay?pa=merchant@upi&pn=Demo%20Store&am=499.00");
   });
 
   it("uses the shopper's selected UPI instrument when initiating payment", async () => {
     const queryClient = new QueryClient();
     apiRequestMock.mockResolvedValue({
-      json: async () => ({ data: { tokenUrl: "https://phonepe.example/pay", merchantTransactionId: "merchant-1" } }),
+      json: async () => ({
+        data: {
+          tokenUrl: "https://phonepe.example/pay",
+          merchantTransactionId: "merchant-1",
+          paymentId: "pay_qr",
+          upi: {
+            qrData: "QUJDRA==",
+            amount: "499.00",
+          },
+        },
+      }),
     } as any);
 
     const user = userEvent.setup();
@@ -134,16 +159,24 @@ describe("Payment page", () => {
     const qrButton = await screen.findByTestId("button-select-upi_qr");
     await user.click(qrButton);
 
-    const payButton = await screen.findByTestId("button-initiate-payment");
+    const [payButton] = await screen.findAllByTestId("button-initiate-payment");
     await user.click(payButton);
 
     await waitFor(() => {
       expect(apiRequestMock).toHaveBeenCalledWith(
         "POST",
         "/api/payments/token-url",
-        expect.objectContaining({ instrumentPreference: "UPI_QR", payPageType: 'IFRAME' })
+        expect.objectContaining({
+          instrumentPreference: "UPI_QR",
+          payPageType: "IFRAME",
+        })
       );
     });
+
+    expect(window.PhonePeCheckout?.transact).not.toHaveBeenCalled();
+    const [amountDisplay] = await screen.findAllByTestId("upi-amount");
+    expect(amountDisplay).toHaveTextContent("₹499.00");
+    expect(screen.getByTestId("upi-qr-image")).toBeInTheDocument();
   });
 
   it("records cancellation when the PhonePe iframe reports USER_CANCEL", async () => {
@@ -166,7 +199,7 @@ describe("Payment page", () => {
       </QueryClientProvider>
     );
 
-    const payButton = await screen.findByTestId("button-initiate-payment");
+    const [payButton] = await screen.findAllByTestId("button-initiate-payment");
     await user.click(payButton);
 
     await waitFor(() => {
@@ -192,7 +225,7 @@ describe("Payment page", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/Payment Failed/i)).toBeInTheDocument();
+      expect(screen.getByTestId("button-retry-payment")).toBeInTheDocument();
     });
   });
 
@@ -223,7 +256,7 @@ describe("Payment page", () => {
       </QueryClientProvider>
     );
 
-    const payButton = await screen.findByTestId("button-initiate-payment");
+    const [payButton] = await screen.findAllByTestId("button-initiate-payment");
     await user.click(payButton);
 
     const transactMock = window.PhonePeCheckout?.transact as ReturnType<typeof vi.fn>;
@@ -251,7 +284,7 @@ describe("Payment page", () => {
     const originalSetTimeout = window.setTimeout;
     const originalClearTimeout = window.clearTimeout;
     window.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: any[]) => {
-      if (typeof handler === "function" && timeout === 3000) {
+      if (typeof handler === "function" && timeout === 5000) {
         handler(...args);
         return 0 as unknown as number;
       }
@@ -288,7 +321,7 @@ describe("Payment page", () => {
         </QueryClientProvider>
       );
 
-      const payButton = await screen.findByTestId("button-initiate-payment");
+      const [payButton] = await screen.findAllByTestId("button-initiate-payment");
       await user.click(payButton);
 
       const transactMock = window.PhonePeCheckout?.transact as ReturnType<typeof vi.fn>;
@@ -337,7 +370,7 @@ describe("Payment page", () => {
       </QueryClientProvider>
     );
 
-    const payButton = await screen.findByTestId("button-initiate-payment");
+    const [payButton] = await screen.findAllByTestId("button-initiate-payment");
     await user.click(payButton);
 
     const transactMock = window.PhonePeCheckout?.transact as ReturnType<typeof vi.fn>;
@@ -345,7 +378,7 @@ describe("Payment page", () => {
     callback?.({ status: "CONCLUDED" });
 
     await waitFor(() => {
-      expect(screen.getByText(/Payment Failed/i)).toBeInTheDocument();
+      expect(screen.getByTestId("button-retry-payment")).toBeInTheDocument();
     });
 
     expect(setLocationMock).not.toHaveBeenCalledWith("/thank-you?orderId=order-1");

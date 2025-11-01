@@ -71,10 +71,36 @@ interface PhonePePaymentResponse {
     instrumentResponse: {
       type: string;
       redirectInfo?: { url: string; method: string };
+      intentUrl?: string;
+      qrData?: string;
+      qrString?: string;
+      qrPayload?: string;
+      qrCode?: string;
+      qrExpiresAt?: string | number;
+      qrExpiry?: string | number;
+      expiresAt?: string | number;
+      expireAt?: string | number;
+      expiry?: string | number;
+      expiryTime?: string | number;
+      expireAfter?: number | string;
+      validUntil?: string | number;
+      validUpto?: string | number;
+      merchantVpa?: string;
+      merchantName?: string;
+      merchantDisplayName?: string;
+      merchant?: string;
+      note?: string;
+      transactionNote?: string;
+      message?: string;
+      amount?: string | number;
+      upiAmount?: string | number;
+      upiNote?: string;
       upiCollectRequestResponse?: { psps: Array<{ name: string; code: string }> };
     };
   };
 }
+
+type PhonePeInstrumentResponse = NonNullable<PhonePePaymentResponse["data"]>["instrumentResponse"];
 
 interface PhonePeStatusResponse {
   success: boolean;
@@ -204,8 +230,8 @@ export class PhonePeAdapter implements PaymentsAdapter {
       const amountInPaise = Math.round(params.orderAmount);
 
       const phonepeOptions = params.providerOptions?.phonepe;
+      const instrumentType = this.resolvePaymentInstrumentType(phonepeOptions);
       const usePayPage = this.shouldUsePayPage(phonepeOptions);
-      const instrumentType = this.resolvePaymentInstrumentType(phonepeOptions, usePayPage);
       const paymentModeConfig = this.buildPaymentModeConfig(instrumentType, usePayPage);
       const paymentInstrument = this.buildPaymentInstrument(instrumentType, usePayPage);
       const redirectUrl = params.successUrl || this.defaultRedirectUrl;
@@ -245,6 +271,12 @@ export class PhonePeAdapter implements PaymentsAdapter {
         throw new Error(`PhonePe API error: ${response.code} - ${response.message}`);
       }
 
+      const instrumentResponse = response.data?.instrumentResponse;
+      const instrumentMetadata = this.extractInstrumentMetadata(
+        instrumentResponse,
+        amountInPaise
+      );
+
       const result: PaymentResult = {
         paymentId: crypto.randomUUID(),
         providerPaymentId: merchantTransactionId,
@@ -260,8 +292,37 @@ export class PhonePeAdapter implements PaymentsAdapter {
           transactionId: response.data?.transactionId,
           providerTransactionId: response.data?.transactionId,
           providerReferenceId: merchantTransactionId,
-          instrumentResponse: response.data?.instrumentResponse,
+          instrumentResponse,
           expireAfterSeconds: expireAfter,
+          ...(instrumentMetadata.intentUrl
+            ? { upiUrl: instrumentMetadata.intentUrl, upiUrlRaw: instrumentMetadata.intentUrl }
+            : {}),
+          ...(instrumentMetadata.qrData ? { qrData: instrumentMetadata.qrData } : {}),
+          ...(instrumentMetadata.qrString ? { qrString: instrumentMetadata.qrString } : {}),
+          ...(instrumentMetadata.qrPayload ? { qrPayload: instrumentMetadata.qrPayload } : {}),
+          ...(instrumentMetadata.merchantVpa
+            ? {
+                merchantVpa: instrumentMetadata.merchantVpa,
+                merchantVpaNormalized: instrumentMetadata.merchantVpa,
+              }
+            : {}),
+          ...(instrumentMetadata.merchantName
+            ? {
+                merchantName: instrumentMetadata.merchantName,
+                merchantNameNormalized: instrumentMetadata.merchantName,
+              }
+            : {}),
+          ...(instrumentMetadata.note
+            ? { upiNote: instrumentMetadata.note, upiNoteNormalized: instrumentMetadata.note }
+            : {}),
+          upiAmount: instrumentMetadata.amount,
+          upiAmountNormalized: instrumentMetadata.amount,
+          ...(instrumentMetadata.expiresAt
+            ? {
+                qrExpiresAt: instrumentMetadata.expiresAt,
+                qrExpiresAtNormalized: instrumentMetadata.expiresAt,
+              }
+            : {}),
         },
         createdAt: new Date(),
       };
@@ -819,10 +880,7 @@ export class PhonePeAdapter implements PaymentsAdapter {
     return parsedBody as T;
   }
 
-  private resolvePaymentInstrumentType(
-    options: unknown,
-    usePayPage: boolean
-  ): PhonePeUpiInstrumentType {
+  private resolvePaymentInstrumentType(options: unknown): PhonePeUpiInstrumentType {
     const candidateStrings: string[] = [];
 
     if (typeof options === "string") {
@@ -853,11 +911,6 @@ export class PhonePeAdapter implements PaymentsAdapter {
 
     for (const candidate of candidateStrings) {
       const normalized = candidate.trim().toUpperCase().replace(/[\s-]+/g, "_");
-      if (normalized === "PAY_PAGE" || normalized === "PAYPAGE") {
-        if (usePayPage) {
-          continue;
-        }
-      }
       if (normalized === "UPI_INTENT" || normalized === "INTENT") return "UPI_INTENT";
       if (normalized === "UPI_COLLECT" || normalized === "COLLECT") return "UPI_COLLECT";
       if (normalized === "UPI_QR" || normalized === "QR" || normalized === "QR_CODE") return "UPI_QR";
@@ -870,9 +923,10 @@ export class PhonePeAdapter implements PaymentsAdapter {
     instrumentType: PhonePeUpiInstrumentType,
     usePayPage: boolean
   ): PhonePePaymentRequest["paymentModeConfig"] {
+    const shouldEnableAllUpi = !usePayPage;
     const paymentInstruments = PhonePeAdapter.UPI_INSTRUMENT_TYPES.map((type) => ({
       type,
-      enabled: instrumentType === type,
+      enabled: shouldEnableAllUpi || instrumentType === type,
     }));
 
     return {
@@ -913,10 +967,256 @@ export class PhonePeAdapter implements PaymentsAdapter {
       }
     }
 
-    return candidates.some((candidate) => {
+    let payPageRequested = false;
+    let upiRequested = false;
+
+    for (const candidate of candidates) {
       const normalized = candidate.trim().toUpperCase().replace(/[\s-]+/g, "_");
-      return normalized === "IFRAME" || normalized === "PAY_PAGE" || normalized === "EMBEDDED";
-    });
+
+      if (normalized === "UPI_INTENT" || normalized === "UPI_COLLECT" || normalized === "UPI_QR") {
+        upiRequested = true;
+      }
+
+      if (normalized === "IFRAME" || normalized === "PAY_PAGE" || normalized === "EMBEDDED") {
+        payPageRequested = true;
+      }
+    }
+
+    return payPageRequested && !upiRequested;
+  }
+
+  private extractInstrumentMetadata(
+    instrumentResponse: PhonePeInstrumentResponse | undefined,
+    fallbackAmountMinor: number
+  ): {
+    intentUrl?: string;
+    qrData?: string;
+    qrString?: string;
+    qrPayload?: string;
+    merchantVpa?: string;
+    merchantName?: string;
+    note?: string;
+    amount: string;
+    expiresAt?: string;
+  } {
+    if (!instrumentResponse) {
+      return {
+        amount: this.formatMinorAmount(fallbackAmountMinor),
+      };
+    }
+
+    const record = instrumentResponse as Record<string, unknown>;
+    const intentUrl = this.pickInstrumentString(record, ["intentUrl", "intent_url"]);
+    const qrData = this.pickInstrumentString(record, [
+      "qrData",
+      "qrString",
+      "qrPayload",
+      "qrCode",
+    ]);
+    const qrString = this.pickInstrumentString(record, ["qrString"]);
+    const qrPayload = this.pickInstrumentString(record, ["qrPayload", "qrCode"]);
+    const merchantVpa = this.pickInstrumentString(record, [
+      "merchantVpa",
+      "merchantVPA",
+      "merchantAddress",
+      "merchantUpiId",
+      "merchantupiid",
+      "vpa",
+      "upiId",
+      "upi_id",
+      "payeeAddress",
+      "pa",
+    ]);
+    const merchantName = this.pickInstrumentString(record, [
+      "merchantName",
+      "merchantDisplayName",
+      "merchant",
+      "payeeName",
+      "pn",
+    ]);
+    const note = this.pickInstrumentString(record, [
+      "upiNote",
+      "transactionNote",
+      "merchantNote",
+      "note",
+      "message",
+      "tn",
+    ]);
+
+    const amount = this.normalizeInstrumentAmount(record, fallbackAmountMinor);
+    const expiresAt = this.resolveInstrumentExpiry(record);
+
+    return {
+      intentUrl,
+      qrData,
+      merchantVpa,
+      merchantName,
+      note,
+      amount,
+      expiresAt,
+      qrString,
+      qrPayload,
+    };
+  }
+
+  private pickInstrumentString(
+    record: Record<string, unknown>,
+    keys: string[]
+  ): string | undefined {
+    for (const key of keys) {
+      const value = record[key];
+      if (typeof value === "string") {
+        const trimmed = value.trim();
+        if (trimmed.length > 0) {
+          return trimmed;
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  private normalizeInstrumentAmount(
+    record: Record<string, unknown>,
+    fallbackAmountMinor: number
+  ): string {
+    const amountCandidates = [
+      record["upiAmount"],
+      record["amount"],
+      record["amountValue"],
+      record["upi_amount"],
+    ];
+
+    for (const candidate of amountCandidates) {
+      const parsed = this.parseAmount(candidate, fallbackAmountMinor);
+      if (parsed !== undefined) {
+        return parsed;
+      }
+    }
+
+    return this.formatMinorAmount(fallbackAmountMinor);
+  }
+
+  private parseAmount(value: unknown, fallbackAmountMinor: number): string | undefined {
+    const numeric = this.coerceNumeric(value);
+    if (numeric === undefined) {
+      return undefined;
+    }
+
+    if (
+      typeof fallbackAmountMinor === "number" &&
+      Number.isFinite(fallbackAmountMinor) &&
+      fallbackAmountMinor > 0
+    ) {
+      const tolerance = Math.max(1, fallbackAmountMinor * 0.01);
+      if (Math.abs(numeric - fallbackAmountMinor) <= tolerance) {
+        return this.formatMinorAmount(numeric);
+      }
+    }
+
+    if (numeric >= 0) {
+      return this.formatMajorAmount(numeric);
+    }
+
+    return undefined;
+  }
+
+  private coerceNumeric(value: unknown): number | undefined {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed.length === 0) {
+        return undefined;
+      }
+
+      const numeric = Number(trimmed);
+      if (!Number.isNaN(numeric)) {
+        return numeric;
+      }
+    }
+
+    return undefined;
+  }
+
+  private formatMajorAmount(value: number): string {
+    const normalized = Number.isFinite(value) ? value : 0;
+    return normalized.toFixed(2);
+  }
+
+  private formatMinorAmount(value: number | undefined): string {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return (value / 100).toFixed(2);
+    }
+
+    return "0.00";
+  }
+
+  private resolveInstrumentExpiry(record: Record<string, unknown>): string | undefined {
+    const keys = [
+      "expiresAt",
+      "expiry",
+      "expiryTime",
+      "expireAt",
+      "expiryTimestamp",
+      "qrExpiresAt",
+      "qrExpiry",
+      "validUntil",
+      "validUpto",
+    ];
+
+    for (const key of keys) {
+      const value = record[key];
+      const parsed = this.parseExpiry(value);
+      if (parsed) {
+        return parsed;
+      }
+    }
+
+    return undefined;
+  }
+
+  private parseExpiry(value: unknown): string | undefined {
+    if (!value) {
+      return undefined;
+    }
+
+    if (value instanceof Date) {
+      if (!Number.isNaN(value.getTime())) {
+        return value.toISOString();
+      }
+      return undefined;
+    }
+
+    if (typeof value === "number" && Number.isFinite(value)) {
+      const normalized = value > 1_000_000_000_000 ? value : value * 1000;
+      const date = new Date(normalized);
+      if (!Number.isNaN(date.getTime())) {
+        return date.toISOString();
+      }
+      return undefined;
+    }
+
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (trimmed.length === 0) {
+        return undefined;
+      }
+
+      const numeric = Number(trimmed);
+      if (!Number.isNaN(numeric)) {
+        return this.parseExpiry(numeric);
+      }
+
+      const date = new Date(trimmed);
+      if (!Number.isNaN(date.getTime())) {
+        return date.toISOString();
+      }
+    }
+
+    return undefined;
   }
 
   private resolveCallbackUrl(params: CreatePaymentParams): string | undefined {

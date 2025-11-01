@@ -15,6 +15,7 @@ import type {
   Currency,
   PaymentStatus,
   RefundStatus,
+  PaymentProviderData,
 } from "../../shared/payment-types";
 import type { PaymentProvider, Environment } from "../../shared/payment-providers";
 import type { ResolvedConfig } from "../services/config-resolver";
@@ -312,7 +313,7 @@ export class CashfreeAdapter implements PaymentsAdapter {
         environment: this.environment,
         reason: params.reason,
         notes: params.notes,
-        providerData: response,
+        providerData: response as unknown as PaymentProviderData,
         createdAt: response.initiated_at ? new Date(response.initiated_at) : new Date(),
       };
 
@@ -343,7 +344,7 @@ export class CashfreeAdapter implements PaymentsAdapter {
         status: this.mapRefundStatus(response.refund_status),
         provider: "cashfree",
         environment: this.environment,
-        providerData: response,
+        providerData: response as unknown as PaymentProviderData,
         createdAt: response.initiated_at ? new Date(response.initiated_at) : new Date(),
         updatedAt: new Date(),
       };

@@ -15,6 +15,7 @@ import type {
   Currency,
   PaymentStatus,
   RefundStatus,
+  PaymentProviderData,
 } from "../../shared/payment-types";
 import type { PaymentProvider, Environment } from "../../shared/payment-providers";
 import type { ResolvedConfig } from "../services/config-resolver";
@@ -300,7 +301,7 @@ export class CCAvenueAdapter implements PaymentsAdapter {
           status: this.mapPaymentStatus(parsed?.order_status || ''),
           data: parsed,
         },
-        providerData: parsed,
+        providerData: parsed as unknown as PaymentProviderData,
       };
     } catch (error) {
       console.error("CCAvenue webhook verification failed:", error);

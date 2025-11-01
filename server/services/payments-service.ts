@@ -518,8 +518,12 @@ export class PaymentsService {
           const resolvedAmountMinor = typeof result.amount === 'number' && !Number.isNaN(result.amount)
             ? result.amount
             : requestedAmountMinor;
+          const providerInstrument = result.providerData?.paymentInstrument as Record<string, unknown> | null | undefined;
+          const providerRefundUtr = typeof providerInstrument?.utr === "string"
+            ? providerInstrument.utr
+            : undefined;
           const maskedRefundUtr = adapter.provider === 'phonepe'
-            ? maskPhonePeUtr(result.upiUtr || result.providerData?.paymentInstrument?.utr) ?? undefined
+            ? maskPhonePeUtr(result.upiUtr || providerRefundUtr) ?? undefined
             : result.upiUtr;
 
           const normalizedResult: RefundResult = {
@@ -1251,8 +1255,12 @@ export class PaymentsService {
     }
 
     const provider = existingRefund.provider as PaymentProvider | undefined;
+    const providerInstrument = result.providerData?.paymentInstrument as Record<string, unknown> | null | undefined;
+    const providerUtr = typeof providerInstrument?.utr === "string"
+      ? providerInstrument.utr
+      : undefined;
     const maskedUtr = provider === 'phonepe'
-      ? maskPhonePeUtr(result.upiUtr || result.providerData?.paymentInstrument?.utr) ?? existingRefund.upiUtr
+      ? maskPhonePeUtr(result.upiUtr || providerUtr) ?? existingRefund.upiUtr
       : result.upiUtr;
 
     if (maskedUtr) {

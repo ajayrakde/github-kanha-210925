@@ -183,10 +183,14 @@ export class RazorpayAdapter implements PaymentsAdapter {
       }
       
       // Verify signature
+      const orderId = razorpayOrderId as string;
+      const paymentIdValue = razorpayPaymentId as string;
+      const signatureValue = razorpaySignature as string;
+
       const isValidSignature = this.verifyPaymentSignature(
-        razorpayOrderId,
-        razorpayPaymentId,
-        razorpaySignature
+        orderId,
+        paymentIdValue,
+        signatureValue
       );
       
       if (!isValidSignature) {

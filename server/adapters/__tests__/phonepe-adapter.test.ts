@@ -42,7 +42,13 @@ const baseConfig: ResolvedConfig = {
   },
 };
 
-const buildFetchResponse = () => ({
+const buildFetchResponse = (
+  overrides: Partial<{
+    instrumentResponse: Record<string, unknown>;
+    transactionId: string;
+    merchantTransactionId: string;
+  }> = {}
+) => ({
   ok: true,
   status: 200,
   text: async () => JSON.stringify({
@@ -50,10 +56,11 @@ const buildFetchResponse = () => ({
     code: 'SUCCESS',
     message: 'Payment created',
     data: {
-      merchantTransactionId: 'merchant-txn',
-      transactionId: 'txn',
+      merchantTransactionId: overrides.merchantTransactionId ?? 'merchant-txn',
+      transactionId: overrides.transactionId ?? 'txn',
       instrumentResponse: {
         type: 'UPI_COLLECT',
+        ...(overrides.instrumentResponse ?? {}),
       },
     },
   }),
@@ -147,9 +154,9 @@ describe('PhonePeAdapter.createPayment', () => {
     );
 
     expect(enabledMap).toEqual({
-      UPI_INTENT: false,
+      UPI_INTENT: true,
       UPI_COLLECT: true,
-      UPI_QR: false,
+      UPI_QR: true,
     });
   });
 
@@ -184,12 +191,12 @@ describe('PhonePeAdapter.createPayment', () => {
 
       const [upiMode] = payload.paymentModeConfig.paymentModes;
       upiMode.paymentInstruments.forEach((instrument: any) => {
-        expect(instrument.enabled).toBe(instrument.type === expectedType);
+        expect(instrument.enabled).toBe(true);
       });
     }
   );
 
-  it('honors the payPage flag by requesting a PAY_PAGE instrument', async () => {
+  it('honors explicit pay page requests', async () => {
     const { adapter, fetchMock } = createAdapter();
 
     await adapter.createPayment({
@@ -201,7 +208,7 @@ describe('PhonePeAdapter.createPayment', () => {
       metadata: { phonepeCallbackUrl: 'https://merchant.example/callback' },
       providerOptions: {
         phonepe: {
-          instrumentPreference: 'UPI_INTENT',
+          instrumentPreference: 'PAY_PAGE',
           payPage: 'IFRAME',
           payPageType: 'IFRAME',
         },
@@ -219,9 +226,40 @@ describe('PhonePeAdapter.createPayment', () => {
     );
 
     expect(enabledMap).toEqual({
-      UPI_INTENT: true,
-      UPI_COLLECT: false,
+      UPI_INTENT: false,
+      UPI_COLLECT: true,
       UPI_QR: false,
+    });
+  });
+
+  it('prefers non-pay-page UPI instruments when both flags are present', async () => {
+    const { adapter, fetchMock } = createAdapter();
+
+    await adapter.createPayment({
+      orderId: 'order-upi-qr',
+      orderAmount: 4500,
+      currency: 'INR',
+      customer: {},
+      providerOptions: {
+        phonepe: {
+          instrumentPreference: 'UPI_QR',
+          payPageType: 'IFRAME',
+        },
+      },
+    });
+
+    const { payload } = decodeLastRequest(fetchMock);
+    expect(payload.paymentInstrument.type).toBe('UPI_QR');
+
+    const [upiMode] = payload.paymentModeConfig.paymentModes;
+    const enabledMap = Object.fromEntries(
+      upiMode.paymentInstruments.map((instrument: any) => [instrument.type, instrument.enabled])
+    );
+
+    expect(enabledMap).toEqual({
+      UPI_INTENT: true,
+      UPI_COLLECT: true,
+      UPI_QR: true,
     });
   });
 
@@ -273,6 +311,54 @@ describe('PhonePeAdapter.createPayment', () => {
     expect((retryOptions.headers as Record<string, string>)['Authorization']).toBe(
       'O-Bearer fresh-token'
     );
+  });
+
+  it('captures UPI metadata inside providerData', async () => {
+    const expiresAt = '2024-01-01T00:10:00Z';
+    const fetchMock = vi.fn().mockResolvedValue(
+      buildFetchResponse({
+        instrumentResponse: {
+          type: 'UPI_INTENT',
+          intentUrl: 'upi://pay?pa=merchant@upi&pn=Merchant&tn=Scan%20%26%20Pay&am=50',
+          qrData: 'qr-payload',
+          merchantVpa: 'merchant@upi',
+          merchantName: 'Merchant',
+          transactionNote: 'Scan & Pay',
+          amount: '50.00',
+          expiresAt,
+        },
+      })
+    );
+
+    const { adapter } = createAdapter({ fetchMock });
+
+    const result = await adapter.createPayment({
+      orderId: 'order-upi-meta',
+      orderAmount: 5000,
+      currency: 'INR',
+      customer: {},
+      providerOptions: {
+        phonepe: { instrumentPreference: 'UPI_INTENT' },
+      },
+    });
+
+    expect(result.providerData?.upiUrl).toBe(
+      'upi://pay?pa=merchant@upi&pn=Merchant&tn=Scan%20%26%20Pay&am=50'
+    );
+    expect(result.providerData?.upiUrlRaw).toBe(
+      'upi://pay?pa=merchant@upi&pn=Merchant&tn=Scan%20%26%20Pay&am=50'
+    );
+    expect(result.providerData?.qrData).toBe('qr-payload');
+    expect(result.providerData?.merchantVpa).toBe('merchant@upi');
+    expect(result.providerData?.merchantVpaNormalized).toBe('merchant@upi');
+    expect(result.providerData?.merchantName).toBe('Merchant');
+    expect(result.providerData?.merchantNameNormalized).toBe('Merchant');
+    expect(result.providerData?.upiNote).toBe('Scan & Pay');
+    expect(result.providerData?.upiNoteNormalized).toBe('Scan & Pay');
+    expect(result.providerData?.upiAmount).toBe('50.00');
+    expect(result.providerData?.upiAmountNormalized).toBe('50.00');
+    expect(result.providerData?.qrExpiresAt).toBe('2024-01-01T00:10:00.000Z');
+    expect(result.providerData?.qrExpiresAtNormalized).toBe('2024-01-01T00:10:00.000Z');
   });
 });
 

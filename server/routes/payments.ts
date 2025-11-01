@@ -21,7 +21,8 @@ import { phonePePollingWorker } from '../services/phonepe-polling-registry';
 import { PaymentError, normalizePaymentLifecycleStatus } from '../../shared/payment-types';
 import type {
   CreatePaymentParams,
-  CreateRefundParams
+  CreateRefundParams,
+  PaymentProviderData,
 } from '../../shared/payment-types';
 import type { PaymentResult } from '../../shared/payment-types';
 import type { PaymentProvider, Environment } from '../../shared/payment-providers';
@@ -207,6 +208,281 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
     }
 
     return 900;
+  };
+
+  const coerceString = (value: unknown): string | undefined => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed.length > 0 ? trimmed : undefined;
+    }
+
+    return undefined;
+  };
+
+  const coerceNumber = (value: unknown): number | undefined => {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return undefined;
+      }
+
+      const numeric = Number(trimmed);
+      if (!Number.isNaN(numeric)) {
+        return numeric;
+      }
+    }
+
+    return undefined;
+  };
+
+  const normalizeIsoTimestamp = (value: unknown): string | undefined => {
+    if (!value) {
+      return undefined;
+    }
+
+    if (value instanceof Date) {
+      if (!Number.isNaN(value.getTime())) {
+        return value.toISOString();
+      }
+      return undefined;
+    }
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      const normalized = value > 1_000_000_000_000 ? value : value * 1000;
+      const date = new Date(normalized);
+      return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return undefined;
+      }
+
+      const numeric = Number(trimmed);
+      if (!Number.isNaN(numeric)) {
+        return normalizeIsoTimestamp(numeric);
+      }
+
+      const date = new Date(trimmed);
+      return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+    }
+
+    return undefined;
+  };
+
+  const getInstrumentRecord = (
+    providerData: PaymentProviderData | undefined
+  ): Record<string, unknown> | undefined => {
+    if (providerData && typeof providerData.instrumentResponse === 'object' && providerData.instrumentResponse !== null) {
+      return providerData.instrumentResponse as Record<string, unknown>;
+    }
+
+    return undefined;
+  };
+
+  const pickInstrumentValue = (
+    instrument: Record<string, unknown> | undefined,
+    keys: string[],
+  ): unknown => {
+    if (!instrument) {
+      return undefined;
+    }
+
+    for (const key of keys) {
+      if (key in instrument) {
+        const value = instrument[key];
+        if (value !== undefined && value !== null) {
+          return value;
+        }
+      }
+    }
+
+    return undefined;
+  };
+
+  const pickInstrumentString = (
+    instrument: Record<string, unknown> | undefined,
+    keys: string[],
+  ): string | undefined => {
+    const value = pickInstrumentValue(instrument, keys);
+    return coerceString(value);
+  };
+
+  const normalizeAmountString = (
+    candidate: string | undefined,
+    fallbackMinor: number,
+  ): string => {
+    const numeric = coerceNumber(candidate);
+
+    if (numeric !== undefined) {
+      if (Number.isFinite(fallbackMinor) && fallbackMinor > 0) {
+        const tolerance = Math.max(1, fallbackMinor * 0.01);
+        if (Math.abs(numeric - fallbackMinor) <= tolerance) {
+          return (numeric / 100).toFixed(2);
+        }
+      }
+
+      return numeric.toFixed(2);
+    }
+
+    return '0.00';
+  };
+
+  const parseUpiUrl = (value: string | undefined): URLSearchParams => {
+    if (!value) {
+      return new URLSearchParams();
+    }
+
+    try {
+      const url = new URL(value);
+      return new URLSearchParams(url.search);
+    } catch {
+      try {
+        const normalized = value.startsWith('upi://') ? value : `upi://pay?${value}`;
+        const url = new URL(normalized);
+        return new URLSearchParams(url.search);
+      } catch {
+        return new URLSearchParams();
+      }
+    }
+  };
+
+  const buildCanonicalUpiMetadata = (
+    providerData: PaymentProviderData | undefined,
+    defaults: { amountMinor: number; currency: string },
+  ) => {
+    const instrument = getInstrumentRecord(providerData);
+    const rawUpiUrl =
+      coerceString(providerData?.upiUrlCanonical)
+        ?? coerceString(providerData?.upiUrlRaw)
+        ?? coerceString(providerData?.upiUrl)
+        ?? pickInstrumentString(instrument, ['intentUrl', 'intent_url']);
+    const upiParams = parseUpiUrl(rawUpiUrl);
+
+    const merchantVpa = coerceString(providerData?.merchantVpaNormalized)
+      ?? coerceString(providerData?.merchantVpa)
+      ?? pickInstrumentString(instrument, [
+        'merchantVpa',
+        'merchantVPA',
+        'merchantAddress',
+        'merchantUpiId',
+        'merchantupiid',
+        'vpa',
+        'upiId',
+        'upi_id',
+        'payeeAddress',
+        'pa',
+      ])
+      ?? coerceString(upiParams.get('pa'));
+
+    const merchantName = coerceString(providerData?.merchantNameNormalized)
+      ?? coerceString(providerData?.merchantName)
+      ?? pickInstrumentString(instrument, [
+        'merchantName',
+        'merchantDisplayName',
+        'merchant',
+        'payeeName',
+        'pn',
+      ])
+      ?? coerceString(upiParams.get('pn'));
+
+    const note = coerceString(providerData?.upiNoteNormalized)
+      ?? coerceString(providerData?.upiNote)
+      ?? pickInstrumentString(instrument, [
+        'upiNote',
+        'transactionNote',
+        'merchantNote',
+        'note',
+        'message',
+        'tn',
+      ])
+      ?? coerceString(upiParams.get('tn'));
+
+    const amount = normalizeAmountString(
+      coerceString(providerData?.upiAmountNormalized)
+        ?? coerceString(providerData?.upiAmount)
+        ?? coerceString(upiParams.get('am')),
+      defaults.amountMinor,
+    );
+
+    const qrData = coerceString(providerData?.qrData)
+      ?? coerceString(providerData?.qrString)
+      ?? coerceString(providerData?.qrPayload)
+      ?? pickInstrumentString(instrument, ['qrData', 'qrString', 'qrPayload', 'qrCode']);
+
+    const expiryCandidate = providerData?.qrExpiresAtNormalized
+      ?? providerData?.qrExpiresAt
+      ?? pickInstrumentValue(instrument, [
+        'qrExpiresAt',
+        'qrExpiry',
+        'expiresAt',
+        'expiry',
+        'expiryTime',
+        'expireAt',
+        'expiryTimestamp',
+        'validUntil',
+        'validUpto',
+      ]);
+
+    const qrExpiresAt = normalizeIsoTimestamp(expiryCandidate);
+
+    const transactionReference = coerceString(upiParams.get('tr'))
+      ?? coerceString(providerData?.transactionId)
+      ?? coerceString(providerData?.providerTransactionId)
+      ?? coerceString(providerData?.merchantTransactionId);
+
+    const merchantCode = coerceString(upiParams.get('mc'));
+
+    const encodeComponent = (
+      value: string,
+      options: { preserveAt?: boolean } = {}
+    ): string => {
+      let encoded = encodeURIComponent(value).replace(/%20/g, '+');
+      if (options.preserveAt) {
+        encoded = encoded.replace(/%40/g, '@');
+      }
+      return encoded;
+    };
+
+    const parts: string[] = [];
+    if (merchantVpa) {
+      parts.push(`pa=${encodeComponent(merchantVpa, { preserveAt: true })}`);
+    }
+    if (merchantName) {
+      parts.push(`pn=${encodeComponent(merchantName)}`);
+    }
+    parts.push(`cu=${encodeComponent(defaults.currency)}`);
+    parts.push(`am=${encodeComponent(amount)}`);
+    if (note) {
+      parts.push(`tn=${encodeComponent(note)}`);
+    }
+    if (transactionReference) {
+      parts.push(`tr=${encodeComponent(transactionReference)}`);
+    }
+    if (merchantCode) {
+      parts.push(`mc=${encodeComponent(merchantCode)}`);
+    }
+
+    const canonicalUrl =
+      parts.length > 0 && (merchantVpa || rawUpiUrl)
+        ? `upi://pay?${parts.join('&')}`
+        : undefined;
+
+    return {
+      url: canonicalUrl,
+      rawUrl: rawUpiUrl,
+      amount,
+      note,
+      merchantVpa,
+      merchantName,
+      qrData,
+      qrExpiresAt,
+    };
   };
 
   const enqueuePhonePePollingJob = async (
@@ -983,7 +1259,9 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
 
           cashfreeCreated = true;
           cashfreeOrderId = result.providerOrderId;
-          cashfreePaymentSessionId = result.providerData?.paymentSessionId;
+          cashfreePaymentSessionId = typeof result.providerData?.paymentSessionId === 'string'
+            ? result.providerData.paymentSessionId
+            : undefined;
           cashfreeOrderStatus = result.status;
 
           console.log(`[Order ${order.id}] Cashfree payment created successfully after ${attempts} attempt(s)`);
@@ -1579,6 +1857,18 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
           const createdAt = resolveDate(result.createdAt);
           const expiresAt = new Date(createdAt.getTime() + expireAfterSeconds * 1000);
           const merchantTransactionId = resolveMerchantTransactionId(result) || '';
+          const upiMetadata = buildCanonicalUpiMetadata(result.providerData, {
+            amountMinor: orderAmountMinor,
+            currency: orderCurrency,
+          });
+
+          const shouldExposeUpi = Boolean(
+            upiMetadata.url
+              || upiMetadata.rawUrl
+              || upiMetadata.qrData
+              || upiMetadata.merchantVpa
+              || upiMetadata.merchantName
+          );
 
           return {
             success: true,
@@ -1587,6 +1877,21 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
               paymentId: result.paymentId,
               merchantTransactionId,
               expiresAt: expiresAt.toISOString(),
+              ...(shouldExposeUpi
+                ? {
+                    upi: {
+                      url: upiMetadata.url ?? undefined,
+                      rawUrl: upiMetadata.rawUrl ?? undefined,
+                      amount: upiMetadata.amount,
+                      note: upiMetadata.note,
+                      merchantVpa: upiMetadata.merchantVpa,
+                      merchantName: upiMetadata.merchantName,
+                      qrData: upiMetadata.qrData,
+                      qrExpiresAt: upiMetadata.qrExpiresAt,
+                      currency: orderCurrency,
+                    },
+                  }
+                : {}),
             },
             metadata: {
               effectiveInstrument,
