@@ -130,9 +130,8 @@ export default function Payment() {
 
   // Payment steps configuration
   const paymentSteps = [
-    { label: 'Initiated', description: 'Starting payment' },
-    { label: 'Processing', description: 'Verifying details' },
-    { label: 'Waiting for confirmation', description: 'Awaiting UPI app' },
+    { label: 'Initiating', description: 'Starting payment' },
+    { label: 'Processing', description: 'Confirming payment' },
     { label: 'Processed', description: 'Payment complete' },
   ];
 
@@ -180,15 +179,15 @@ export default function Payment() {
   // Auto-advance payment steps when processing
   useEffect(() => {
     if (paymentStatus === 'processing') {
-      // Start at step 0 (Initiated)
+      // Start at step 0 (Initiating)
       setCurrentStep(0);
       
       // Auto-advance to next step every 15 seconds
       const interval = window.setInterval(() => {
         setCurrentStep((prev) => {
-          // Don't go past step 2 (Waiting for confirmation)
-          // Step 3 (Processed) is only reached when payment completes
-          if (prev < 2) {
+          // Don't go past step 1 (Processing)
+          // Step 2 (Processed) is only reached when payment completes
+          if (prev < 1) {
             return prev + 1;
           }
           return prev;
@@ -203,7 +202,7 @@ export default function Payment() {
     } else if (paymentStatus === 'completed') {
       // Jump to final step when completed
       clearStepAdvance();
-      setCurrentStep(3);
+      setCurrentStep(2);
     } else {
       // Reset steps for other states
       clearStepAdvance();
