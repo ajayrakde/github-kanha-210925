@@ -112,6 +112,7 @@ Both refactors improved maintainability but did not change **endpoint URLs** or 
    - `/api/orders` listings still require an admin session, while influencers automatically receive only orders that used their coupons and buyers can retrieve individual orders they own for checkout recovery.
    - `/api/analytics` in `server/routes/analytics.ts`.
    - Returned datasets and dashboards unchanged.
+   - The sales trends visualization now guarantees that at least one metric (orders or revenue) remains active when toggling the legend, so admins never lose all charted context while exploring trends.
 
 5. **Settings**
    - `/api/admin/settings` in `server/routes/admin.ts`, backed by `settingsRepository`.
