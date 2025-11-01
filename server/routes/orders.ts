@@ -395,11 +395,21 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
         `${fullOrderWithRelations.deliveryAddress.city}, ${fullOrderWithRelations.deliveryAddress.pincode}`
       ].join('\n');
 
+      const mappedItems = fullOrderWithRelations.items.map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        name: item.product?.name ?? "Product",
+        quantity: item.quantity,
+        price: item.price,
+        imageUrl: item.product?.displayImageUrl ?? item.product?.imageUrl ?? null,
+      }));
+
       const orderResponse = {
         id: fullOrderWithRelations.id,
         total: fullOrderWithRelations.total,
         subtotal: fullOrderWithRelations.subtotal,
         discountAmount: fullOrderWithRelations.discountAmount,
+        shippingCharge: fullOrderWithRelations.shippingCharge,
         paymentMethod: fullOrderWithRelations.paymentMethod,
         deliveryAddress: deliveryAddressString,
         userInfo: {
@@ -407,6 +417,11 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
           email: user?.email || '',
           phone: user?.phone || '',
         },
+        createdAt:
+          fullOrderWithRelations.createdAt instanceof Date
+            ? fullOrderWithRelations.createdAt.toISOString()
+            : fullOrderWithRelations.createdAt,
+        items: mappedItems,
         cashfreeCreated,
         cashfreePaymentSessionId,
       };
@@ -505,11 +520,21 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
         `${order.deliveryAddress.city}, ${order.deliveryAddress.pincode}`
       ].join('\n');
 
+      const itemSummaries = order.items.map((item) => ({
+        id: item.id,
+        productId: item.productId,
+        name: item.product?.name ?? "Product",
+        quantity: item.quantity,
+        price: item.price,
+        imageUrl: item.product?.displayImageUrl ?? item.product?.imageUrl ?? null,
+      }));
+
       const orderDataForPayment = {
         orderId: order.id,
         total: order.total,
         subtotal: order.subtotal,
         discountAmount: order.discountAmount,
+        shippingCharge: order.shippingCharge,
         paymentMethod: order.paymentMethod,
         deliveryAddress: deliveryAddressString,
         userInfo: {
@@ -517,6 +542,9 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
           email: order.user.email,
           phone: order.user.phone,
         },
+        createdAt:
+          order.createdAt instanceof Date ? order.createdAt.toISOString() : order.createdAt,
+        items: itemSummaries,
         rawOrder: order,
       };
 

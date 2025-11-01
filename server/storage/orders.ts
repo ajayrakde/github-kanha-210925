@@ -159,6 +159,7 @@ export class OrdersRepository {
     user: User;
     deliveryAddress: UserAddress;
     payments: Payment[];
+    items: (OrderItem & { product: Product })[];
     offer?: Offer | null;
   }) | null> {
     const orderData = await db.query.orders.findFirst({
@@ -166,6 +167,11 @@ export class OrdersRepository {
       with: {
         user: true,
         deliveryAddress: true,
+        items: {
+          with: {
+            product: true,
+          },
+        },
         offer: true,
         payments: {
           with: {
@@ -182,6 +188,10 @@ export class OrdersRepository {
     return {
       ...orderData,
       offer: orderData.offer ?? null,
+      items: orderData.items?.map((item) => ({
+        ...item,
+        product: item.product ?? ({} as Product),
+      })) ?? [],
       payments: orderData.payments?.map((payment) => ({
         ...payment,
         refunds: payment.refunds ?? [],

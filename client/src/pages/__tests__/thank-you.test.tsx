@@ -79,6 +79,17 @@ describe("applyAuthorizationFailure", () => {
 });
 
 describe("Thank-you page", () => {
+  const sampleItems = [
+    {
+      id: "item-1",
+      productId: "product-1",
+      name: "Sample Product",
+      quantity: 2,
+      price: "249.50",
+      imageUrl: null,
+    },
+  ];
+
   beforeEach(() => {
     setLocationMock.mockReset();
     sessionStorage.clear();
@@ -105,6 +116,7 @@ describe("Thank-you page", () => {
         shippingCharge: "50.00",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        items: sampleItems,
       },
       transactions: [],
       latestTransaction: {
@@ -190,6 +202,8 @@ describe("Thank-you page", () => {
       });
 
       expect(screen.getByTestId("badge-payment-status")).toHaveTextContent(/Paid/i);
+      expect(screen.getByText("Sample Product")).toBeInTheDocument();
+      expect(screen.getByText(/Qty: 2/)).toBeInTheDocument();
       expect(screen.getByTestId("text-transaction-id")).toHaveTextContent("MERCHANT_TXN_123");
       expect(screen.getByTestId("text-amount-paid")).toHaveTextContent("₹499.00");
       expect(screen.getAllByText(phonePeIdentifierFixture.maskedUtr).length).toBeGreaterThan(0);
@@ -220,6 +234,7 @@ describe("Thank-you page", () => {
         shippingCharge: "50.00",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        items: sampleItems,
       },
       payment: null,
       transactions: [],

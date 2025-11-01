@@ -1,10 +1,20 @@
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
-import { useCallback, useEffect, useState, type ComponentProps } from "react";
+import { useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
 import { Separator } from "@/components/ui/separator";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, Clock, AlertCircle, Printer, Download } from "lucide-react";
+import { downloadElementAsImage, printElementWithStyles } from "@/lib/export-order";
+
+interface OrderItemSummary {
+  id: string;
+  productId: string;
+  name: string;
+  quantity: number;
+  price: string;
+  imageUrl?: string | null;
+}
 
 interface OrderData {
   orderId: string;
@@ -18,6 +28,9 @@ interface OrderData {
     email: string;
     phone?: string;
   };
+  items?: OrderItemSummary[];
+  shippingCharge?: string;
+  createdAt?: string;
 }
 
 interface PaymentTransactionInfo {
@@ -73,6 +86,7 @@ interface PaymentStatusInfo {
       email: string;
       phone?: string;
     };
+    items?: OrderItemSummary[];
     createdAt: string;
     updatedAt: string;
   };
@@ -209,11 +223,8 @@ export default function ThankYou() {
   const [isRetryingPhonePe, setIsRetryingPhonePe] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
   const [authorizationError, setAuthorizationError] = useState<string | null>(null);
-  const [orderDate] = useState(new Date().toLocaleDateString('en-IN', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  }));
+  const receiptRef = useRef<HTMLDivElement | null>(null);
+  const [isSavingReceipt, setIsSavingReceipt] = useState(false);
 
   useEffect(() => {
     // Get order data from session storage or URL parameters
@@ -612,18 +623,23 @@ export default function ThankYou() {
     );
   }
 
-  const displayOrderData = orderData || (paymentInfo?.order ? {
-    orderId: paymentInfo.order.id,
-    total: paymentInfo.order.total,
-    subtotal: paymentInfo.order.subtotal || paymentInfo.order.total,
-    discountAmount: paymentInfo.order.discountAmount || '0',
-    paymentMethod: paymentInfo.order.paymentMethod,
-    deliveryAddress: paymentInfo.order.deliveryAddress || '',
-    userInfo: paymentInfo.order.userInfo || {
-      name: 'Customer',
-      email: '',
-    }
-  } : null);
+  const displayOrderData = orderData || (paymentInfo?.order
+    ? {
+        orderId: paymentInfo.order.id,
+        total: paymentInfo.order.total,
+        subtotal: paymentInfo.order.subtotal || paymentInfo.order.total,
+        discountAmount: paymentInfo.order.discountAmount || '0',
+        paymentMethod: paymentInfo.order.paymentMethod,
+        deliveryAddress: paymentInfo.order.deliveryAddress || '',
+        userInfo: paymentInfo.order.userInfo || {
+          name: 'Customer',
+          email: '',
+        },
+        items: paymentInfo.order.items ?? [],
+        shippingCharge: paymentInfo.order.shippingCharge,
+        createdAt: paymentInfo.order.createdAt,
+      }
+    : null);
 
   if (!displayOrderData) {
     return (
@@ -636,10 +652,64 @@ export default function ThankYou() {
     );
   }
 
-  const taxAmount = parseFloat(displayOrderData.subtotal) - (parseFloat(displayOrderData.subtotal) / 1.05);
-  const shippingCharge = paymentInfo?.order?.shippingCharge
-    ? parseFloat(paymentInfo.order.shippingCharge)
-    : 50;
+  const parseAmount = (value: string | number | null | undefined) => {
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : 0;
+    }
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  };
+
+  const subtotalValue = parseAmount(displayOrderData.subtotal);
+  const discountAmountValue = parseAmount(displayOrderData.discountAmount);
+  const totalAmountValue = parseAmount(displayOrderData.total);
+  const shippingChargeValue = parseAmount(paymentInfo?.order?.shippingCharge ?? displayOrderData.shippingCharge);
+  const orderItems = displayOrderData.items ?? [];
+  const orderCreatedAt = paymentInfo?.order?.createdAt ?? displayOrderData.createdAt ?? null;
+  const orderDateDisplay = orderCreatedAt
+    ? new Date(orderCreatedAt).toLocaleString('en-IN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : new Date().toLocaleString('en-IN', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+  const hasDiscount = discountAmountValue > 0;
+
+  const handlePrintReceipt = () => {
+    if (!receiptRef.current) {
+      return;
+    }
+    try {
+      printElementWithStyles(receiptRef.current, {
+        title: `Order ${displayOrderData.orderId.toUpperCase()}`,
+      });
+    } catch (error) {
+      console.error('Failed to open print dialog for order receipt:', error);
+    }
+  };
+
+  const handleSaveReceipt = async () => {
+    if (!receiptRef.current) {
+      return;
+    }
+    try {
+      setIsSavingReceipt(true);
+      await downloadElementAsImage(receiptRef.current, `order-${displayOrderData.orderId}.png`);
+    } catch (error) {
+      console.error('Failed to save order receipt image:', error);
+    } finally {
+      setIsSavingReceipt(false);
+    }
+  };
   const headerInfo = getHeaderInfo(currentPaymentStatus, currentOrderStatus);
 
   return (
@@ -669,10 +739,13 @@ export default function ThankYou() {
       )}
 
       {/* Payment Receipt */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-3 sm:mb-6">
+      <div
+        ref={receiptRef}
+        className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-3 sm:mb-6"
+      >
         <div className="text-center mb-3 sm:mb-6">
           <h3 className="text-2xl font-semibold text-gray-900">Payment Receipt</h3>
-          <p className="text-sm text-gray-500 mt-2">Order Date: {orderDate}</p>
+          <p className="text-sm text-gray-500 mt-2">Order Date: {orderDateDisplay}</p>
         </div>
 
         <Separator className="mb-3 sm:mb-6" />
@@ -703,28 +776,69 @@ export default function ThankYou() {
 
         <Separator className="mb-3 sm:mb-6" />
 
+        {orderItems.length > 0 && (
+          <>
+            <div className="mb-3 sm:mb-6">
+              <h4 className="font-semibold text-gray-900 mb-3">Items Ordered</h4>
+              <div className="space-y-3">
+                {orderItems.map((item) => {
+                  const unitPrice = parseAmount(item.price);
+                  const lineTotal = unitPrice * item.quantity;
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-start justify-between gap-4 rounded-lg border border-gray-100 bg-gray-50 p-3 sm:p-4"
+                    >
+                      <div className="flex items-start gap-3">
+                        {item.imageUrl && (
+                          <img
+                            src={item.imageUrl}
+                            alt={item.name}
+                            className="h-12 w-12 rounded-md object-cover border border-gray-200"
+                          />
+                        )}
+                        <div>
+                          <p className="font-medium text-gray-900">{item.name}</p>
+                          <p className="text-xs text-gray-500 mt-1">Qty: {item.quantity}</p>
+                          <p className="text-xs text-gray-400">Product ID: {item.productId.slice(0, 8).toUpperCase()}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-gray-900">₹{lineTotal.toFixed(2)}</p>
+                        <p className="text-xs text-gray-500">₹{unitPrice.toFixed(2)} each</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <Separator className="mb-3 sm:mb-6" />
+          </>
+        )}
+
         {/* Price Breakdown */}
         <div className="space-y-3 mb-3 sm:mb-6">
           <h4 className="font-semibold text-gray-900">Price Details</h4>
           <div className="flex justify-between text-sm">
             <span className="text-gray-600">Subtotal (incl. tax):</span>
-            <span>₹{parseFloat(displayOrderData.subtotal).toFixed(2)}</span>
+            <span>₹{subtotalValue.toFixed(2)}</span>
           </div>
-          {parseFloat(displayOrderData.discountAmount) > 0 && (
+          {hasDiscount && (
             <div className="flex justify-between text-sm text-green-600">
               <span>Discount Applied:</span>
-              <span>-₹{parseFloat(displayOrderData.discountAmount).toFixed(2)}</span>
+              <span>-₹{discountAmountValue.toFixed(2)}</span>
             </div>
           )}
           <div className="flex justify-between text-sm">
             <span className="text-gray-600">Shipping Charges:</span>
-            <span>₹{shippingCharge.toFixed(2)}</span>
+            <span>₹{shippingChargeValue.toFixed(2)}</span>
           </div>
           <Separator />
           <div className="flex justify-between font-semibold text-lg">
             <span>Total Amount Paid:</span>
             <span className="text-green-600" data-testid="text-final-total">
-              ₹{parseFloat(displayOrderData.total).toFixed(2)}
+              ₹{totalAmountValue.toFixed(2)}
             </span>
           </div>
         </div>
@@ -969,6 +1083,35 @@ export default function ThankYou() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div
+        className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-4 mb-3 sm:mb-6"
+        data-print-hidden="true"
+      >
+        <Button
+          variant="outline"
+          className="sm:w-auto"
+          onClick={handlePrintReceipt}
+          data-testid="button-print-order"
+        >
+          <Printer className="h-4 w-4 mr-2" />
+          Print Receipt
+        </Button>
+        <Button
+          variant="outline"
+          className="sm:w-auto"
+          onClick={handleSaveReceipt}
+          disabled={isSavingReceipt}
+          data-testid="button-save-order"
+        >
+          {isSavingReceipt ? (
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+          ) : (
+            <Download className="h-4 w-4 mr-2" />
+          )}
+          {isSavingReceipt ? 'Saving…' : 'Save Snapshot'}
+        </Button>
       </div>
 
       {/* Action Buttons */}

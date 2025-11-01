@@ -83,13 +83,13 @@ interface OrderData {
   items?: Array<{
     id: string;
     productId: string;
+    name: string;
     quantity: number;
-    product: {
-      id: string;
-      name: string;
-      price: string;
-    };
+    price: string;
+    imageUrl?: string | null;
   }>;
+  shippingCharge?: string;
+  createdAt?: string;
 }
 
 export default function Payment() {
@@ -206,6 +206,8 @@ export default function Payment() {
         userInfo: result.order.userInfo,
         cashfreePaymentSessionId: result.order.cashfreePaymentSessionId,
         items: result.order.items, // Use items from backend response
+        shippingCharge: result.order.shippingCharge,
+        createdAt: result.order.createdAt,
       });
 
       // Set Cashfree payment session ID if available
@@ -263,7 +265,8 @@ export default function Payment() {
 
   // Determine if we're using Cashfree or PhonePe
   const paymentMethod = orderData?.paymentMethod || order?.paymentMethod;
-  const isCashfree = paymentMethod?.toLowerCase() === 'upi' || paymentMethod?.toLowerCase() === 'cashfree';
+  const normalizedPaymentMethod = paymentMethod?.toLowerCase();
+  const isCashfree = normalizedPaymentMethod === 'cashfree' || normalizedPaymentMethod === 'cashfree_upi';
 
   const loadPhonePeCheckout = async () => {
     if (window.PhonePeCheckout) {
@@ -377,7 +380,7 @@ export default function Payment() {
       if (data.paymentId) {
         setTimeout(() => {
           checkPaymentStatusMutation.mutate(data.paymentId);
-        }, 5000);
+        }, 3000);
       }
     },
     onError: (error) => {
@@ -419,7 +422,7 @@ export default function Payment() {
       if (data.paymentId) {
         setTimeout(() => {
           checkPaymentStatusMutation.mutate(data.paymentId);
-        }, 5000);
+        }, 3000);
       }
     },
     onError: (error) => {
@@ -570,7 +573,7 @@ export default function Payment() {
         clearStatusPolling();
         pollTimeoutRef.current = window.setTimeout(() => {
           checkPaymentStatusMutation.mutate(paymentId);
-        }, 5000);
+        }, 3000);
         return;
       }
 
@@ -917,14 +920,19 @@ export default function Payment() {
               {currentOrderData.items && currentOrderData.items.length > 0 && (
                 <>
                   <div className="space-y-2 mb-3 text-sm">
-                    {currentOrderData.items.map((item) => (
-                      <div key={item.id} className="flex justify-between text-gray-600">
-                        <span className="flex-1">
-                          {item.product.name} × {item.quantity}
-                        </span>
-                        <span className="ml-2">₹{(parseFloat(item.product.price) * item.quantity).toFixed(2)}</span>
-                      </div>
-                    ))}
+                    {currentOrderData.items.map((item) => {
+                      const unitPrice = Number.parseFloat(item.price);
+                      const normalizedUnitPrice = Number.isFinite(unitPrice) ? unitPrice : 0;
+                      const lineTotal = normalizedUnitPrice * item.quantity;
+                      return (
+                        <div key={item.id} className="flex justify-between text-gray-600">
+                          <span className="flex-1">
+                            {item.name} × {item.quantity}
+                          </span>
+                          <span className="ml-2">₹{lineTotal.toFixed(2)}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                   <hr className="my-3" />
                 </>
@@ -959,8 +967,8 @@ export default function Payment() {
             </CardContent>
           </Card>
         </div>
+        </div>
       </div>
-    </div>
     </div>
   );
 }
