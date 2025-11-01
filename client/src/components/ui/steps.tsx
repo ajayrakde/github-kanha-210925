@@ -78,14 +78,6 @@ export function Steps({ steps, currentStep, stepProgress = 0, status = null, cla
               {/* Connector line - shows gradual progress animation */}
               {index < steps.length - 1 && (
                 <div className="relative h-1 flex-1 -mt-8">
-                  {/* Progress percentage text - positioned above the line */}
-                  {isCurrent && connectorProgress > 0 && (
-                    <div className="absolute -top-6 left-1/2 -translate-x-1/2">
-                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded shadow-sm">
-                        {Math.round(connectorProgress)}%
-                      </span>
-                    </div>
-                  )}
                   {/* Background line */}
                   <div className="absolute inset-0 bg-gray-300 rounded-full" />
                   {/* Animated progress line */}
