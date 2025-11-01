@@ -1059,14 +1059,8 @@ export default function Payment() {
         <div className="lg:col-span-2">
           {/* Payment Status */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <CreditCard className="mr-2 h-5 w-5" />
-                Payment Status
-                <span className="sr-only" data-testid="text-upi-widget-status">{widgetStatus}</span>
-              </CardTitle>
-            </CardHeader>
             <CardContent className="space-y-6">
+              <span className="sr-only" data-testid="text-upi-widget-status">{widgetStatus}</span>
               <UpiPaymentWidget
                 status={derivedWidgetStatus}
                 upiUrl={upiUrl ?? ''}
