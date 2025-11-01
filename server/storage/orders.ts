@@ -19,10 +19,12 @@ import {
 } from "@shared/schema";
 import type { AbandonedCart } from "@/lib/types";
 import { db } from "../db";
-import { eq, and, desc, sql, gte, lt, inArray, gt } from "drizzle-orm";
+import { eq, and, desc, sql, gte, lt, inArray, gt, or } from "drizzle-orm";
 
 export const MIN_CART_ITEM_QUANTITY = 1;
 export const MAX_CART_ITEM_QUANTITY = 10;
+
+const CONFIRMED_ORDER_STATUSES = ["confirmed", "processing", "shipped", "delivered"];
 
 export class CartQuantityError extends Error {
   constructor(message: string) {
@@ -483,7 +485,7 @@ export class OrdersRepository {
     const lastMonthOrdersWhere = and(
       gte(orders.createdAt, lastMonthStart),
       lt(orders.createdAt, currentMonthStart),
-      eq(orders.status, "completed"),
+      or(inArray(orders.status, CONFIRMED_ORDER_STATUSES), eq(orders.paymentStatus, "paid")),
     );
 
     const [{ registeredUsers } = { registeredUsers: 0 }] = await db
