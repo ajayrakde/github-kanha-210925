@@ -1331,14 +1331,8 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         console.error('[PaymentStart] Failed to mark intent as consumed:', error);
       }
 
-      // Clear the cart after successful order creation
-      try {
-        await ordersRepository.clearCart(sessionId);
-        console.log('[PaymentStart] Cart cleared for session:', sessionId);
-      } catch (error) {
-        // Log but don't fail the request - order was created successfully
-        console.error('[PaymentStart] Failed to clear cart:', error);
-      }
+      // NOTE: Cart is NOT cleared here - it will be cleared when payment is actually initiated
+      // This allows users to go back from payment page without losing their cart
 
       res.json({ 
         order: orderResponse, 
@@ -1597,6 +1591,17 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
             updatedAt: new Date(),
           })
           .where(eq(paymentsTable.id, paymentId));
+
+        // Clear the cart after payment is successfully initiated
+        if (req.session.sessionId) {
+          try {
+            await ordersRepository.clearCart(req.session.sessionId);
+            console.log('[UPI Initiate] Cart cleared for session:', req.session.sessionId);
+          } catch (error) {
+            // Log but don't fail the request - payment was initiated successfully
+            console.error('[UPI Initiate] Failed to clear cart:', error);
+          }
+        }
 
         res.json({
           success: true,
