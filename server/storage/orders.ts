@@ -230,14 +230,23 @@ export class OrdersRepository {
     expiresAt: Date;
   }): Promise<{ id: string }> {
     const { checkoutIntentId, subtotal, discount, shippingCharge, total, ...restIntent } = intent;
-    const [savedIntent] = await db.insert(checkoutIntents).values({
+    const values = {
       id: checkoutIntentId,
       subtotal: subtotal.toString(),
       discount: discount.toString(),
       shippingCharge: shippingCharge.toString(),
       total: total.toString(),
       ...restIntent,
-    }).returning();
+    };
+    
+    // Upsert: insert or update if exists
+    const [savedIntent] = await db.insert(checkoutIntents)
+      .values(values)
+      .onConflictDoUpdate({
+        target: checkoutIntents.id,
+        set: values,
+      })
+      .returning();
     return savedIntent;
   }
 

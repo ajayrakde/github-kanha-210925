@@ -421,10 +421,38 @@ export default function Checkout() {
         addressIdToUse = newAddress?.id ?? addressIdToUse;
       }
 
-      // Generate checkout intent ID (timestamp + random string for uniqueness)
-      const checkoutIntentId = `intent_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+      // Check if we have an existing checkout intent to reuse the ID
+      let checkoutIntentId: string | undefined;
       
-      // Prepare checkout intent data
+      try {
+        const existingIntentStr = sessionStorage.getItem('checkoutIntent');
+        if (existingIntentStr) {
+          const existingIntent = JSON.parse(existingIntentStr);
+          
+          // Compare cart items (by product ID and quantity)
+          const currentCartSignature = cartItems.map(item => `${item.productId}:${item.quantity}`).sort().join(',');
+          const existingCartSignature = existingIntent.cartItems?.map((item: any) => `${item.productId}:${item.quantity}`).sort().join(',');
+          
+          if (currentCartSignature === existingCartSignature && 
+              existingIntent.total === (subtotal + shippingCharge - discount) &&
+              existingIntent.offerCode === (appliedOffer?.code ?? null)) {
+            // Cart hasn't changed, reuse the intent ID
+            checkoutIntentId = existingIntent.checkoutIntentId;
+            console.log('[Checkout] Reusing checkout intent ID:', checkoutIntentId);
+          }
+        }
+      } catch (error) {
+        console.error('[Checkout] Failed to parse existing intent:', error);
+      }
+
+      // Generate new intent ID if we don't have one to reuse
+      if (!checkoutIntentId) {
+        checkoutIntentId = `intent_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+        console.log('[Checkout] Created new checkout intent ID:', checkoutIntentId);
+      }
+      
+      // ALWAYS save/update intent to backend (even when reusing ID)
+      // This ensures address, user info, and other details stay current
       const checkoutIntent = {
         checkoutIntentId,
         userInfo: orderUserInfoSnapshot,
@@ -438,13 +466,13 @@ export default function Checkout() {
         total: subtotal + shippingCharge - discount,
       };
       
-      // Save intent to backend (persistent storage)
+      // Save/update intent in backend (upsert operation)
       const intentResponse = await apiRequest("POST", "/api/orders/checkout-intent", checkoutIntent);
       const intentResult = await intentResponse.json();
       
-      // Also store in sessionStorage as a fallback
+      // Also update in sessionStorage
       sessionStorage.setItem('checkoutIntent', JSON.stringify(checkoutIntent));
-      console.log('[Checkout] Created checkout intent:', checkoutIntentId);
+      console.log('[Checkout] Saved checkout intent to backend:', checkoutIntentId);
 
       return {
         checkoutIntentId,
