@@ -134,6 +134,8 @@ export interface UpiPaymentWidgetProps {
   ctaLabel?: string
   /** Disables the call-to-action button. */
   ctaDisabled?: boolean
+  /** Disables all payment actions (app buttons, QR, etc) to prevent multiple payment initiations. */
+  disabled?: boolean
   /** Callback triggered when the CTA is activated. */
   onCtaClick?: (mode: UpiPaymentMode) => void
   /** Callback triggered when a UPI intent app tile is clicked. */
@@ -185,6 +187,7 @@ export function UpiPaymentWidget({
   timer,
   ctaLabel = "I've completed the payment",
   ctaDisabled,
+  disabled = false,
   onCtaClick,
   onIntentAppSelect,
   onModeChange,
@@ -324,6 +327,7 @@ export function UpiPaymentWidget({
                   variant="outline"
                   className="h-auto flex-col items-start gap-2 rounded-lg border bg-background p-3 text-left"
                   onClick={() => onIntentAppSelect?.(app.id)}
+                  disabled={disabled}
                   aria-label={`Pay with ${app.label}`}
                 >
                   <span

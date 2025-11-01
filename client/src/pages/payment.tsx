@@ -102,6 +102,7 @@ export default function Payment() {
   const [upiId, setUpiId] = useState<string>('');
   const [intentId, setIntentId] = useState<string>("");
   const [isCreatingOrder, setIsCreatingOrder] = useState(false);
+  const [isActionLocked, setIsActionLocked] = useState(false);
   const { toast} = useToast();
   const { clearCart } = useCart();
   const checkoutLoaderRef = useRef<Promise<PhonePeCheckoutInstance> | null>(null);
@@ -145,6 +146,13 @@ export default function Payment() {
       }
     }
   }, [location]);
+
+  // Clear action lock when payment completes or fails
+  useEffect(() => {
+    if (paymentStatus === 'completed' || paymentStatus === 'failed') {
+      setIsActionLocked(false);
+    }
+  }, [paymentStatus]);
 
   // Create order from checkout intent with retry logic
   const startPaymentMutation = useMutation({
@@ -667,26 +675,34 @@ export default function Payment() {
 
   // Handle retry payment
   const handleRetryPayment = () => {
+    if (isActionLocked) return;
     setPaymentStatus('pending');
     setWidgetStatusWithSkip('awaiting');
     latestPaymentIdRef.current = null;
     clearStatusPolling();
     if (isCashfree) {
+      // For Cashfree, don't set lock as user still needs to choose payment method after retry
       createCashfreePaymentMutation.mutate();
     } else {
+      // For PhonePe, set lock as we're calling the mutation
+      setIsActionLocked(true);
       createPaymentMutation.mutate();
     }
   };
 
   // Handle payment initiation
   const handleInitiatePayment = () => {
+    if (isActionLocked) return;
     if (currentOrderData) {
       if (isCashfree) {
         // For Cashfree, we already have payment session ID and pending payment from page load
         // Payment record already exists and polling is active - don't clear them
+        // Don't set action lock here as user still needs to choose payment method (Collect/QR)
         setPaymentStatus('pending');
         setWidgetStatusWithSkip('awaiting', { skipPollingClear: true });
       } else {
+        // For PhonePe, set lock as we're about to call a mutation
+        setIsActionLocked(true);
         latestPaymentIdRef.current = null;
         clearStatusPolling();
         setWidgetStatusWithSkip('awaiting');
@@ -904,6 +920,10 @@ export default function Payment() {
   }, [setInstrumentPreference, setWidgetStatusWithSkip]);
 
   const handleWidgetIntentLaunch = useCallback(() => {
+      if (isActionLocked) {
+        return;
+      }
+
       if (!upiUrl) {
         toast({
           title: "UPI link unavailable",
@@ -913,6 +933,7 @@ export default function Payment() {
         return;
       }
 
+      setIsActionLocked(true);
       setInstrumentPreference('UPI_INTENT');
       setWidgetStatusWithSkip('awaiting', { skipPollingClear: true });
 
@@ -923,11 +944,16 @@ export default function Payment() {
         window.open(upiUrl, '_self');
       }
 
+      // Clear lock after 3 seconds to allow user to retry if they back out of the UPI app
+      setTimeout(() => {
+        setIsActionLocked(false);
+      }, 3000);
+
       const paymentId = latestPaymentIdRef.current;
       if (paymentId) {
         scheduleStatusPolling(paymentId);
       }
-    }, [upiUrl, toast, setInstrumentPreference, setWidgetStatusWithSkip, scheduleStatusPolling]);
+    }, [isActionLocked, upiUrl, toast, setInstrumentPreference, setWidgetStatusWithSkip, scheduleStatusPolling]);
 
   const handleWidgetCta = useCallback(
     (mode: UpiPaymentMode) => {
@@ -1080,6 +1106,12 @@ export default function Payment() {
                 ctaDisabled={widgetCtaDisabled}
                 ctaTestId="button-initiate-payment"
                 onCollectTriggered={handleWidgetCollectTriggered}
+                disabled={
+                  isActionLocked ||
+                  createPaymentMutation.isPending || 
+                  createCashfreePaymentMutation.isPending || 
+                  paymentStatus === 'processing'
+                }
               />
 
               {isCashfree && cashfreePaymentSessionId ? (
@@ -1094,7 +1126,13 @@ export default function Payment() {
                       placeholder="yourname@upi (e.g., success@upi)"
                       value={upiId}
                       onChange={(e) => setUpiId(e.target.value)}
-                      disabled={initiateUPIPaymentMutation.isPending}
+                      disabled={
+                        isActionLocked ||
+                        initiateUPIPaymentMutation.isPending || 
+                        createPaymentMutation.isPending || 
+                        createCashfreePaymentMutation.isPending || 
+                        paymentStatus === 'processing'
+                      }
                       data-testid="input-upi-id"
                       className="w-full"
                     />
@@ -1102,10 +1140,19 @@ export default function Payment() {
                   </div>
                   <Button
                     onClick={() => {
+                      if (isActionLocked) return;
+                      setIsActionLocked(true);
                       handleWidgetCollectTriggered();
                       initiateUPIPaymentMutation.mutate();
                     }}
-                    disabled={!upiId.trim() || initiateUPIPaymentMutation.isPending}
+                    disabled={
+                      isActionLocked ||
+                      !upiId.trim() || 
+                      initiateUPIPaymentMutation.isPending || 
+                      createPaymentMutation.isPending || 
+                      createCashfreePaymentMutation.isPending || 
+                      paymentStatus === 'processing'
+                    }
                     size="lg"
                     className="w-full"
                     data-testid="button-pay-with-upi"
