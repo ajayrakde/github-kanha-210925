@@ -528,7 +528,6 @@ export default function Checkout() {
         </Button>
         <div>
           <h2 className="text-2xl font-semibold text-gray-900 mb-1">Checkout</h2>
-          <p className="text-gray-600 hidden sm:block">Complete your order with secure payment</p>
         </div>
       </div>
 
@@ -1001,20 +1000,6 @@ export default function Checkout() {
           <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 sticky top-24">
             <h3 className="font-semibold text-gray-900 mb-2 sm:mb-4">Order Summary</h3>
             
-            {/* Itemized List */}
-            <div className="space-y-2 mb-3 sm:mb-4 text-sm">
-              {cartItems.map((item) => (
-                <div key={item.id} className="flex justify-between text-gray-600">
-                  <span className="flex-1">
-                    {item.product.name} × {item.quantity}
-                  </span>
-                  <span className="ml-2">₹{(parseFloat(item.product.price) * item.quantity).toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
-
-            <hr className="my-3" />
-
             {/* Summary Totals */}
             <div className="space-y-2 text-sm mb-2 sm:mb-4">
               <div className="flex justify-between">
@@ -1145,12 +1130,12 @@ export default function Checkout() {
                 {isCalculatingShipping ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Place Order - ₹{total.toFixed(2)}
+                    Proceed to Payment - ₹{total.toFixed(2)}
                   </>
                 ) : (
                   <>
                     <i className="fas fa-lock mr-2"></i>
-                    Place Order - ₹{total.toFixed(2)}
+                    Proceed to Payment - ₹{total.toFixed(2)}
                   </>
                 )}
               </Button>
