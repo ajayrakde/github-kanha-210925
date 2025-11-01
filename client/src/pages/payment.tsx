@@ -1,14 +1,22 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, CreditCard, ArrowLeft, AlertCircle, Copy } from "lucide-react";
+import { Loader2, CreditCard, ArrowLeft, AlertCircle } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/hooks/use-cart";
-import useUpiPaymentState, { type PhonePeTokenUrlData } from "@/hooks/use-upi-payment-state";
+import useUpiPaymentState, {
+  type PhonePeTokenUrlData,
+  type UpiWidgetStatus,
+} from "@/hooks/use-upi-payment-state";
+import UpiPaymentWidget, {
+  type MerchantMetadataItem,
+  type UpiPaymentMode,
+  type UpiPaymentStatus,
+} from "@/components/payment/UpiPaymentWidget";
 
 type PhonePeCheckoutEvent = {
   status?: string;
@@ -36,33 +44,28 @@ const PHONEPE_CHECKOUT_SRC = "https://checkout.phonepe.com/v3/checkout.js";
 
 type PhonePeInstrumentPreference = "UPI_INTENT" | "UPI_COLLECT" | "UPI_QR";
 
-const PHONEPE_INSTRUMENT_OPTIONS: Array<{
-  value: PhonePeInstrumentPreference;
-  label: string;
-  description: string;
-  testId: string;
-}> = [
-  {
-    value: "UPI_INTENT",
-    label: "UPI Intent",
-    description: "Launches your preferred UPI app to approve the payment",
-    testId: "button-select-upi_intent",
-  },
-  {
-    value: "UPI_COLLECT",
-    label: "UPI Collect",
-    description: "We send a collect request to your UPI app for approval",
-    testId: "button-select-upi_collect",
-  },
-  {
-    value: "UPI_QR",
-    label: "UPI QR",
-    description: "Scan a QR code from any UPI app to complete payment",
-    testId: "button-select-upi_qr",
-  },
-];
-
 type PhonePeTokenResponse = Partial<PhonePeTokenUrlData>;
+
+const CURRENCY_FORMATTER = new Intl.NumberFormat("en-IN", {
+  style: "currency",
+  currency: "INR",
+  maximumFractionDigits: 2,
+});
+
+const formatIndianCurrency = (value?: string | number | null) => {
+  if (typeof value === "number") {
+    return CURRENCY_FORMATTER.format(Number.isFinite(value) ? value : 0);
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) {
+      return CURRENCY_FORMATTER.format(parsed);
+    }
+  }
+
+  return CURRENCY_FORMATTER.format(0);
+};
 
 interface OrderData {
   orderId: string;
@@ -104,6 +107,7 @@ export default function Payment() {
   const checkoutLoaderRef = useRef<Promise<PhonePeCheckoutInstance> | null>(null);
   const latestPaymentIdRef = useRef<string | null>(null);
   const pollTimeoutRef = useRef<number | null>(null);
+  const widgetAwaitingSkipRef = useRef(false);
   const clearStatusPolling = () => {
     if (pollTimeoutRef.current !== null) {
       window.clearTimeout(pollTimeoutRef.current);
@@ -370,20 +374,18 @@ export default function Payment() {
           variant: "destructive"
         });
         setPaymentStatus('failed');
-        setWidgetStatus('failed');
+        setWidgetStatusWithSkip('failed');
         return;
       }
 
       latestPaymentIdRef.current = data.paymentId ?? null;
       setCashfreePaymentSessionId(data.providerData.paymentSessionId);
       setPaymentStatus('pending');
-      setWidgetStatus('awaiting');
+      setWidgetStatusWithSkip('awaiting', { skipPollingClear: true });
 
       // Start polling for payment status (for QR code and app intent flows)
       if (data.paymentId) {
-        setTimeout(() => {
-          checkPaymentStatusMutation.mutate(data.paymentId);
-        }, 5000);
+        scheduleStatusPolling(data.paymentId);
       }
     },
     onError: (error) => {
@@ -394,7 +396,7 @@ export default function Payment() {
         variant: "destructive"
       });
       setPaymentStatus('failed');
-      setWidgetStatus('failed');
+      setWidgetStatusWithSkip('failed');
     }
   });
 
@@ -417,7 +419,7 @@ export default function Payment() {
       // Store the payment ID for status polling
       latestPaymentIdRef.current = data.paymentId;
       setPaymentStatus('processing');
-      setWidgetStatus('awaiting');
+      setWidgetStatusWithSkip('awaiting', { skipPollingClear: true });
       toast({
         title: "Payment Initiated",
         description: "Please check your UPI app to approve the payment request.",
@@ -425,9 +427,7 @@ export default function Payment() {
 
       // Start polling for payment status
       if (data.paymentId) {
-        setTimeout(() => {
-          checkPaymentStatusMutation.mutate(data.paymentId);
-        }, 5000);
+        scheduleStatusPolling(data.paymentId);
       }
     },
     onError: (error) => {
@@ -438,7 +438,7 @@ export default function Payment() {
         variant: "destructive"
       });
       setPaymentStatus('failed');
-      setWidgetStatus('failed');
+      setWidgetStatusWithSkip('failed');
     }
   });
 
@@ -474,7 +474,7 @@ export default function Payment() {
           variant: "destructive"
         });
         setPaymentStatus('failed');
-        setWidgetStatus('failed');
+        setWidgetStatusWithSkip('failed');
         return;
       }
 
@@ -538,7 +538,7 @@ export default function Payment() {
         variant: "destructive"
       });
       setPaymentStatus('failed');
-      setWidgetStatus('failed');
+      setWidgetStatusWithSkip('failed');
     }
   });
 
@@ -552,6 +552,7 @@ export default function Payment() {
     copyUpiUrl,
     copyCheckoutUrl,
     shareableCheckoutUrl,
+    merchantTransactionId,
   } = useUpiPaymentState({
     amount: currentOrderData?.total ?? 0,
     currency: 'INR',
@@ -559,6 +560,28 @@ export default function Payment() {
     phonePeMutation: createPaymentMutation,
     cashfreeMutation: createCashfreePaymentMutation,
   });
+
+  const setWidgetStatusWithSkip = useCallback(
+    (status: UpiWidgetStatus, options?: { skipPollingClear?: boolean }) => {
+      if (status === 'awaiting' && options?.skipPollingClear) {
+        widgetAwaitingSkipRef.current = true;
+      }
+
+      setWidgetStatus(status);
+    },
+    [setWidgetStatus],
+  );
+
+  useEffect(() => {
+    if (widgetStatus === 'awaiting') {
+      if (widgetAwaitingSkipRef.current) {
+        widgetAwaitingSkipRef.current = false;
+        return;
+      }
+
+      clearStatusPolling();
+    }
+  }, [widgetStatus]);
 
   // Payment status checking mutation
   const checkPaymentStatusMutation = useMutation({
@@ -601,10 +624,7 @@ export default function Payment() {
       if (status === 'PENDING' && paymentId) {
         setPaymentStatus('processing');
         applyGatewayStatus('PENDING');
-        clearStatusPolling();
-        pollTimeoutRef.current = window.setTimeout(() => {
-          checkPaymentStatusMutation.mutate(paymentId);
-        }, 5000);
+        scheduleStatusPolling(paymentId);
         return;
       }
 
@@ -619,7 +639,7 @@ export default function Payment() {
       clearStatusPolling();
       latestPaymentIdRef.current = null;
       setPaymentStatus('failed');
-      setWidgetStatus('failed');
+      setWidgetStatusWithSkip('failed');
       toast({
         title: "Status Check Failed",
         description: "We couldn't verify the payment status. Please try again.",
@@ -627,6 +647,16 @@ export default function Payment() {
       });
     }
   });
+
+  const scheduleStatusPolling = useCallback(
+    (paymentId: string, delay = 5000) => {
+      clearStatusPolling();
+      pollTimeoutRef.current = window.setTimeout(() => {
+        checkPaymentStatusMutation.mutate(paymentId);
+      }, delay);
+    },
+    [checkPaymentStatusMutation],
+  );
 
   const isLoading = isCreatingOrder || isLoadingOrder || createPaymentMutation.isPending || createCashfreePaymentMutation.isPending;
 
@@ -638,7 +668,7 @@ export default function Payment() {
   // Handle retry payment
   const handleRetryPayment = () => {
     setPaymentStatus('pending');
-    setWidgetStatus('awaiting');
+    setWidgetStatusWithSkip('awaiting');
     latestPaymentIdRef.current = null;
     clearStatusPolling();
     if (isCashfree) {
@@ -655,11 +685,11 @@ export default function Payment() {
         // For Cashfree, we already have payment session ID and pending payment from page load
         // Payment record already exists and polling is active - don't clear them
         setPaymentStatus('pending');
-        setWidgetStatus('awaiting');
+        setWidgetStatusWithSkip('awaiting', { skipPollingClear: true });
       } else {
         latestPaymentIdRef.current = null;
         clearStatusPolling();
-        setWidgetStatus('awaiting');
+        setWidgetStatusWithSkip('awaiting');
         createPaymentMutation.mutate();
       }
     }
@@ -695,6 +725,249 @@ export default function Payment() {
       variant: copied ? undefined : "destructive",
     });
   };
+
+  const copyPlainText = useCallback(async (value?: string | null): Promise<boolean> => {
+    if (!value) {
+      return false;
+    }
+
+    const clipboard = globalThis?.navigator?.clipboard;
+    if (!clipboard || typeof clipboard.writeText !== "function") {
+      return false;
+    }
+
+    try {
+      await clipboard.writeText(value);
+      return true;
+    } catch (error) {
+      console.warn('Clipboard write failed', error);
+      return false;
+    }
+  }, []);
+
+  const handleCopyMerchantVpa = useCallback(() => {
+    void copyPlainText(merchantMetadata.vpa);
+  }, [copyPlainText, merchantMetadata.vpa]);
+
+  const handleCopyTransactionReference = useCallback(() => {
+    const reference = merchantTransactionId ?? currentOrderData?.orderId ?? null;
+    void copyPlainText(reference);
+  }, [copyPlainText, merchantTransactionId, currentOrderData?.orderId]);
+
+  const formattedAmount = useMemo(() => formatIndianCurrency(currentOrderData?.total ?? null), [currentOrderData?.total]);
+
+  const widgetMerchant = useMemo(
+    () => ({
+      name: merchantMetadata?.name ?? 'Kanha Retail',
+      vpa: merchantMetadata?.vpa ?? 'kanharetail@upi',
+      amount: formattedAmount,
+      orderLabel: currentOrderData?.orderId ? `Order ${currentOrderData.orderId}` : undefined,
+    }),
+    [merchantMetadata?.name, merchantMetadata?.vpa, formattedAmount, currentOrderData?.orderId],
+  );
+
+  const transactionReference = useMemo(
+    () => merchantTransactionId ?? currentOrderData?.orderId ?? 'Pending',
+    [merchantTransactionId, currentOrderData?.orderId],
+  );
+
+  const widgetMetadataItems = useMemo<MerchantMetadataItem[]>(() => {
+    const items: MerchantMetadataItem[] = [];
+
+    if (merchantMetadata?.code) {
+      items.push({ label: 'Merchant code', value: merchantMetadata.code });
+    }
+
+    if (merchantMetadata?.transactionNote) {
+      items.push({ label: 'Payment note', value: merchantMetadata.transactionNote });
+    }
+
+    if (shareableCheckoutUrl) {
+      items.push({
+        label: 'Checkout URL',
+        value: shareableCheckoutUrl,
+        onCopy: handleCopyCheckoutLink,
+        copyAriaLabel: 'Copy checkout URL',
+      });
+    }
+
+    return items;
+  }, [merchantMetadata?.code, merchantMetadata?.transactionNote, shareableCheckoutUrl, handleCopyCheckoutLink]);
+
+  const widgetHelperNotes = useMemo(
+    () => [
+      {
+        id: 'upi-app-flow',
+        text: 'Approve the request in your UPI app and return to this tab so we can confirm the payment.',
+      },
+      {
+        id: 'upi-copy-fallback',
+        text: 'Copy the deep link or QR code link if your browser blocks automatic launches.',
+      },
+      ...(isCashfree
+        ? [
+            {
+              id: 'upi-collect',
+              text: 'Collect requests may take a few seconds to appear. Check your UPI app notifications if you do not see it immediately.',
+            },
+          ]
+        : []),
+    ],
+    [isCashfree],
+  );
+
+  const widgetNote = useMemo(
+    () =>
+      isCashfree
+        ? 'Enter your UPI ID below if you prefer a collect request instead of scanning the QR code.'
+        : 'Launch your preferred UPI app or scan the QR code to finish the payment securely.',
+    [isCashfree],
+  );
+
+  const derivedWidgetStatus = useMemo<UpiPaymentStatus>(() => {
+    if (widgetStatus === 'success' || paymentStatus === 'completed') {
+      return 'success';
+    }
+
+    if (widgetStatus === 'failed' || paymentStatus === 'failed') {
+      return 'failure';
+    }
+
+    if (widgetStatus === 'expired') {
+      return 'expired';
+    }
+
+    if (
+      createPaymentMutation.isPending
+      || createCashfreePaymentMutation.isPending
+      || initiateUPIPaymentMutation.isPending
+    ) {
+      return 'initiated';
+    }
+
+    if (checkPaymentStatusMutation.isPending || paymentStatus === 'processing') {
+      return 'processing';
+    }
+
+    if (widgetStatus === 'awaiting') {
+      return paymentStatus === 'pending' ? 'idle' : 'pending';
+    }
+
+    return 'idle';
+  }, [
+    widgetStatus,
+    paymentStatus,
+    createPaymentMutation.isPending,
+    createCashfreePaymentMutation.isPending,
+    initiateUPIPaymentMutation.isPending,
+    checkPaymentStatusMutation.isPending,
+  ]);
+
+  let widgetCtaLabel = '';
+  let widgetCtaDisabled = false;
+
+  switch (paymentStatus) {
+    case 'pending':
+      widgetCtaLabel = isCashfree
+        ? `Pay ${formattedAmount} with UPI`
+        : `Pay ${formattedAmount} with UPI`;
+      widgetCtaDisabled = isLoading;
+      break;
+    case 'processing':
+      widgetCtaLabel = 'Refresh payment status';
+      widgetCtaDisabled = checkPaymentStatusMutation.isPending;
+      break;
+    case 'failed':
+      widgetCtaLabel = 'Retry payment';
+      widgetCtaDisabled = isLoading;
+      break;
+    case 'completed':
+      widgetCtaLabel = 'Payment completed';
+      widgetCtaDisabled = true;
+      break;
+    default:
+      widgetCtaLabel = 'Continue';
+      widgetCtaDisabled = false;
+      break;
+  }
+
+  const handleWidgetModeChange = useCallback(
+    (mode: UpiPaymentMode) => {
+      setInstrumentPreference(mode === 'qr' ? 'UPI_QR' : 'UPI_INTENT');
+    },
+    [setInstrumentPreference],
+  );
+
+  const handleWidgetCollectTriggered = useCallback(() => {
+    setInstrumentPreference('UPI_COLLECT');
+    setWidgetStatusWithSkip('awaiting', { skipPollingClear: true });
+  }, [setInstrumentPreference, setWidgetStatusWithSkip]);
+
+  const handleWidgetIntentLaunch = useCallback(() => {
+      if (!upiUrl) {
+        toast({
+          title: "UPI link unavailable",
+          description: "Start a payment attempt to generate the deep link.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setInstrumentPreference('UPI_INTENT');
+      setWidgetStatusWithSkip('awaiting', { skipPollingClear: true });
+
+      try {
+        window.location.href = upiUrl;
+      } catch (error) {
+        console.warn('Failed to launch UPI intent', error);
+        window.open(upiUrl, '_self');
+      }
+
+      const paymentId = latestPaymentIdRef.current;
+      if (paymentId) {
+        scheduleStatusPolling(paymentId);
+      }
+    }, [upiUrl, toast, setInstrumentPreference, setWidgetStatusWithSkip, scheduleStatusPolling]);
+
+  const handleWidgetCta = useCallback(
+    (mode: UpiPaymentMode) => {
+      if (paymentStatus === 'pending') {
+        if (isCashfree) {
+          setInstrumentPreference('UPI_COLLECT');
+        } else {
+          setInstrumentPreference(mode === 'qr' ? 'UPI_QR' : 'UPI_INTENT');
+        }
+        handleInitiatePayment();
+        return;
+      }
+
+      if (paymentStatus === 'failed') {
+        handleRetryPayment();
+        return;
+      }
+
+      if (paymentStatus === 'processing') {
+        const paymentId = latestPaymentIdRef.current;
+        if (paymentId) {
+          scheduleStatusPolling(paymentId, 0);
+        } else {
+          toast({
+            title: "No active payment",
+            description: "Start a payment attempt before refreshing the status.",
+          });
+        }
+      }
+    },
+    [
+      paymentStatus,
+      isCashfree,
+      setInstrumentPreference,
+      handleInitiatePayment,
+      handleRetryPayment,
+      scheduleStatusPolling,
+      toast,
+    ],
+  );
 
   // Show loading state if we have an intentId but haven't created the order yet
   if (!orderId && (intentId || isCreatingOrder)) {
@@ -793,196 +1066,96 @@ export default function Payment() {
                 <span className="sr-only" data-testid="text-upi-widget-status">{widgetStatus}</span>
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              {paymentStatus === 'pending' && (
-                <div className="text-center py-6">
-                  <div className="mb-4">
-                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <CreditCard className="h-8 w-8 text-blue-600" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Ready to Pay</h3>
-                    <p className="text-gray-600 mb-6">
-                      {isCashfree 
-                        ? (cashfreePaymentSessionId 
-                            ? 'Enter your UPI ID to complete the payment.' 
-                            : 'Click below to set up your payment.')
-                        : 'The PhonePe checkout will open in a secure iframe to complete your payment.'
-                      }
-                    </p>
-                  </div>
-                  {!isCashfree && (
-                    <div className="space-y-3 mb-6">
-                      <p className="text-sm font-medium text-gray-900">Choose how you want to pay with UPI</p>
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        {PHONEPE_INSTRUMENT_OPTIONS.map((option) => (
-                          <Button
-                            key={option.value}
-                            type="button"
-                            variant={instrumentPreference === option.value ? "default" : "outline"}
-                            className="h-auto w-full flex-col items-start justify-start gap-1 py-3"
-                            onClick={() => setInstrumentPreference(option.value)}
-                            data-testid={option.testId}
-                            aria-pressed={instrumentPreference === option.value}
-                          >
-                            <span className="text-sm font-semibold text-gray-900">{option.label}</span>
-                            <span className="text-xs text-gray-500 text-left">
-                              {option.description}
-                            </span>
-                          </Button>
-                        ))}
-                      </div>
-                      {instrumentPreference === 'UPI_QR' && (
-                        <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
-                          <p className="text-sm font-semibold text-gray-900 mb-2">Scan &amp; Pay using any UPI app</p>
-                          <div className="flex flex-col sm:flex-row gap-4">
-                            <div
-                              className={`w-32 h-32 rounded-md border border-gray-200 flex items-center justify-center ${isQrPlaceholder ? 'animate-pulse bg-gray-100' : 'bg-white'}`}
-                              data-testid="container-upi-qr"
-                            >
-                              <img
-                                src={upiQrDataUrl}
-                                alt="Dynamic UPI QR"
-                                className="w-full h-full object-contain"
-                                data-testid="image-upi-qr"
-                              />
-                            </div>
-                            <div className="flex-1 space-y-2">
-                              <p className="text-xs text-gray-500 break-all" data-testid="text-upi-url">
-                                {upiUrl ?? 'The UPI payment link will appear as soon as it is ready.'}
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={handleCopyUpiLink}
-                                  data-testid="button-copy-upi-url"
-                                >
-                                  <Copy className="mr-2 h-4 w-4" />
-                                  Copy UPI Link
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={handleCopyCheckoutLink}
-                                  disabled={!shareableCheckoutUrl}
-                                  data-testid="button-copy-checkout-url"
-                                >
-                                  <Copy className="mr-2 h-4 w-4" />
-                                  Copy Checkout URL
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {isCashfree && cashfreePaymentSessionId && (
-                    <div className="space-y-4 mb-6">
-                      <div className="space-y-2">
-                        <label htmlFor="upi-id" className="text-sm font-medium text-gray-900">
-                          UPI ID / VPA
-                        </label>
-                        <Input
-                          id="upi-id"
-                          type="text"
-                          placeholder="yourname@upi (e.g., success@upi)"
-                          value={upiId}
-                          onChange={(e) => setUpiId(e.target.value)}
-                          disabled={initiateUPIPaymentMutation.isPending}
-                          data-testid="input-upi-id"
-                          className="w-full"
-                        />
-                        <p className="text-xs text-gray-500">
-                          Use success@upi for testing
-                        </p>
-                      </div>
-                      <Button
-                        onClick={() => initiateUPIPaymentMutation.mutate()}
-                        disabled={!upiId.trim() || initiateUPIPaymentMutation.isPending}
-                        size="lg"
-                        className="w-full"
-                        data-testid="button-pay-with-upi"
-                      >
-                        {initiateUPIPaymentMutation.isPending ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Initiating Payment...
-                          </>
-                        ) : (
-                          <>
-                            <CreditCard className="mr-2 h-4 w-4" />
-                            Pay ₹{parseFloat(currentOrderData.total).toFixed(2)}
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  )}
-                  {!(isCashfree && cashfreePaymentSessionId) && (
-                    <Button
-                      onClick={handleInitiatePayment}
-                      disabled={isLoading}
-                      size="lg"
+            <CardContent className="space-y-6">
+              <UpiPaymentWidget
+                status={derivedWidgetStatus}
+                upiUrl={upiUrl ?? ''}
+                qrDataUrl={isQrPlaceholder ? undefined : upiQrDataUrl ?? undefined}
+                merchant={widgetMerchant}
+                metadata={widgetMetadataItems}
+                transactionReference={transactionReference}
+                note={widgetNote}
+                helperNotes={widgetHelperNotes}
+                onCopyUpiUrl={handleCopyUpiLink}
+                onCopyTransactionReference={handleCopyTransactionReference}
+                onCopyVpa={handleCopyMerchantVpa}
+                onModeChange={handleWidgetModeChange}
+                onIntentAppSelect={handleWidgetIntentLaunch}
+                onCtaClick={handleWidgetCta}
+                ctaLabel={widgetCtaLabel}
+                ctaDisabled={widgetCtaDisabled}
+                ctaTestId="button-initiate-payment"
+                onCollectTriggered={handleWidgetCollectTriggered}
+              />
+
+              {isCashfree && cashfreePaymentSessionId ? (
+                <div className="space-y-4 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
+                  <div className="space-y-2">
+                    <label htmlFor="upi-id" className="text-sm font-medium text-gray-900">
+                      UPI ID / VPA
+                    </label>
+                    <Input
+                      id="upi-id"
+                      type="text"
+                      placeholder="yourname@upi (e.g., success@upi)"
+                      value={upiId}
+                      onChange={(e) => setUpiId(e.target.value)}
+                      disabled={initiateUPIPaymentMutation.isPending}
+                      data-testid="input-upi-id"
                       className="w-full"
-                      data-testid="button-initiate-payment"
-                    >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          <CreditCard className="mr-2 h-4 w-4" />
-                          Pay ₹{parseFloat(currentOrderData.total).toFixed(2)} with UPI
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </div>
-              )}
-
-              {paymentStatus === 'processing' && (
-                <div className="text-center py-6">
-                  <div className="mb-4">
-                    <Loader2 className="h-16 w-16 text-blue-600 animate-spin mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Processing Payment</h3>
-                    <p className="text-gray-600">
-                      Please complete the payment on the UPI payment page.
-                    </p>
+                    />
+                    <p className="text-xs text-gray-500">Use success@upi for testing</p>
                   </div>
+                  <Button
+                    onClick={() => {
+                      handleWidgetCollectTriggered();
+                      initiateUPIPaymentMutation.mutate();
+                    }}
+                    disabled={!upiId.trim() || initiateUPIPaymentMutation.isPending}
+                    size="lg"
+                    className="w-full"
+                    data-testid="button-pay-with-upi"
+                  >
+                    {initiateUPIPaymentMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Initiating Payment...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="mr-2 h-4 w-4" />
+                        Pay {formattedAmount}
+                      </>
+                    )}
+                  </Button>
                 </div>
-              )}
+              ) : null}
 
-              {paymentStatus === 'completed' && (
-                <div className="text-center py-6">
-                  <div className="mb-4">
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <i className="fas fa-check text-green-600 text-2xl"></i>
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Payment Successful!</h3>
-                    <p className="text-gray-600">Your payment has been processed successfully. Redirecting...</p>
-                  </div>
+              {paymentStatus === 'processing' ? (
+                <div className="flex items-center gap-3 rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>We're waiting for confirmation from your UPI provider.</span>
                 </div>
-              )}
+              ) : null}
 
-              {paymentStatus === 'failed' && (
-                <div className="text-center py-6">
-                  <div className="mb-4">
-                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <AlertCircle className="h-8 w-8 text-red-600" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Payment Failed</h3>
-                    <p className="text-gray-600 mb-6">Your payment could not be processed. Please try again.</p>
+              {paymentStatus === 'completed' ? (
+                <div className="flex items-center gap-3 rounded-lg border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-900">
+                  <CreditCard className="h-4 w-4" />
+                  <span>Payment successful! Redirecting you to the thank-you page.</span>
+                </div>
+              ) : null}
+
+              {paymentStatus === 'failed' ? (
+                <div className="space-y-3 rounded-lg border border-red-100 bg-red-50 p-4">
+                  <div className="flex items-center gap-3 text-sm text-red-900">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>Your payment could not be processed. Please try again.</span>
                   </div>
-                  <div className="space-y-3">
-                    <Button 
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Button
                       onClick={handleRetryPayment}
                       disabled={isLoading}
                       size="lg"
-                      className="w-full"
                       data-testid="button-retry-payment"
                     >
                       {isLoading ? (
@@ -997,17 +1170,16 @@ export default function Payment() {
                         </>
                       )}
                     </Button>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={handleBackToCheckout}
-                      className="w-full"
                       data-testid="button-back-to-checkout-failed"
                     >
                       Back
                     </Button>
                   </div>
                 </div>
-              )}
+              ) : null}
             </CardContent>
           </Card>
         </div>

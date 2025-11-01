@@ -101,7 +101,7 @@ describe("Payment page", () => {
     await user.click(payButton);
 
     await waitFor(() => {
-      expect(screen.getByText(/Processing Payment/i)).toBeInTheDocument();
+      expect(screen.getByText(/waiting for confirmation/i)).toBeInTheDocument();
     });
 
     expect(apiRequestMock).toHaveBeenCalledWith(
@@ -131,8 +131,8 @@ describe("Payment page", () => {
       </QueryClientProvider>
     );
 
-    const qrButton = await screen.findByTestId("button-select-upi_qr");
-    await user.click(qrButton);
+    const qrTab = await screen.findByRole("tab", { name: /scan qr/i });
+    await user.click(qrTab);
 
     const payButton = await screen.findByTestId("button-initiate-payment");
     await user.click(payButton);
@@ -192,7 +192,7 @@ describe("Payment page", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText(/Payment Failed/i)).toBeInTheDocument();
+      expect(screen.getByText(/could not be processed/i)).toBeInTheDocument();
     });
   });
 
@@ -345,7 +345,7 @@ describe("Payment page", () => {
     callback?.({ status: "CONCLUDED" });
 
     await waitFor(() => {
-      expect(screen.getByText(/Payment Failed/i)).toBeInTheDocument();
+      expect(screen.getByText(/could not be processed/i)).toBeInTheDocument();
     });
 
     expect(setLocationMock).not.toHaveBeenCalledWith("/thank-you?orderId=order-1");
