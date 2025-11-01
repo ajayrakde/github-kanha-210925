@@ -473,6 +473,7 @@ export function SalesTrendsCard() {
 
   const legendPayload = useMemo(() => {
     const payload: LegendItem[] = [];
+    const linesSuppressed = Boolean(splittingMetric);
 
     (Object.keys(metrics) as MetricKey[]).forEach(metricKey => {
       payload.push({
@@ -480,7 +481,7 @@ export function SalesTrendsCard() {
         dataKey: metricKey === "sales" ? "revenue" : "orders",
         value: METRIC_LABELS[metricKey],
         color: metricKey === "sales" ? SALES_COLOR : ORDERS_COLOR,
-        inactive: !metrics[metricKey],
+        inactive: !metrics[metricKey] || linesSuppressed,
         variant: "line",
       });
     });
@@ -497,7 +498,7 @@ export function SalesTrendsCard() {
     });
 
     return payload;
-  }, [metrics, splitSeries]);
+  }, [metrics, splitSeries, splittingMetric]);
 
   const handleMetricToggle = useCallback(
     (metric: MetricKey, checked: boolean) => {
@@ -557,13 +558,16 @@ export function SalesTrendsCard() {
   const handleLegendClick = useCallback(
     (item: LegendItem) => {
       if (item.variant === "line") {
+        if (splittingMetric) {
+          return;
+        }
         setMutedLines(current => ({ ...current, [item.dataKey as string]: !current[item.dataKey as string] }));
         return;
       }
 
       setHiddenSplits(current => ({ ...current, [item.dataKey as string]: !current[item.dataKey as string] }));
     },
-    [],
+    [splittingMetric],
   );
 
   const tooltipContent = useCallback(
@@ -845,7 +849,7 @@ export function SalesTrendsCard() {
                   />
                 ))}
 
-                {metrics.sales ? (
+                {metrics.sales && !splittingMetric ? (
                   <Line
                     type="monotone"
                     dataKey="revenue"
@@ -858,7 +862,7 @@ export function SalesTrendsCard() {
                   />
                 ) : null}
 
-                {metrics.orders ? (
+                {metrics.orders && !splittingMetric ? (
                   <Line
                     type="monotone"
                     dataKey="orders"
