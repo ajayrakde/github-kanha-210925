@@ -959,11 +959,12 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
       const sessionId = req.session.sessionId!;
       const tenantId = resolveTenantId(req);
 
-      // Step 1: Fetch checkout intent from database (with session verification)
-      const checkoutIntent = await ordersRepository.getCheckoutIntent(checkoutIntentId, sessionId);
+      // Step 1: Fetch checkout intent from database (with ownership verification)
+      // For logged-in users, allow cross-device access by userId
+      const checkoutIntent = await ordersRepository.getCheckoutIntent(checkoutIntentId, sessionId, userId);
       if (!checkoutIntent) {
         return res.status(404).json({ 
-          message: "Checkout intent not found, expired, or does not belong to your session. Please start checkout again." 
+          message: "Checkout intent not found, expired, or does not belong to you. Please start checkout again." 
         });
       }
 
@@ -1595,8 +1596,9 @@ export function createPaymentsRouter(requireAdmin: RequireAdminMiddleware) {
         // Clear the cart after payment is successfully initiated
         if (req.session.sessionId) {
           try {
-            await ordersRepository.clearCart(req.session.sessionId);
-            console.log('[UPI Initiate] Cart cleared for session:', req.session.sessionId);
+            const userId = req.session.userId || null;
+            await ordersRepository.clearCart(req.session.sessionId, userId);
+            console.log('[UPI Initiate] Cart cleared for user/session:', userId || req.session.sessionId);
           } catch (error) {
             // Log but don't fail the request - payment was initiated successfully
             console.error('[UPI Initiate] Failed to clear cart:', error);

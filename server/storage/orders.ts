@@ -217,6 +217,7 @@ export class OrdersRepository {
 
   async saveCheckoutIntent(intent: {
     checkoutIntentId: string;
+    userId?: string | null;
     sessionId: string;
     userInfo?: any;
     paymentMethod: string;
@@ -250,11 +251,17 @@ export class OrdersRepository {
     return savedIntent;
   }
 
-  async getCheckoutIntent(intentId: string, sessionId: string): Promise<any | null> {
+  async getCheckoutIntent(intentId: string, sessionId: string, userId?: string | null): Promise<any | null> {
+    // For logged-in users, allow access by userId (cross-device)
+    // For anonymous users, verify by sessionId
+    const ownershipCondition = userId
+      ? eq(checkoutIntents.userId, userId)
+      : eq(checkoutIntents.sessionId, sessionId);
+    
     const intent = await db.query.checkoutIntents.findFirst({
       where: and(
         eq(checkoutIntents.id, intentId),
-        eq(checkoutIntents.sessionId, sessionId), // Verify ownership by session
+        ownershipCondition,
         eq(checkoutIntents.isConsumed, false),
         gt(checkoutIntents.expiresAt, new Date())
       ),
@@ -337,10 +344,16 @@ export class OrdersRepository {
     return lastOrder?.deliveryAddress || null;
   }
 
-  async getCartItems(sessionId: string): Promise<(CartItem & { product: Product })[]> {
+  async getCartItems(sessionId: string, userId?: string | null): Promise<(CartItem & { product: Product })[]> {
+    // For logged-in users, use userId; for anonymous users, use sessionId
+    const whereCondition = userId 
+      ? and(eq(cartItems.userId, userId), eq(products.isActive, true))
+      : and(eq(cartItems.sessionId, sessionId), eq(products.isActive, true));
+    
     return await db
       .select({
         id: cartItems.id,
+        userId: cartItems.userId,
         sessionId: cartItems.sessionId,
         productId: cartItems.productId,
         quantity: cartItems.quantity,
@@ -350,12 +363,12 @@ export class OrdersRepository {
       })
       .from(cartItems)
       .innerJoin(products, eq(cartItems.productId, products.id))
-      .where(and(eq(cartItems.sessionId, sessionId), eq(products.isActive, true)));
+      .where(whereCondition);
   }
 
-  async addToCart(sessionId: string, productId: string, quantity: number): Promise<CartItem> {
+  async addToCart(sessionId: string, productId: string, quantity: number, userId?: string | null): Promise<CartItem> {
     const product = await this.requireActiveProduct(productId);
-    const existingItem = await this.findCartItem(sessionId, productId);
+    const existingItem = await this.findCartItem(sessionId, productId, userId);
 
     const desiredQuantity = (existingItem?.quantity ?? 0) + quantity;
     const clampedQuantity = this.clampQuantity(desiredQuantity);
@@ -378,14 +391,19 @@ export class OrdersRepository {
 
     const [newItem] = await db
       .insert(cartItems)
-      .values({ sessionId, productId, quantity: clampedQuantity })
+      .values({ 
+        sessionId, 
+        productId, 
+        quantity: clampedQuantity,
+        userId: userId || null 
+      })
       .returning();
     return newItem;
   }
 
-  async updateCartItem(sessionId: string, productId: string, quantity: number): Promise<CartItem> {
+  async updateCartItem(sessionId: string, productId: string, quantity: number, userId?: string | null): Promise<CartItem> {
     const product = await this.requireActiveProduct(productId);
-    const existingItem = await this.findCartItem(sessionId, productId);
+    const existingItem = await this.findCartItem(sessionId, productId, userId);
 
     if (!existingItem) {
       throw new CartQuantityError("Cart item not found");
@@ -405,14 +423,71 @@ export class OrdersRepository {
     return updatedItem;
   }
 
-  async removeFromCart(sessionId: string, productId: string): Promise<void> {
-    await db
-      .delete(cartItems)
-      .where(and(eq(cartItems.sessionId, sessionId), eq(cartItems.productId, productId)));
+  async removeFromCart(sessionId: string, productId: string, userId?: string | null): Promise<void> {
+    const whereCondition = userId
+      ? and(eq(cartItems.userId, userId), eq(cartItems.productId, productId))
+      : and(eq(cartItems.sessionId, sessionId), eq(cartItems.productId, productId));
+    
+    await db.delete(cartItems).where(whereCondition);
   }
 
-  async clearCart(sessionId: string): Promise<void> {
-    await db.delete(cartItems).where(eq(cartItems.sessionId, sessionId));
+  async clearCart(sessionId: string, userId?: string | null): Promise<void> {
+    const whereCondition = userId
+      ? eq(cartItems.userId, userId)
+      : eq(cartItems.sessionId, sessionId);
+    
+    await db.delete(cartItems).where(whereCondition);
+  }
+
+  async mergeAnonymousCartToUser(sessionId: string, userId: string): Promise<void> {
+    // Get all anonymous cart items (items without userId but with this sessionId)
+    const anonymousCartItems = await db
+      .select()
+      .from(cartItems)
+      .where(and(
+        eq(cartItems.sessionId, sessionId),
+        sql`${cartItems.userId} IS NULL`
+      ));
+
+    if (anonymousCartItems.length === 0) {
+      return;
+    }
+
+    // Process each anonymous cart item
+    for (const anonymousItem of anonymousCartItems) {
+      // Check if user already has this product in their cart (from another device)
+      const existingUserItem = await this.findCartItem('', anonymousItem.productId, userId);
+
+      if (existingUserItem) {
+        // User already has this product - merge quantities
+        const combinedQuantity = existingUserItem.quantity + anonymousItem.quantity;
+        const clampedQuantity = this.clampQuantity(combinedQuantity);
+
+        await db
+          .update(cartItems)
+          .set({
+            quantity: clampedQuantity,
+            updatedAt: new Date(),
+          })
+          .where(eq(cartItems.id, existingUserItem.id));
+
+        // Delete the anonymous item
+        await db
+          .delete(cartItems)
+          .where(eq(cartItems.id, anonymousItem.id));
+      } else {
+        // User doesn't have this product - transfer ownership to user
+        await db
+          .update(cartItems)
+          .set({
+            userId: userId,
+            updatedAt: new Date(),
+          })
+          .where(eq(cartItems.id, anonymousItem.id));
+      }
+    }
+
+    console.log(`[CartMerge] Merged ${anonymousCartItems.length} items from session ${sessionId} to user ${userId}`);
   }
 
   async getAbandonedCarts(): Promise<AbandonedCart[]> {
@@ -555,11 +630,15 @@ export class OrdersRepository {
     return product;
   }
 
-  private async findCartItem(sessionId: string, productId: string): Promise<CartItem | undefined> {
+  private async findCartItem(sessionId: string, productId: string, userId?: string | null): Promise<CartItem | undefined> {
+    const whereCondition = userId
+      ? and(eq(cartItems.userId, userId), eq(cartItems.productId, productId))
+      : and(eq(cartItems.sessionId, sessionId), eq(cartItems.productId, productId));
+    
     const [cartItem] = await db
       .select()
       .from(cartItems)
-      .where(and(eq(cartItems.sessionId, sessionId), eq(cartItems.productId, productId)));
+      .where(whereCondition);
 
     return cartItem;
   }

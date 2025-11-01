@@ -87,7 +87,8 @@ export const otps = pgTable("otps", {
 // Checkout Intents table - temporary storage for checkout data before order creation
 export const checkoutIntents = pgTable("checkout_intents", {
   id: varchar("id").primaryKey(), // intentId from frontend
-  sessionId: varchar("session_id").notNull(),
+  userId: varchar("user_id").references(() => users.id), // For logged-in users (cross-device access)
+  sessionId: varchar("session_id").notNull(), // For session tracking
   userInfo: jsonb("user_info"), // Stores user information from checkout
   paymentMethod: varchar("payment_method", { length: 50 }).notNull(),
   offerCode: varchar("offer_code", { length: 50 }),
@@ -178,10 +179,11 @@ export const orderItems = pgTable("order_items", {
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
 });
 
-// Cart items table (session-based)
+// Cart items table (user-based with session fallback for anonymous users)
 export const cartItems = pgTable("cart_items", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sessionId: varchar("session_id").notNull(),
+  userId: varchar("user_id").references(() => users.id), // For logged-in users
+  sessionId: varchar("session_id").notNull(), // For anonymous users or as backup
   productId: varchar("product_id").references(() => products.id).notNull(),
   quantity: integer("quantity").notNull(),
   createdAt: timestamp("created_at").defaultNow(),

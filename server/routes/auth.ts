@@ -41,6 +41,15 @@ export function createAuthRouter() {
         req.session.userRole = "buyer";
         await saveSession(req);
 
+        // Merge anonymous cart to user's cart
+        if (anonymousSessionId) {
+          try {
+            await ordersRepository.mergeAnonymousCartToUser(anonymousSessionId, result.user.id);
+          } catch (error) {
+            console.error('[Auth] Failed to merge cart on login:', error);
+          }
+        }
+
         const user = serializeBuyer(result.user);
         if (!user) {
           return res.status(500).json({ message: "Login failed. Please try again." });
@@ -246,6 +255,14 @@ export function createAuthRouter() {
             req.session.userId = result.user.id;
             req.session.userRole = "buyer";
             sanitizedUser = serializeBuyer(result.user);
+            // Merge anonymous cart to buyer's cart
+            if (anonymousSessionId) {
+              try {
+                await ordersRepository.mergeAnonymousCartToUser(anonymousSessionId, result.user.id);
+              } catch (error) {
+                console.error('[Auth] Failed to merge cart on login:', error);
+              }
+            }
             break;
         }
 
@@ -330,6 +347,15 @@ export function createAuthRouter() {
             }
             req.session.userId = buyer.id;
             req.session.userRole = "buyer";
+            
+            // Merge anonymous cart to buyer's cart
+            if (anonymousSessionId) {
+              try {
+                await ordersRepository.mergeAnonymousCartToUser(anonymousSessionId, buyer.id);
+              } catch (error) {
+                console.error('[Auth] Failed to merge cart on login:', error);
+              }
+            }
           }
           break;
         }

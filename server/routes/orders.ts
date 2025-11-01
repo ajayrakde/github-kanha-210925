@@ -42,6 +42,7 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
       // Save intent to database with 1 hour expiry
       const intent = await ordersRepository.saveCheckoutIntent({
         ...validatedData,
+        userId: req.session.userId || null,
         sessionId: req.session.sessionId!,
         expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour from now
       });
@@ -85,7 +86,7 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
       const { userInfo, offerCode, paymentMethod, selectedAddressId } = validatedData;
       const userId = req.session.userId;
 
-      const cartItems = await ordersRepository.getCartItems(req.session.sessionId!);
+      const cartItems = await ordersRepository.getCartItems(req.session.sessionId!, userId || null);
 
       if (cartItems.length === 0) {
         return res.status(400).json({ message: "Cart is empty" });
@@ -380,7 +381,7 @@ export function createOrdersRouter(requireAdmin: RequireAdminMiddleware) {
 
       // Clear cart only for non-UPI or successful Cashfree creation
       if (resolvedPaymentMethod !== 'upi' && resolvedPaymentMethod !== 'cashfree') {
-        await ordersRepository.clearCart(req.session.sessionId!);
+        await ordersRepository.clearCart(req.session.sessionId!, userId || null);
       }
 
       const fullOrderWithRelations = await ordersRepository.getOrder(order.id);

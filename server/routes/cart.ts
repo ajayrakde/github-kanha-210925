@@ -31,7 +31,8 @@ export function createCartRouter() {
 
   router.get("/", async (req: SessionRequest, res) => {
     try {
-      const cartItems = await ordersRepository.getCartItems(req.session.sessionId!);
+      const userId = req.session.userId || null;
+      const cartItems = await ordersRepository.getCartItems(req.session.sessionId!, userId);
       res.json(cartItems);
     } catch (error) {
       console.error("Error fetching cart:", error);
@@ -55,10 +56,12 @@ export function createCartRouter() {
         });
       }
 
+      const userId = req.session.userId || null;
       const cartItem = await ordersRepository.addToCart(
         req.session.sessionId!,
         productId,
         quantity,
+        userId
       );
       res.json(cartItem);
     } catch (error) {
@@ -80,10 +83,12 @@ export function createCartRouter() {
         });
       }
 
+      const userId = req.session.userId || null;
       const cartItem = await ordersRepository.updateCartItem(
         req.session.sessionId!,
         req.params.productId,
         quantity,
+        userId
       );
       res.json(cartItem);
     } catch (error) {
@@ -97,7 +102,8 @@ export function createCartRouter() {
 
   router.delete("/:productId", async (req: SessionRequest, res) => {
     try {
-      await ordersRepository.removeFromCart(req.session.sessionId!, req.params.productId);
+      const userId = req.session.userId || null;
+      await ordersRepository.removeFromCart(req.session.sessionId!, req.params.productId, userId);
       res.json({ message: "Item removed from cart" });
     } catch (error) {
       console.error("Error removing from cart:", error);
@@ -107,7 +113,8 @@ export function createCartRouter() {
 
   router.delete("/clear", async (req: SessionRequest, res) => {
     try {
-      await ordersRepository.clearCart(req.session.sessionId!);
+      const userId = req.session.userId || null;
+      await ordersRepository.clearCart(req.session.sessionId!, userId);
       res.json({ message: "Cart cleared successfully" });
     } catch (error) {
       console.error("Error clearing cart:", error);
