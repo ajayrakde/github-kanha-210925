@@ -11,7 +11,8 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { TabAccordion } from "@/components/ui/tab-accordion"
+import { Smartphone, QrCode } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 import gpayLogo from "@assets/google-pay-icon_1762008468355.png"
@@ -314,62 +315,68 @@ export function UpiPaymentWidget({
       data-current-mode={currentMode}
     >
       <CardContent className="space-y-4 pt-4 pb-4">
-        <Tabs value={currentMode} onValueChange={handleModeChange} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="intent" aria-label="Pay using UPI intent">
-              Pay via app
-            </TabsTrigger>
-            <TabsTrigger value="qr" aria-label="Pay using QR code">
-              Scan QR
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="intent" className="mt-4">
-            <section aria-label="UPI apps" className="grid grid-cols-4 gap-2">
-              {apps.map((app) => (
-                <Button
-                  key={app.id}
-                  type="button"
-                  variant="ghost"
-                  className="h-auto flex-col items-center gap-1 p-2 hover:bg-accent"
-                  onClick={() => onIntentAppSelect?.(app.id)}
-                  disabled={disabled}
-                  aria-label={`Pay with ${app.label}`}
-                >
-                  {app.logoUrl && (
-                    <img
-                      src={app.logoUrl}
-                      alt={app.label}
-                      className="h-12 w-12 rounded-lg object-contain"
-                    />
-                  )}
-                  <span className="text-xs font-medium text-foreground">{app.shortLabel}</span>
-                </Button>
-              ))}
-            </section>
-          </TabsContent>
-          <TabsContent value="qr" className="mt-4">
-            <section className="flex flex-col items-center">
-              <div className="flex w-full flex-col items-center gap-1 rounded-lg border bg-muted/40 p-2">
-                {qrDataUrl ? (
-                  <img
-                    src={qrDataUrl}
-                    alt="QR code for completing the UPI payment"
-                    className="h-24 w-24 rounded-md border bg-white object-cover"
-                  />
-                ) : (
-                  <div
-                    className="flex h-24 w-24 items-center justify-center rounded-md border border-dashed text-center text-xs text-muted-foreground"
-                    role="img"
-                    aria-label="QR code placeholder"
-                  >
-                    QR code will appear here
+        <TabAccordion
+          value={currentMode}
+          onValueChange={handleModeChange}
+          items={[
+            {
+              value: "intent",
+              label: "Pay via app",
+              icon: <Smartphone size={16} />,
+              content: (
+                <section aria-label="UPI apps" className="grid grid-cols-4 gap-2">
+                  {apps.map((app) => (
+                    <Button
+                      key={app.id}
+                      type="button"
+                      variant="ghost"
+                      className="h-auto flex-col items-center gap-1 p-2 hover:bg-accent"
+                      onClick={() => onIntentAppSelect?.(app.id)}
+                      disabled={disabled}
+                      aria-label={`Pay with ${app.label}`}
+                    >
+                      {app.logoUrl && (
+                        <img
+                          src={app.logoUrl}
+                          alt={app.label}
+                          className="h-12 w-12 rounded-lg object-contain"
+                        />
+                      )}
+                      <span className="text-xs font-medium text-foreground">{app.shortLabel}</span>
+                    </Button>
+                  ))}
+                </section>
+              ),
+            },
+            {
+              value: "qr",
+              label: "Scan QR",
+              icon: <QrCode size={16} />,
+              content: (
+                <section className="flex flex-col items-center">
+                  <div className="flex w-full flex-col items-center gap-1 rounded-lg border bg-muted/40 p-2">
+                    {qrDataUrl ? (
+                      <img
+                        src={qrDataUrl}
+                        alt="QR code for completing the UPI payment"
+                        className="h-24 w-24 rounded-md border bg-white object-cover"
+                      />
+                    ) : (
+                      <div
+                        className="flex h-24 w-24 items-center justify-center rounded-md border border-dashed text-center text-xs text-muted-foreground"
+                        role="img"
+                        aria-label="QR code placeholder"
+                      >
+                        QR code will appear here
+                      </div>
+                    )}
+                    <span className="text-xs text-muted-foreground">Scan using any UPI app</span>
                   </div>
-                )}
-                <span className="text-xs text-muted-foreground">Scan using any UPI app</span>
-              </div>
-            </section>
-          </TabsContent>
-        </Tabs>
+                </section>
+              ),
+            },
+          ]}
+        />
       </CardContent>
     </Card>
   )
