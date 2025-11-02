@@ -14,15 +14,15 @@ export default function Header() {
         <nav className="flex items-center justify-between" aria-label="Primary navigation">
           <Link
             href="/"
-            className="group flex items-center gap-3 rounded-full px-3 py-2 transition-transform hover:no-underline focus-visible:outline-none focus-visible:no-underline focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+            className="group flex items-center gap-2 sm:gap-3 rounded-full px-2 sm:px-3 py-2 transition-transform hover:no-underline focus-visible:outline-none focus-visible:no-underline focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-white"
             aria-label="Kanhaa home"
           >
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-primary shadow-md transition-transform group-hover:-translate-y-1">
-              <i className="fas fa-store text-lg" aria-hidden="true"></i>
+            <span className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-secondary text-primary shadow-md transition-transform group-hover:-translate-y-1">
+              <i className="fas fa-store text-base sm:text-lg" aria-hidden="true"></i>
             </span>
-            <div className="rounded-lg px-2 py-1 leading-tight text-primary transition-all duration-200 group-hover:bg-secondary/15 group-hover:text-secondary group-focus-visible:bg-secondary/20 group-focus-visible:text-secondary">
-              <h1 className="text-xl font-bold transition-all duration-200">Kanhaa</h1>
-              <span className="text-xs text-muted-foreground transition-all duration-200 group-hover:text-secondary group-focus-visible:text-secondary">
+            <div className="rounded-lg px-1 sm:px-2 py-1 leading-tight text-primary transition-all duration-200 group-hover:bg-secondary/15 group-hover:text-secondary group-focus-visible:bg-secondary/20 group-focus-visible:text-secondary">
+              <h1 className="text-lg sm:text-xl font-bold transition-all duration-200">Kanhaa</h1>
+              <span className="hidden sm:inline text-xs text-muted-foreground transition-all duration-200 group-hover:text-secondary group-focus-visible:text-secondary">
                 Playful snacks &amp; treats
               </span>
             </div>

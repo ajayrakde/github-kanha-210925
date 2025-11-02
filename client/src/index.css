@@ -636,29 +636,181 @@
 }
 
 /* Mobile-first responsive enhancements */
-@media (max-width: 768px) {
+
+/* Extra small devices (phones, 375px and down) */
+@media (max-width: 375px) {
+  .container {
+    @apply px-3;
+  }
+
+  .hero-title {
+    font-size: 1.75rem !important;
+  }
+
+  .hero-subtitle {
+    font-size: 0.95rem !important;
+  }
+
+  .card-title {
+    font-size: 1.1rem !important;
+  }
+}
+
+/* Small devices (phones, 640px and down) */
+@media (max-width: 640px) {
   .container {
     @apply px-4;
   }
   
+  /* Dramatically reduce header padding */
+  header .container {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+  }
+
+  /* Make header logo and elements more compact */
+  header h1 {
+    font-size: 1.125rem !important;
+  }
+
+  header .text-xs {
+    font-size: 0.625rem !important;
+  }
+
+  /* Hero section - MAJOR space reduction */
+  .hero {
+    padding: 1.5rem 1rem 1.75rem !important;
+    margin-bottom: 1rem;
+  }
+
+  .hero-title {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .hero-subtitle {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .hero-cta {
+    gap: 0.5rem;
+    margin-top: 0.75rem !important;
+  }
+
+  .hero-cta button {
+    padding: 0.6rem 1.2rem;
+    font-size: 0.9rem;
+  }
+
+  .tags {
+    gap: 0.35rem;
+    margin-top: 0.5rem !important;
+  }
+
+  /* Product section - reduce top padding to show grid faster */
+  .product-section {
+    padding: 1rem 0 2rem !important;
+  }
+
+  .section-heading {
+    margin-bottom: 1rem !important;
+  }
+
+  .section-heading h2 {
+    font-size: 1.5rem !important;
+    margin-bottom: 0.25rem;
+  }
+
+  .section-heading p {
+    font-size: 0.875rem;
+  }
+
+  /* Product grid - tighter spacing */
+  .product-grid {
+    gap: 1rem;
+  }
+
+  /* Product cards - more compact */
+  .card-image {
+    height: clamp(160px, 20vw, 180px) !important;
+    padding: 1rem;
+  }
+
+  .card-content {
+    padding: 1rem;
+    gap: 0.6rem;
+  }
+
+  .card-title {
+    font-size: 1.15rem;
+  }
+
+  .card-text {
+    font-size: 0.875rem;
+  }
+
+  .card-price {
+    font-size: 1.1rem;
+  }
+
+  /* Footer - much more compact */
+  .footer {
+    padding: 1.5rem 1rem !important;
+    margin-top: 2rem !important;
+  }
+
+  .footer-grid {
+    gap: 1.25rem !important;
+  }
+
+  .footer h4 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem !important;
+  }
+
+  .footer p {
+    font-size: 0.875rem;
+  }
+
+  .footer li {
+    font-size: 0.875rem;
+  }
+
+  .footer li + li {
+    margin-top: 0.35rem !important;
+  }
+
+  .footer .mt-4 {
+    margin-top: 1rem !important;
+  }
+
+  /* Page main - reduce padding */
+  .page-main {
+    padding: 1rem 0 2rem !important;
+  }
+
+  /* Typography adjustments */
+  .text-3xl {
+    @apply text-2xl;
+  }
+
   .text-2xl {
     @apply text-xl;
   }
 
-  .page-main {
-    padding: 1.5rem 0 3rem;
+  .text-xl {
+    font-size: 1.125rem !important;
   }
 
-  .hero {
-    padding: 2.5rem 1.25rem 2.75rem;
-  }
-
-  .section-heading {
-    margin-bottom: 1.75rem;
-  }
-
-  .product-section {
-    padding: 1.5rem 0 2.5rem;
+  /* Touch targets - ensure minimum 44x44px */
+  button,
+  a[role="button"],
+  .btn-primary,
+  .btn-secondary,
+  .btn-accent {
+    min-height: 44px;
+    min-width: 44px;
   }
 
   /* Mobile navigation item styling */
@@ -669,6 +821,181 @@
   .mobile-nav-item:hover,
   .mobile-nav-item.active {
     color: var(--primary);
+  }
+
+  /* Cart icon in header */
+  header a[href="/cart"] {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  /* Checkout page optimizations - properly override Tailwind spacing */
+  .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 1rem !important;
+  }
+
+  .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.75rem !important;
+  }
+
+  .space-y-3 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.5rem !important;
+  }
+
+  .space-y-2 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.375rem !important;
+  }
+
+  /* Form inputs - more compact */
+  input[type="text"],
+  input[type="tel"],
+  input[type="email"],
+  textarea,
+  select {
+    padding: 0.625rem 0.75rem !important;
+    font-size: 0.9375rem !important;
+  }
+
+  /* Labels - smaller */
+  label {
+    font-size: 0.875rem !important;
+    margin-bottom: 0.375rem !important;
+  }
+
+  /* Buttons - ensure touch targets */
+  .Button,
+  button[type="submit"],
+  button[type="button"] {
+    padding: 0.75rem 1rem !important;
+    font-size: 0.9375rem !important;
+  }
+
+  /* Card/Panel spacing reduction */
+  .bg-white.rounded-lg,
+  .bg-gray-50.rounded-lg {
+    padding: 1rem !important;
+  }
+
+  /* Grid layouts - stack on mobile */
+  .grid.grid-cols-2,
+  .grid.grid-cols-3,
+  .grid.md\\:grid-cols-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Cart page optimizations */
+  .cart-item {
+    padding: 0.75rem 0 !important;
+  }
+
+  /* Product details page */
+  .product-details-container {
+    padding: 1rem 0 !important;
+  }
+
+  /* Summary cards - less padding */
+  .sticky-summary {
+    position: static !important;
+    margin-top: 1rem;
+  }
+
+  /* Payment page optimizations */
+  .payment-container {
+    padding: 1rem !important;
+  }
+
+  /* Thank you page */
+  .thank-you-container {
+    padding: 1rem !important;
+  }
+
+  /* Order summary in checkout/cart */
+  .order-summary {
+    padding: 1rem !important;
+    margin-top: 1rem !important;
+  }
+
+  /* Modal/Dialog optimizations */
+  .DialogContent,
+  [role="dialog"] {
+    max-width: calc(100vw - 2rem) !important;
+    padding: 1.25rem !important;
+  }
+
+  /* Back button spacing */
+  .mb-6 {
+    margin-bottom: 1rem !important;
+  }
+
+  .mb-4 {
+    margin-bottom: 0.75rem !important;
+  }
+
+  /* Headings in pages */
+  h2.text-2xl,
+  h2.text-3xl {
+    font-size: 1.5rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  h3.text-xl {
+    font-size: 1.125rem !important;
+  }
+
+  /* Tables - make scrollable */
+  .table-responsive,
+  table {
+    font-size: 0.875rem !important;
+  }
+
+  table td,
+  table th {
+    padding: 0.5rem 0.375rem !important;
+  }
+
+  /* Image galleries - optimize for mobile */
+  .image-gallery {
+    max-height: 60vh;
+  }
+
+  /* Reduce badge/tag sizes */
+  .badge,
+  .tag {
+    font-size: 0.65rem !important;
+    padding: 0.2rem 0.5rem !important;
+  }
+
+  /* Optimize user menu dropdown */
+  .user-menu-dropdown {
+    font-size: 0.875rem !important;
+  }
+
+  /* Step indicators */
+  .step-indicator {
+    margin-bottom: 1rem !important;
+  }
+
+  /* Address cards in checkout */
+  .address-card {
+    padding: 0.75rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  /* Coupon input section */
+  .coupon-section {
+    padding: 0.75rem !important;
+  }
+
+  /* Payment method cards */
+  .payment-method-card {
+    padding: 0.75rem !important;
+  }
+}
+
+/* Medium devices (tablets, 768px and down) */
+@media (max-width: 768px) {
+  .container {
+    @apply px-4;
   }
 }
 
