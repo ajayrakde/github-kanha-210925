@@ -1,10 +1,20 @@
-import { useLocation } from "wouter";
-import { Button } from "@/components/ui/button";
-import { useCallback, useEffect, useState, type ComponentProps } from "react";
-import { Separator } from "@/components/ui/separator";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge } from "@/components/ui/badge";
-import { Loader2, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
+  // Scroll to order confirmation on mount
+  useEffect(() => {
+    setTimeout(() => {
+      scrollToContext('order-confirmation');
+    }, 100);
+  }, []);
+
+  return (
+    <div className="max-w-3xl mx-auto py-8">
+      {/* Dynamic Status Message */}
+      <div id="order-confirmation" className="text-center mb-8">
+        <div className={`w-16 h-16 ${headerInfo.iconColor} rounded-full flex items-center justify-center mx-auto mb-4`}>
+          <i className={`${headerInfo.icon} text-white text-2xl`}></i>
+        </div>
+        <h2 className={`text-3xl font-bold ${headerInfo.titleColor} mb-2`}>{headerInfo.title}</h2>
+        <p className="text-gray-600">{headerInfo.subtitle}</p>
+      </div>
 
 interface OrderData {
   orderId: string;

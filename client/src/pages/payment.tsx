@@ -10,6 +10,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/hooks/use-cart";
+import { scrollToContext } from "@/lib/scroll-utils";
 import useUpiPaymentState, {
   type PhonePeTokenUrlData,
   type UpiWidgetStatus,
@@ -752,6 +753,11 @@ export default function Payment() {
         
         clearCart.mutate();
         
+        // Scroll to success message on payment completion
+        setTimeout(() => {
+          scrollToContext('payment-success');
+        }, 100);
+        
         // Wait 2.5 seconds to show the completed step animation before redirecting
         setTimeout(() => {
           const thankYouPath = orderId ? `/thank-you?orderId=${orderId}` : '/thank-you';
@@ -765,6 +771,12 @@ export default function Payment() {
         latestPaymentIdRef.current = null;
         setPaymentStatus('failed');
         applyGatewayStatus('FAILED', errorInfo?.code ?? null);
+        
+        // Scroll to retry section on payment failure
+        setTimeout(() => {
+          scrollToContext('payment-failed');
+        }, 100);
+        
         toast({
           title: "Payment Failed",
           description: errorInfo?.message || "Your payment could not be processed. Please try again.",
