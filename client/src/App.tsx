@@ -20,8 +20,13 @@ import RefundPolicy from "@/pages/refund-policy";
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
 import MobileNav from "@/components/layout/mobile-nav";
+import StickyCartBar from "@/components/cart/sticky-cart-bar";
+import CartDrawer from "@/components/cart/cart-drawer";
+import { useState } from "react";
 
 function Router() {
+  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
+
   return (
     <ErrorBoundary>
       <Switch>
@@ -59,6 +64,15 @@ function Router() {
             </ErrorBoundary>
             <ErrorBoundary>
               <MobileNav />
+            </ErrorBoundary>
+            <ErrorBoundary>
+              <StickyCartBar onClick={() => setIsCartDrawerOpen(true)} />
+            </ErrorBoundary>
+            <ErrorBoundary>
+              <CartDrawer 
+                open={isCartDrawerOpen} 
+                onOpenChange={setIsCartDrawerOpen} 
+              />
             </ErrorBoundary>
           </div>
         </Route>
