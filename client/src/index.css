@@ -990,6 +990,31 @@
   .payment-method-card {
     padding: 0.75rem !important;
   }
+
+  /* Back buttons - ensure proper touch targets */
+  button[aria-label*="back"],
+  button[data-testid*="back"],
+  a[data-testid*="back"] {
+    min-height: 48px !important;
+    min-width: 48px !important;
+    padding: 0.75rem 1rem !important;
+  }
+
+  /* ArrowLeft icon buttons */
+  button svg,
+  button i.fa-arrow-left {
+    font-size: 1.25rem !important;
+  }
+
+  /* Mobile bottom nav spacing */
+  .page-main.pb-16 {
+    padding-bottom: 4rem !important;
+  }
+
+  /* Footer spacing with mobile nav */
+  footer.footer {
+    margin-bottom: 4rem;
+  }
 }
 
 /* Medium devices (tablets, 768px and down) */

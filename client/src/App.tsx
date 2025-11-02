@@ -19,6 +19,7 @@ import TermsOfService from "@/pages/terms-of-service";
 import RefundPolicy from "@/pages/refund-policy";
 import Header from "@/components/layout/header";
 import Footer from "@/components/layout/footer";
+import MobileNav from "@/components/layout/mobile-nav";
 
 function Router() {
   return (
@@ -35,7 +36,7 @@ function Router() {
             <ErrorBoundary>
               <Header />
             </ErrorBoundary>
-            <main className="page-main flex-1">
+            <main className="page-main flex-1 pb-16 md:pb-0">
               <div className="container page-container">
                 <ErrorBoundary>
                   <Switch>
@@ -55,6 +56,9 @@ function Router() {
             </main>
             <ErrorBoundary>
               <Footer />
+            </ErrorBoundary>
+            <ErrorBoundary>
+              <MobileNav />
             </ErrorBoundary>
           </div>
         </Route>
