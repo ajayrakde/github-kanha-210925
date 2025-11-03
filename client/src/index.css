@@ -31,11 +31,12 @@
   --chart-3: #3aaf61;
   --chart-4: #6a4c93;
   --chart-5: #ff595e;
-  --radius: 0.5rem;
-  --radius-lg: 12px;
-  --radius-md: 8px;
-  --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --transition: all 0.3s ease;
+  --radius: 0.25rem;
+  --radius-lg: 0.375rem;
+  --radius-md: 0.25rem;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --transition: all 0.2s ease;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Nunito', sans-serif;
   --sidebar: #ffffff;
   --sidebar-foreground: #222222;
@@ -138,53 +139,55 @@
       opacity: 1;
     }
   }
-  /* Header shadow matching design reference */
+  /* Minimal header border */
   .header-shadow {
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    border-bottom: 1px solid var(--border);
   }
 
-  /* Product card styling matching design reference */
+  /* Minimal product card styling */
   .product-card {
-    @apply bg-white rounded-lg overflow-hidden;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-    transition: box-shadow 0.2s ease;
+    @apply bg-white rounded overflow-hidden border border-gray-200;
+    transition: border-color 0.2s ease;
   }
 
   .product-card:hover {
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border-color: var(--primary);
   }
 
-  /* Card styling for admin and other sections */
+  /* Minimal card styling for admin and other sections */
   .admin-card {
-    @apply bg-white rounded-lg;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    @apply bg-white rounded border border-gray-200;
   }
 
-  /* Stats cards with gradients matching design reference */
+  /* Minimal stats cards */
   .stats-card {
-    @apply p-6 rounded-lg text-white;
+    @apply p-6 rounded text-white border;
   }
 
   .stats-card.blue {
-    background: linear-gradient(135deg, #0b6fa7 0%, #0a5f8f 100%);
+    background-color: var(--primary);
+    border-color: #0a5f8f;
   }
 
   .stats-card.green {
-    background: linear-gradient(135deg, #3aaf61 0%, #2f8f4f 100%);
+    background-color: var(--accent);
+    border-color: #2f8f4f;
   }
 
   .stats-card.purple {
-    background: linear-gradient(135deg, #6a4c93 0%, #55397a 100%);
+    background-color: var(--purple);
+    border-color: #55397a;
   }
 
   .stats-card.orange {
-    background: linear-gradient(135deg, #ffd93d 0%, #f9c920 100%);
+    background-color: var(--secondary);
+    border-color: #e0bd2d;
+    color: var(--text-dark);
   }
 
-  /* Form section styling */
+  /* Minimal form section styling */
   .form-section {
-    @apply bg-white rounded-lg p-6;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    @apply bg-white rounded p-6 border border-gray-200;
   }
 
   /* Mobile bottom navigation */
@@ -192,13 +195,13 @@
     @apply bg-white border-t border-gray-200 px-4 py-2;
   }
 
-  /* Button variants refreshed for playful theme */
+  /* Minimal button variants */
   .btn-primary {
-    @apply font-bold text-base;
+    @apply font-semibold text-base;
     background-color: var(--secondary);
     color: var(--text-dark);
-    border: none;
-    border-radius: 999px;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
     padding: 0.75rem 1.5rem;
     box-shadow: none;
     transition: var(--transition);
@@ -208,16 +211,15 @@
   }
 
   .btn-primary:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow);
+    opacity: 0.9;
   }
 
   .btn-secondary {
-    @apply font-bold text-base;
+    @apply font-semibold text-base;
     background-color: var(--accent);
     color: var(--text-light);
-    border: none;
-    border-radius: 999px;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
     padding: 0.75rem 1.5rem;
     box-shadow: none;
     transition: var(--transition);
@@ -227,16 +229,15 @@
   }
 
   .btn-secondary:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow);
+    opacity: 0.9;
   }
 
   .btn-accent {
-    @apply font-bold text-base;
+    @apply font-semibold text-base;
     background-color: var(--tertiary);
     color: var(--text-light);
-    border: none;
-    border-radius: 999px;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
     padding: 0.75rem 1.5rem;
     box-shadow: none;
     transition: var(--transition);
@@ -246,8 +247,7 @@
   }
 
   .btn-accent:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow);
+    opacity: 0.9;
   }
 
   /* Tab styling matching design reference */
@@ -262,29 +262,29 @@
     @apply border-b-2 border-transparent font-medium text-sm hover:text-gray-700;
   }
 
-  /* Badge variants matching design reference */
+  /* Badge variants - minimal design */
   .badge-success {
     background-color: #e2f8ec;
     color: #1f7a43;
-    @apply inline-flex px-2 py-1 text-xs font-semibold rounded-full;
+    @apply inline-flex px-2 py-1 text-xs font-semibold rounded;
   }
 
   .badge-warning {
     background-color: #fff1b8;
     color: #7a5c00;
-    @apply inline-flex px-2 py-1 text-xs font-semibold rounded-full;
+    @apply inline-flex px-2 py-1 text-xs font-semibold rounded;
   }
 
   .badge-danger {
     background-color: #ffe0e2;
     color: #c0383d;
-    @apply inline-flex px-2 py-1 text-xs font-semibold rounded-full;
+    @apply inline-flex px-2 py-1 text-xs font-semibold rounded;
   }
 
   .badge-info {
     background-color: #d7f0ff;
     color: var(--primary);
-    @apply inline-flex px-2 py-1 text-xs font-semibold rounded-full;
+    @apply inline-flex px-2 py-1 text-xs font-semibold rounded;
   }
 
   /* Progress bar styling */
@@ -622,9 +622,7 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: radial-gradient(circle at 0% 0%, rgba(255, 217, 61, 0.18) 0%, rgba(255, 217, 61, 0) 45%),
-    radial-gradient(circle at 100% 0%, rgba(58, 175, 97, 0.16) 0%, rgba(58, 175, 97, 0) 40%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(245, 250, 255, 1) 60%);
+  background: var(--background);
 }
 
 .page-main {

@@ -81,10 +81,10 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
       className="group cursor-pointer"
       data-testid={`product-card-${product.id}`}
     >
-      {/* Image Container - Clean, no overlays */}
-      <div className="relative bg-gray-50 rounded-lg overflow-hidden" onClick={handleCardNavigation}>
+      {/* Image Container - Minimal design */}
+      <div className="relative bg-gray-50 rounded overflow-hidden border border-gray-200" onClick={handleCardNavigation}>
         {badgeLabel && (
-          <span className="absolute top-2 left-2 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/90 backdrop-blur-sm text-gray-700 z-10" data-testid={`product-badge-${product.id}`}>
+          <span className="absolute top-2 left-2 text-[10px] font-semibold px-2 py-0.5 rounded bg-white/95 backdrop-blur-sm text-gray-700 z-10 border border-gray-200" data-testid={`product-badge-${product.id}`}>
             {badgeLabel}
           </span>
         )}
@@ -111,13 +111,13 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
             ₹{parseFloat(product.price).toFixed(2)}
           </span>
           
-          {/* Compact add button - icon only */}
+          {/* Minimal add button - fixed dimensions */}
           <div onClick={(e) => e.stopPropagation()} className="ml-auto">
             {cartQuantity > 0 ? (
-              <div className="flex items-center gap-1 bg-primary rounded-full px-1.5 py-0.5">
+              <div className="flex items-center gap-0.5 bg-primary rounded px-1 py-0.5 w-[58px] justify-center">
                 <button
                   type="button"
-                  className="h-5 w-5 rounded-full bg-white/20 hover:bg-white/30 active:bg-white/40 flex items-center justify-center transition-colors"
+                  className="h-5 w-5 rounded bg-white/20 hover:bg-white/30 active:bg-white/40 flex items-center justify-center transition-colors flex-shrink-0"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDecreaseQuantity();
@@ -128,12 +128,12 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                 >
                   <Minus size={10} className="text-white" />
                 </button>
-                <span className="min-w-[16px] text-center font-bold text-[10px] text-white px-1" data-testid={`cart-quantity-${product.id}`}>
+                <span className="min-w-[18px] text-center font-bold text-[10px] text-white" data-testid={`cart-quantity-${product.id}`}>
                   {cartQuantity}
                 </span>
                 <button
                   type="button"
-                  className="h-5 w-5 rounded-full bg-white/20 hover:bg-white/30 active:bg-white/40 flex items-center justify-center transition-colors"
+                  className="h-5 w-5 rounded bg-white/20 hover:bg-white/30 active:bg-white/40 flex items-center justify-center transition-colors flex-shrink-0"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleIncreaseQuantity();
@@ -148,7 +148,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
             ) : (
               <button
                 type="button"
-                className="h-6 w-6 rounded-full bg-secondary hover:bg-secondary/90 active:bg-secondary/80 text-primary transition-colors flex items-center justify-center"
+                className="h-6 w-6 rounded bg-secondary hover:bg-secondary/90 active:bg-secondary/80 text-primary transition-colors flex items-center justify-center border border-transparent"
                 onClick={(e) => {
                   e.stopPropagation();
                   haptic.add();

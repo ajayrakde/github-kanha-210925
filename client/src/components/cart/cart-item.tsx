@@ -154,7 +154,7 @@ export default function CartItem({ item }: CartItemProps) {
 
       {/* Cart Item Content */}
       <div 
-        className="flex items-center gap-3 py-3 bg-white transition-transform duration-200 ease-out"
+        className="flex items-center gap-2 py-3 bg-white transition-transform duration-200 ease-out min-w-0"
         style={{ 
           transform: `translateX(-${swipeOffset}px)`,
           touchAction: isSwiping ? 'none' : 'auto'
@@ -166,21 +166,21 @@ export default function CartItem({ item }: CartItemProps) {
         <img
           src={item.product.imageUrl || `https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?ixlib=rb-4.0.3&auto=format&fit=crop&w=80&h=80`}
           alt={item.product.name}
-          className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-md flex-shrink-0"
+          className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded flex-shrink-0 border border-gray-200"
         />
-        <div className="flex-1 min-w-0 pr-2">
-          <h4 className="font-semibold text-sm sm:text-base text-gray-900 leading-tight mb-1 truncate" data-testid={`cart-item-name-${item.id}`}>
+        <div className="flex-1 min-w-0">
+          <h4 className="font-semibold text-sm sm:text-base text-gray-900 leading-tight mb-0.5 truncate" data-testid={`cart-item-name-${item.id}`}>
             {item.product.name}
           </h4>
-          <p className="text-sm text-gray-600" data-testid={`cart-item-price-${item.id}`}>
+          <p className="text-xs sm:text-sm text-gray-600 truncate" data-testid={`cart-item-price-${item.id}`}>
             ₹{parseFloat(item.product.price).toFixed(2)}
           </p>
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="flex items-center gap-1 flex-shrink-0">
           <Button
             variant="outline"
             size="sm"
-            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full p-0 border-gray-300"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded p-0 border-gray-300"
             onClick={() => handleQuantityChange(-1)}
             disabled={updateQuantityMutation.isPending}
             data-testid={`button-decrease-${item.id}`}
@@ -193,7 +193,7 @@ export default function CartItem({ item }: CartItemProps) {
           <Button
             variant="outline"
             size="sm"
-            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full p-0 border-gray-300"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded p-0 border-gray-300"
             onClick={() => handleQuantityChange(1)}
             disabled={updateQuantityMutation.isPending}
             data-testid={`button-increase-${item.id}`}

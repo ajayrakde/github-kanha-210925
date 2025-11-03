@@ -308,25 +308,26 @@ export default function Cart() {
           </div>
 
           {/* Coupon Section - Collapsible on Mobile, Always Open on Desktop */}
-          <div className="bg-white rounded-lg shadow-sm">
+          <div className="bg-white rounded border border-gray-200">
             {/* Desktop: Always Open */}
             <div className="hidden md:block p-6">
               <h3 className="text-base font-medium text-gray-900 mb-4">Apply Coupon</h3>
               {!appliedOffer ? (
                 <>
-                  <div className="flex space-x-3">
+                  <div className="flex gap-2 min-w-0">
                     <Input
                       id="coupon-input-desktop"
                       type="text"
                       placeholder="Enter coupon code"
                       value={couponCode}
                       onChange={handleCouponChange}
-                      className={`flex-1 ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+                      className={`flex-1 min-w-0 ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
                       data-testid="input-coupon-code"
                     />
                     <Button
                       onClick={applyCoupon}
                       disabled={!couponCode.trim() || validateOfferMutation.isPending || isAuthLoading}
+                      className="flex-shrink-0"
                       data-testid="button-apply-coupon"
                     >
                       {validateOfferMutation.isPending ? "Applying..." : "Apply"}
@@ -340,15 +341,16 @@ export default function Cart() {
                 </>
               ) : (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm text-green-600">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="text-sm text-green-600 flex-1 min-w-0 truncate">
                       <i className="fas fa-check-circle mr-1"></i>
-                      Coupon "{appliedOffer.code}" applied! You saved ₹{discount.toFixed(2)}
+                      <span className="truncate">Coupon "{appliedOffer.code}" applied! You saved ₹{discount.toFixed(2)}</span>
                     </div>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={removeCoupon}
+                      className="flex-shrink-0"
                       data-testid="button-remove-coupon"
                     >
                       Remove
@@ -356,18 +358,19 @@ export default function Cart() {
                   </div>
                   <div className="pt-2 border-t">
                     <p className="text-sm text-gray-600 mb-2">Want to try a different coupon?</p>
-                    <div className="flex space-x-3">
+                    <div className="flex gap-2 min-w-0">
                       <Input
                         type="text"
                         placeholder="Enter coupon code"
                         value={couponCode}
                         onChange={handleCouponChange}
-                        className={`flex-1 ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+                        className={`flex-1 min-w-0 ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
                         data-testid="input-coupon-code-replace"
                       />
                       <Button
                         onClick={applyCoupon}
                         disabled={!couponCode.trim() || validateOfferMutation.isPending || isAuthLoading}
+                        className="flex-shrink-0"
                         data-testid="button-replace-coupon"
                       >
                         {validateOfferMutation.isPending ? "Applying..." : "Replace"}
@@ -389,20 +392,20 @@ export default function Cart() {
               onOpenChange={setIsCouponOpen}
               className="md:hidden"
             >
-              <CollapsibleTrigger className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50" data-testid="button-toggle-coupon">
-                <div className="flex items-center gap-2">
-                  <Tag className="w-5 h-5 text-green-600" />
-                  <h3 className="text-sm font-medium text-gray-900">
+              <CollapsibleTrigger className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50 min-w-0" data-testid="button-toggle-coupon">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <Tag className="w-5 h-5 text-green-600 flex-shrink-0" />
+                  <h3 className="text-sm font-medium text-gray-900 truncate">
                     {appliedOffer ? `Coupon Applied: ${appliedOffer.code}` : 'Apply Coupon'}
                   </h3>
                   {appliedOffer && (
-                    <span className="text-xs text-green-600 font-medium">
+                    <span className="text-xs text-green-600 font-medium flex-shrink-0">
                       -₹{discount.toFixed(2)}
                     </span>
                   )}
                 </div>
                 <ChevronDown 
-                  className={`w-5 h-5 text-gray-500 transition-transform ${isCouponOpen ? 'rotate-180' : ''}`}
+                  className={`w-5 h-5 text-gray-500 transition-transform flex-shrink-0 ${isCouponOpen ? 'rotate-180' : ''}`}
                 />
               </CollapsibleTrigger>
 
@@ -410,19 +413,20 @@ export default function Cart() {
                 <div className="p-4 border-t">
                   {!appliedOffer ? (
                     <>
-                      <div className="flex space-x-3">
+                      <div className="flex gap-2 min-w-0">
                         <Input
                           id="coupon-input-mobile"
                           type="text"
                           placeholder="Enter coupon code"
                           value={couponCode}
                           onChange={handleCouponChange}
-                          className={`flex-1 ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+                          className={`flex-1 min-w-0 ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
                           data-testid="input-coupon-code-mobile"
                         />
                         <Button
                           onClick={applyCoupon}
                           disabled={!couponCode.trim() || validateOfferMutation.isPending || isAuthLoading}
+                          className="flex-shrink-0"
                           data-testid="button-apply-coupon-mobile"
                         >
                           {validateOfferMutation.isPending ? "Applying..." : "Apply"}
@@ -436,15 +440,16 @@ export default function Cart() {
                     </>
                   ) : (
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="text-sm text-green-600">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="text-sm text-green-600 flex-1 min-w-0 truncate">
                           <i className="fas fa-check-circle mr-1"></i>
-                          Coupon "{appliedOffer.code}" applied! You saved ₹{discount.toFixed(2)}
+                          <span className="truncate">Coupon "{appliedOffer.code}" applied! You saved ₹{discount.toFixed(2)}</span>
                         </div>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={removeCoupon}
+                          className="flex-shrink-0"
                           data-testid="button-remove-coupon-mobile"
                         >
                           Remove
@@ -452,18 +457,19 @@ export default function Cart() {
                       </div>
                       <div className="pt-2 border-t">
                         <p className="text-sm text-gray-600 mb-2">Want to try a different coupon?</p>
-                        <div className="flex space-x-3">
+                        <div className="flex gap-2 min-w-0">
                           <Input
                             type="text"
                             placeholder="Enter coupon code"
                             value={couponCode}
                             onChange={handleCouponChange}
-                            className={`flex-1 ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+                            className={`flex-1 min-w-0 ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
                             data-testid="input-coupon-code-replace-mobile"
                           />
                           <Button
                             onClick={applyCoupon}
                             disabled={!couponCode.trim() || validateOfferMutation.isPending || isAuthLoading}
+                            className="flex-shrink-0"
                             data-testid="button-replace-coupon-mobile"
                           >
                             {validateOfferMutation.isPending ? "Applying..." : "Replace"}

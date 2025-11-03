@@ -265,7 +265,7 @@ export default function UserOrders() {
       )}
 
       {!orders || orders.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg shadow-sm">
+        <div className="text-center py-12 bg-white rounded border border-gray-200">
           <div className="text-6xl mb-2 sm:mb-4">📦</div>
           <h3 className="text-xl font-semibold text-gray-900 mb-2">No orders yet</h3>
           <p className="text-gray-600 mb-3 sm:mb-6">Start shopping to see your orders here</p>
@@ -276,7 +276,7 @@ export default function UserOrders() {
       ) : (
         <div className="space-y-4">
           {filteredOrders.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-lg shadow-sm">
+            <div className="text-center py-12 bg-white rounded border border-gray-200">
               <div className="text-6xl mb-4">🔍</div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">No orders found</h3>
               <p className="text-gray-600 mb-6">Try selecting a different filter</p>
@@ -295,14 +295,14 @@ export default function UserOrders() {
             const isExpanded = expandedOrders.has(order.id);
             
             return (
-              <div key={order.id} className="bg-white rounded-lg shadow-sm overflow-hidden">
+              <div key={order.id} className="bg-white rounded border border-gray-200 overflow-hidden">
                 <div className="p-4 sm:p-6">
-                  <div className="flex justify-between items-start mb-2 sm:mb-4">
-                    <div>
-                      <h3 className="font-semibold text-gray-900">
+                  <div className="flex justify-between items-start gap-2 mb-2 sm:mb-4 min-w-0">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-gray-900 truncate">
                         Order #{order.id.slice(0, 8).toUpperCase()}
                       </h3>
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-sm text-gray-500 mt-1 truncate">
                         {new Date(order.createdAt).toLocaleDateString('en-IN', {
                           year: 'numeric',
                           month: 'long',
@@ -312,7 +312,9 @@ export default function UserOrders() {
                         })}
                       </p>
                     </div>
-                    {getStatusBadge(order.status)}
+                    <div className="flex-shrink-0">
+                      {getStatusBadge(order.status)}
+                    </div>
                   </div>
 
                   <Separator className="mb-2 sm:mb-4" />
