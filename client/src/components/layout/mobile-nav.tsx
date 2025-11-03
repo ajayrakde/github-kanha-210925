@@ -28,7 +28,7 @@ export default function MobileNav() {
       <UserDrawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
       
       <nav 
-        className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40"
+        className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-50"
         aria-label="Mobile navigation"
       >
         <div className="flex justify-around px-1 py-1">

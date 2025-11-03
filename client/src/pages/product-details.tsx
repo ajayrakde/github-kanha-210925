@@ -334,25 +334,25 @@ export default function ProductDetails() {
             <div className="space-y-1">
               {isInCart ? (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
                     <button
                       onClick={handleDecreaseQuantity}
                       disabled={removeFromCartMutation.isPending || updateCartMutation.isPending}
-                      className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded border border-gray-300 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors"
                       data-testid="button-decrease-quantity"
                     >
-                      <Minus size={18} />
+                      <Minus size={14} />
                     </button>
-                    <span className="text-lg font-medium w-12 text-center" data-testid="cart-quantity">
+                    <span className="text-base font-medium w-8 text-center" data-testid="cart-quantity">
                       {cartQuantity}
                     </span>
                     <button
                       onClick={handleIncreaseQuantity}
                       disabled={cartQuantity >= 10 || updateCartMutation.isPending}
-                      className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-7 h-7 sm:w-8 sm:h-8 rounded border border-gray-300 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       data-testid="button-increase-quantity"
                     >
-                      <Plus size={18} />
+                      <Plus size={14} />
                     </button>
                     <span className="text-sm text-gray-600">in cart</span>
                   </div>

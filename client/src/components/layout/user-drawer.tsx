@@ -74,7 +74,7 @@ export default function UserDrawer({ isOpen, onClose }: UserDrawerProps) {
       {/* Backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/40 z-50 transition-opacity duration-300 md:hidden"
+          className="fixed inset-0 bg-black/40 z-40 transition-opacity duration-300 md:hidden"
           onClick={onClose}
           data-testid="drawer-backdrop"
         />
@@ -82,7 +82,7 @@ export default function UserDrawer({ isOpen, onClose }: UserDrawerProps) {
 
       {/* Bottom Sheet Drawer */}
       <div
-        className={`fixed bottom-0 left-0 right-0 bg-white z-50 transform transition-transform duration-300 ease-out md:hidden rounded-t-2xl ${
+        className={`fixed bottom-0 left-0 right-0 bg-white z-40 transform transition-transform duration-300 ease-out md:hidden rounded-t-2xl ${
           isOpen ? "translate-y-0" : "translate-y-full"
         }`}
         data-testid="user-drawer"
