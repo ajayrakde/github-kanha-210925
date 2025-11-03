@@ -180,20 +180,20 @@ export default function CartItem({ item }: CartItemProps) {
           <Button
             variant="outline"
             size="sm"
-            className="w-7 h-7 sm:w-8 sm:h-8 rounded p-0 border-gray-300"
+            className="w-6 h-6 sm:w-7 sm:h-7 rounded p-0 border-gray-300"
             onClick={() => handleQuantityChange(-1)}
             disabled={updateQuantityMutation.isPending}
             data-testid={`button-decrease-${item.id}`}
           >
             <i className="fas fa-minus text-[10px]"></i>
           </Button>
-          <span className="w-6 text-center text-sm font-medium" data-testid={`cart-item-quantity-${item.id}`}>
+          <span className="w-6 sm:w-7 text-center text-sm font-medium" data-testid={`cart-item-quantity-${item.id}`}>
             {item.quantity}
           </span>
           <Button
             variant="outline"
             size="sm"
-            className="w-7 h-7 sm:w-8 sm:h-8 rounded p-0 border-gray-300"
+            className="w-6 h-6 sm:w-7 sm:h-7 rounded p-0 border-gray-300"
             onClick={() => handleQuantityChange(1)}
             disabled={updateQuantityMutation.isPending}
             data-testid={`button-increase-${item.id}`}

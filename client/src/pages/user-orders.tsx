@@ -372,9 +372,9 @@ export default function UserOrders() {
 
                     {latestPayment && (
                       <div className="mt-3 bg-gray-50 rounded-md p-4 text-sm text-gray-600 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span>Gateway Status:</span>
-                          <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-between min-w-0">
+                          <span className="flex-shrink-0">Gateway Status:</span>
+                          <div className="flex items-center gap-2 flex-shrink-0">
                             <Badge variant="outline" className="uppercase tracking-wide text-xs">
                               {latestPayment.provider}
                             </Badge>
@@ -382,45 +382,45 @@ export default function UserOrders() {
                           </div>
                         </div>
                         {formatIdentifier(latestPayment.providerPaymentId || latestPayment.providerReferenceId) && (
-                          <div className="flex justify-between">
-                            <span>Merchant Txn ID:</span>
-                            <span className="font-mono text-xs">
+                          <div className="flex justify-between min-w-0 gap-2">
+                            <span className="flex-shrink-0">Merchant Txn ID:</span>
+                            <span className="font-mono text-xs truncate">
                               {formatIdentifier(latestPayment.providerPaymentId || latestPayment.providerReferenceId)}
                             </span>
                           </div>
                         )}
                         {latestPayment.providerTransactionId && (
-                          <div className="flex justify-between">
-                            <span>Provider Txn ID:</span>
-                            <span className="font-mono text-xs">{formatIdentifier(latestPayment.providerTransactionId)}</span>
+                          <div className="flex justify-between min-w-0 gap-2">
+                            <span className="flex-shrink-0">Provider Txn ID:</span>
+                            <span className="font-mono text-xs truncate">{formatIdentifier(latestPayment.providerTransactionId)}</span>
                           </div>
                         )}
                         {latestPayment.upiUtr && (
-                          <div className="flex justify-between">
-                            <span>UTR:</span>
-                            <span className="font-mono text-xs">{latestPayment.upiUtr}</span>
+                          <div className="flex justify-between min-w-0 gap-2">
+                            <span className="flex-shrink-0">UTR:</span>
+                            <span className="font-mono text-xs truncate">{latestPayment.upiUtr}</span>
                           </div>
                         )}
                         {latestPayment.upiPayerHandle && (
-                          <div className="flex justify-between">
-                            <span>Payer VPA:</span>
-                            <span className="font-mono text-xs break-all">{latestPayment.upiPayerHandle}</span>
+                          <div className="flex justify-between min-w-0 gap-2">
+                            <span className="flex-shrink-0">Payer VPA:</span>
+                            <span className="font-mono text-xs truncate">{latestPayment.upiPayerHandle}</span>
                           </div>
                         )}
-                        <div className="flex justify-between">
-                          <span>Amount Paid:</span>
-                          <span className="font-medium text-green-600">
+                        <div className="flex justify-between min-w-0">
+                          <span className="flex-shrink-0">Amount Paid:</span>
+                          <span className="font-medium text-green-600 flex-shrink-0">
                             ₹{formatMinorAmount(latestPayment.amountCapturedMinor ?? latestPayment.amountAuthorizedMinor ?? 0)}
                           </span>
                         </div>
                         {latestPayment.receiptUrl && (
-                          <div className="flex justify-between items-center">
-                            <span>Receipt:</span>
+                          <div className="flex justify-between items-center min-w-0">
+                            <span className="flex-shrink-0">Receipt:</span>
                             <a
                               href={latestPayment.receiptUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline"
+                              className="text-blue-600 hover:underline truncate"
                             >
                               View Receipt
                             </a>
@@ -449,9 +449,9 @@ export default function UserOrders() {
 
                       {latestPayment && (
                         <div className="mt-3 bg-gray-50 rounded-md p-4 text-sm text-gray-600 space-y-2">
-                          <div className="flex items-center justify-between">
-                            <span>Gateway Status:</span>
-                            <div className="flex items-center gap-2">
+                          <div className="flex items-center justify-between min-w-0">
+                            <span className="flex-shrink-0">Gateway Status:</span>
+                            <div className="flex items-center gap-2 flex-shrink-0">
                               <Badge variant="outline" className="uppercase tracking-wide text-xs">
                                 {latestPayment.provider}
                               </Badge>
@@ -459,45 +459,45 @@ export default function UserOrders() {
                             </div>
                           </div>
                           {formatIdentifier(latestPayment.providerPaymentId || latestPayment.providerReferenceId) && (
-                            <div className="flex justify-between">
-                              <span>Merchant Txn ID:</span>
-                              <span className="font-mono text-xs">
+                            <div className="flex justify-between min-w-0 gap-2">
+                              <span className="flex-shrink-0">Merchant Txn ID:</span>
+                              <span className="font-mono text-xs truncate">
                                 {formatIdentifier(latestPayment.providerPaymentId || latestPayment.providerReferenceId)}
                               </span>
                             </div>
                           )}
                           {latestPayment.providerTransactionId && (
-                            <div className="flex justify-between">
-                              <span>Provider Txn ID:</span>
-                              <span className="font-mono text-xs">{formatIdentifier(latestPayment.providerTransactionId)}</span>
+                            <div className="flex justify-between min-w-0 gap-2">
+                              <span className="flex-shrink-0">Provider Txn ID:</span>
+                              <span className="font-mono text-xs truncate">{formatIdentifier(latestPayment.providerTransactionId)}</span>
                             </div>
                           )}
                           {latestPayment.upiUtr && (
-                            <div className="flex justify-between">
-                              <span>UTR:</span>
-                              <span className="font-mono text-xs">{latestPayment.upiUtr}</span>
+                            <div className="flex justify-between min-w-0 gap-2">
+                              <span className="flex-shrink-0">UTR:</span>
+                              <span className="font-mono text-xs truncate">{latestPayment.upiUtr}</span>
                             </div>
                           )}
                           {latestPayment.upiPayerHandle && (
-                            <div className="flex justify-between">
-                              <span>Payer VPA:</span>
-                              <span className="font-mono text-xs break-all">{latestPayment.upiPayerHandle}</span>
+                            <div className="flex justify-between min-w-0 gap-2">
+                              <span className="flex-shrink-0">Payer VPA:</span>
+                              <span className="font-mono text-xs truncate">{latestPayment.upiPayerHandle}</span>
                             </div>
                           )}
-                          <div className="flex justify-between">
-                            <span>Amount Paid:</span>
-                            <span className="font-medium text-green-600">
+                          <div className="flex justify-between min-w-0">
+                            <span className="flex-shrink-0">Amount Paid:</span>
+                            <span className="font-medium text-green-600 flex-shrink-0">
                               ₹{formatMinorAmount(latestPayment.amountCapturedMinor ?? latestPayment.amountAuthorizedMinor ?? 0)}
                             </span>
                           </div>
                           {latestPayment.receiptUrl && (
-                            <div className="flex justify-between items-center">
-                              <span>Receipt:</span>
+                            <div className="flex justify-between items-center min-w-0">
+                              <span className="flex-shrink-0">Receipt:</span>
                               <a
                                 href={latestPayment.receiptUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-blue-600 hover:underline"
+                                className="text-blue-600 hover:underline truncate"
                               >
                                 View Receipt
                               </a>

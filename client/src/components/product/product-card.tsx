@@ -111,13 +111,13 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
             ₹{parseFloat(product.price).toFixed(2)}
           </span>
           
-          {/* Minimal add button - fixed dimensions */}
+          {/* Minimal add button - responsive dimensions */}
           <div onClick={(e) => e.stopPropagation()} className="ml-auto">
             {cartQuantity > 0 ? (
-              <div className="flex items-center gap-0.5 bg-primary rounded px-1 py-0.5 w-[58px] justify-center">
+              <div className="flex items-center gap-0.5 bg-primary rounded px-1 h-5 md:h-7 w-[58px] md:w-[72px] justify-center">
                 <button
                   type="button"
-                  className="h-5 w-5 rounded bg-white/20 hover:bg-white/30 active:bg-white/40 flex items-center justify-center transition-colors flex-shrink-0"
+                  className="h-4 w-4 md:h-5 md:w-5 rounded bg-white/20 hover:bg-white/30 active:bg-white/40 flex items-center justify-center transition-colors flex-shrink-0"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDecreaseQuantity();
@@ -126,14 +126,14 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                   data-testid={`button-decrease-quantity-${product.id}`}
                   aria-label={`Decrease quantity of ${product.name}`}
                 >
-                  <Minus size={10} className="text-white" />
+                  <Minus size={10} className="text-white md:scale-110" />
                 </button>
-                <span className="min-w-[18px] text-center font-bold text-[10px] text-white" data-testid={`cart-quantity-${product.id}`}>
+                <span className="min-w-[18px] md:min-w-[22px] text-center font-bold text-[10px] md:text-xs text-white" data-testid={`cart-quantity-${product.id}`}>
                   {cartQuantity}
                 </span>
                 <button
                   type="button"
-                  className="h-5 w-5 rounded bg-white/20 hover:bg-white/30 active:bg-white/40 flex items-center justify-center transition-colors flex-shrink-0"
+                  className="h-4 w-4 md:h-5 md:w-5 rounded bg-white/20 hover:bg-white/30 active:bg-white/40 flex items-center justify-center transition-colors flex-shrink-0"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleIncreaseQuantity();
@@ -142,13 +142,13 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                   data-testid={`button-increase-quantity-${product.id}`}
                   aria-label={`Increase quantity of ${product.name}`}
                 >
-                  <Plus size={10} className="text-white" />
+                  <Plus size={10} className="text-white md:scale-110" />
                 </button>
               </div>
             ) : (
               <button
                 type="button"
-                className="h-6 w-6 rounded bg-secondary hover:bg-secondary/90 active:bg-secondary/80 text-primary transition-colors flex items-center justify-center border border-transparent"
+                className="h-5 md:h-7 w-[58px] md:w-[72px] rounded bg-secondary hover:bg-secondary/90 active:bg-secondary/80 text-primary transition-colors flex items-center justify-center border border-transparent font-medium text-[10px] md:text-xs"
                 onClick={(e) => {
                   e.stopPropagation();
                   haptic.add();
@@ -162,7 +162,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                 data-testid={`button-add-to-cart-${product.id}`}
                 aria-label={`Add ${product.name} to cart`}
               >
-                <Plus size={14} />
+                Add
               </button>
             )}
           </div>
