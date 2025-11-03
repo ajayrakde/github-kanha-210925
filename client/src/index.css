@@ -713,10 +713,10 @@
     gap: 0.25rem !important;
   }
 
-  /* Product grid - single column, minimal gaps */
+  /* Product grid - 2 columns on mobile, compact gaps */
   .product-grid {
-    gap: 0.75rem !important;
-    grid-template-columns: 1fr !important;
+    gap: 0.5rem !important;
+    grid-template-columns: repeat(2, 1fr) !important;
   }
 
   /* Product cards - compact with minimal padding */

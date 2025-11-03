@@ -123,10 +123,10 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
       {/* Flat Action Section - Below info, no card borders */}
       <div className="pt-1 pb-2" onClick={(e) => e.stopPropagation()}>
         {cartQuantity > 0 ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
-              className="flex-1 h-9 rounded-md bg-gray-100 hover:bg-gray-200 active:bg-gray-300 flex items-center justify-center transition-colors"
+              className="flex-1 h-8 rounded-md bg-gray-100 hover:bg-gray-200 active:bg-gray-300 flex items-center justify-center transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
                 handleDecreaseQuantity();
@@ -135,14 +135,14 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
               data-testid={`button-decrease-quantity-${product.id}`}
               aria-label={`Decrease quantity of ${product.name}`}
             >
-              <Minus size={16} />
+              <Minus size={14} />
             </button>
-            <span className="min-w-[32px] text-center font-semibold text-sm" data-testid={`cart-quantity-${product.id}`}>
+            <span className="min-w-[28px] text-center font-semibold text-xs" data-testid={`cart-quantity-${product.id}`}>
               {cartQuantity}
             </span>
             <button
               type="button"
-              className="flex-1 h-9 rounded-md bg-primary text-white hover:bg-primary/90 active:bg-primary/80 flex items-center justify-center transition-colors"
+              className="flex-1 h-8 rounded-md bg-primary text-white hover:bg-primary/90 active:bg-primary/80 flex items-center justify-center transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
                 handleIncreaseQuantity();
@@ -151,13 +151,13 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
               data-testid={`button-increase-quantity-${product.id}`}
               aria-label={`Increase quantity of ${product.name}`}
             >
-              <Plus size={16} />
+              <Plus size={14} />
             </button>
           </div>
         ) : (
           <button
             type="button"
-            className="w-full h-9 rounded-md bg-secondary hover:bg-secondary/90 active:bg-secondary/80 text-primary font-semibold text-sm transition-colors flex items-center justify-center gap-1"
+            className="w-full h-8 rounded-md bg-secondary hover:bg-secondary/90 active:bg-secondary/80 text-primary font-semibold text-xs transition-colors flex items-center justify-center gap-1"
             onClick={(e) => {
               e.stopPropagation();
               haptic.add();
@@ -170,7 +170,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
             disabled={addToCart.isPending}
             data-testid={`button-add-to-cart-${product.id}`}
           >
-            <Plus size={16} />
+            <Plus size={14} />
             <span>Add</span>
           </button>
         )}
