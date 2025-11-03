@@ -102,7 +102,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
 
       {/* Flat Info Section - Instagram style */}
       <div className="pt-1.5 pb-0.5 space-y-0.5" onClick={handleCardNavigation}>
-        <h3 className="text-xs font-normal text-gray-900 leading-tight line-clamp-2" data-testid={`product-name-${product.id}`}>
+        <h3 className="text-xs font-normal text-gray-900 leading-tight line-clamp-2 min-h-[2.4rem]" data-testid={`product-name-${product.id}`}>
           {product.name}
         </h3>
         

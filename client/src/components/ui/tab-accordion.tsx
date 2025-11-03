@@ -97,7 +97,7 @@ export function TabAccordion({
               
               {isActive && (
                 <div
-                  className="bg-white border-t border-gray-200"
+                  className="bg-white border-t border-gray-200 w-full min-w-0"
                   data-testid={`accordion-content-${item.value}`}
                 >
                   {item.content}

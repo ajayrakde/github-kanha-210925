@@ -6,7 +6,6 @@ import { ArrowRight } from "lucide-react";
 import { useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
 import { StoryCircles } from "@/components/product/story-circles";
-import { ProductDetailsSheet } from "@/components/product/product-details-sheet";
 import { useState, useEffect } from "react";
 
 export default function Products() {
@@ -19,23 +18,11 @@ export default function Products() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isPullRefreshing, setIsPullRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
-  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
-  const [isProductSheetOpen, setIsProductSheetOpen] = useState(false);
 
-  // Handle product selection - on mobile, open sheet; on desktop, navigate
+  // Handle product selection - navigate to product page
   const handleProductClick = (productId: string) => {
-    if (window.innerWidth < 768) {
-      setSelectedProductId(productId);
-      setIsProductSheetOpen(true);
-    } else {
-      sessionStorage.setItem("productsScrollPosition", window.scrollY.toString());
-      setLocation(`/product/${productId}`);
-    }
-  };
-
-  const handleCloseProductSheet = () => {
-    setIsProductSheetOpen(false);
-    setTimeout(() => setSelectedProductId(null), 300); // Clear after animation
+    sessionStorage.setItem("productsScrollPosition", window.scrollY.toString());
+    setLocation(`/product/${productId}`);
   };
 
   // Pull-to-refresh for mobile
@@ -203,10 +190,6 @@ export default function Products() {
         {heroSection}
         <section className="product-section">
           <div className="container">
-            <div className="section-heading">
-              <h2 className="text-3xl font-bold text-primary">Our Star Treats</h2>
-              <p>We&apos;re plating up your favourites. Hang tight while we load the goodies!</p>
-            </div>
             <div className="product-grid">
               {Array.from({ length: 6 }).map((_, index) => (
                 <div key={index} className="card animate-pulse">
@@ -231,10 +214,6 @@ export default function Products() {
         {heroSection}
         <section className="product-section">
           <div className="container">
-            <div className="section-heading">
-              <h2 className="text-3xl font-bold text-primary">Our Star Treats</h2>
-              <p>We hit a tiny hiccup fetching the goodies. Please try again in a moment.</p>
-            </div>
             <ApiErrorMessage error={error as Error} onRetry={() => refetch()} />
           </div>
         </section>
@@ -275,10 +254,6 @@ export default function Products() {
         <div className="container">
           <div className="section-heading">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="space-y-2">
-                <h2 className="text-3xl font-bold text-primary">Our Star Treats</h2>
-                <p>Pick a playful snack to brighten your kiddo&apos;s day.</p>
-              </div>
               {itemCount > 0 && (
                 <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end max-w-xs sm:max-w-none">
                   <button
@@ -334,15 +309,6 @@ export default function Products() {
           </div>
         )}
       </section>
-
-      {/* Product Details Bottom Sheet - Mobile Only */}
-      {selectedProductId && (
-        <ProductDetailsSheet
-          productId={selectedProductId}
-          open={isProductSheetOpen}
-          onClose={handleCloseProductSheet}
-        />
-      )}
     </>
   );
 }

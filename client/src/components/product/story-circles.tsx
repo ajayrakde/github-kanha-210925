@@ -61,10 +61,13 @@ export interface StoryCirclesProps {
 }
 
 export function StoryCircles({ items, activeId, className }: StoryCirclesProps) {
+  const shouldCenter = items.length <= 5;
+  
   return (
     <div
       className={cn(
         "flex gap-2.5 overflow-x-auto pb-1.5 px-2 scrollbar-hide md:hidden",
+        shouldCenter && "justify-center",
         className
       )}
       data-testid="story-circles-container"

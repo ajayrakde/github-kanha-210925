@@ -1240,10 +1240,10 @@ export default function Payment() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-3 sm:gap-6">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 min-w-0">
           {/* Payment Status */}
-          <Card className="rounded border border-gray-200">
-            <CardContent className="space-y-6 p-3 sm:p-6">
+          <Card className="rounded border border-gray-200 min-w-0">
+            <CardContent className="space-y-6 p-3 sm:p-6 min-w-0">
               <span className="sr-only" data-testid="text-upi-widget-status">{widgetStatus}</span>
               <UpiPaymentWidget
                 status={derivedWidgetStatus}

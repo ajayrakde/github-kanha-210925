@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -114,11 +114,8 @@ interface Order {
   payments?: PaymentRecord[];
 }
 
-type OrderFilter = 'all' | 'pending' | 'completed' | 'failed';
-
 export default function UserOrders() {
   const [, setLocation] = useLocation();
-  const [selectedFilter, setSelectedFilter] = useState<OrderFilter>('all');
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
   
   // Check authentication status first
@@ -132,25 +129,6 @@ export default function UserOrders() {
     enabled: authData?.authenticated || false, // Only run when authenticated
     retry: false,
   });
-
-  // Filter orders based on selected filter
-  const filteredOrders = useMemo(() => {
-    if (!orders) return [];
-    if (selectedFilter === 'all') return orders;
-    
-    return orders.filter(order => {
-      if (selectedFilter === 'pending') {
-        return order.status === 'pending' || order.status === 'processing';
-      }
-      if (selectedFilter === 'completed') {
-        return order.status === 'confirmed' || order.status === 'delivered';
-      }
-      if (selectedFilter === 'failed') {
-        return order.status === 'cancelled' || order.paymentStatus === 'failed';
-      }
-      return true;
-    });
-  }, [orders, selectedFilter]);
 
   const toggleOrderExpanded = (orderId: string) => {
     setExpandedOrders(prev => {
@@ -207,8 +185,8 @@ export default function UserOrders() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4">
-      <div className="space-y-3 sm:space-y-3 sm:space-y-6">
+    <div className="max-w-7xl mx-auto px-4 overflow-x-hidden">
+      <div className="space-y-3 sm:space-y-3 sm:space-y-6 min-w-0">
         {/* Back Button and Title */}
         <div className="flex sm:flex-row items-center sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-6">
         <Button
@@ -226,44 +204,6 @@ export default function UserOrders() {
         </div>
       </div>
 
-      {/* Filter Chips - Mobile First */}
-      {orders && orders.length > 0 && (
-        <div className="mb-4 overflow-x-auto hide-scrollbar">
-          <div className="flex gap-2 min-w-max pb-2">
-            {[
-              { value: 'all', label: 'All Orders', count: orders.length },
-              { value: 'pending', label: 'Pending', count: orders.filter(o => o.status === 'pending' || o.status === 'processing').length },
-              { value: 'completed', label: 'Completed', count: orders.filter(o => o.status === 'confirmed' || o.status === 'delivered').length },
-              { value: 'failed', label: 'Failed', count: orders.filter(o => o.status === 'cancelled' || o.paymentStatus === 'failed').length },
-            ].map((filter) => (
-              <Button
-                key={filter.value}
-                onClick={() => setSelectedFilter(filter.value as OrderFilter)}
-                variant={selectedFilter === filter.value ? 'default' : 'outline'}
-                size="sm"
-                className={`whitespace-nowrap min-h-[44px] px-4 ${
-                  selectedFilter === filter.value
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                    : 'bg-white hover:bg-gray-50'
-                }`}
-                data-testid={`filter-${filter.value}`}
-              >
-                {filter.label}
-                {filter.count > 0 && (
-                  <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
-                    selectedFilter === filter.value
-                      ? 'bg-blue-500'
-                      : 'bg-gray-200 text-gray-700'
-                  }`}>
-                    {filter.count}
-                  </span>
-                )}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {!orders || orders.length === 0 ? (
         <div className="text-center py-12 bg-white rounded border border-gray-200">
           <div className="text-6xl mb-2 sm:mb-4">📦</div>
@@ -274,29 +214,15 @@ export default function UserOrders() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-4">
-          {filteredOrders.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded border border-gray-200">
-              <div className="text-6xl mb-4">🔍</div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No orders found</h3>
-              <p className="text-gray-600 mb-6">Try selecting a different filter</p>
-              <Button 
-                onClick={() => setSelectedFilter('all')} 
-                variant="outline"
-                data-testid="button-clear-filter"
-              >
-                Show All Orders
-              </Button>
-            </div>
-          ) : (
-            filteredOrders.map(order => {
+        <div className="space-y-4 min-w-0">
+          {orders.map(order => {
             const latestPayment = getLatestPayment(order.payments);
 
             const isExpanded = expandedOrders.has(order.id);
             
             return (
-              <div key={order.id} className="bg-white rounded border border-gray-200 overflow-hidden">
-                <div className="p-4 sm:p-6">
+              <div key={order.id} className="bg-white rounded border border-gray-200 overflow-hidden min-w-0">
+                <div className="p-4 sm:p-6 min-w-0">
                   <div className="flex justify-between items-start gap-2 mb-2 sm:mb-4 min-w-0">
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-gray-900 truncate">
@@ -356,16 +282,16 @@ export default function UserOrders() {
                   <div className="hidden md:block">
                     <Separator className="my-4" />
 
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-start">
-                        <span className="text-gray-600 mr-2">Delivery Address:</span>
-                        <span className="flex-1">
+                    <div className="space-y-2 text-sm min-w-0">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <span className="text-gray-600 flex-shrink-0">Delivery Address:</span>
+                        <span className="flex-1 min-w-0 break-words">
                           {order.deliveryAddress.address}, {order.deliveryAddress.city} - {order.deliveryAddress.pincode}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap min-w-0">
                         <span className="text-gray-600">Payment:</span>
-                        <span>{formatPaymentMethod(order.paymentMethod)}</span>
+                        <span className="break-words">{formatPaymentMethod(order.paymentMethod)}</span>
                         {renderPaymentStatusBadge(order.paymentStatus)}
                       </div>
                     </div>
@@ -433,16 +359,16 @@ export default function UserOrders() {
                   {/* Mobile: Collapsible Details */}
                   {isExpanded && (
                     <div className="md:hidden mt-4 pt-4 border-t">
-                      <div className="space-y-2 text-sm">
-                        <div className="flex items-start">
-                          <span className="text-gray-600 mr-2">Delivery Address:</span>
-                          <span className="flex-1">
+                      <div className="space-y-2 text-sm min-w-0">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <span className="text-gray-600 flex-shrink-0">Delivery Address:</span>
+                          <span className="flex-1 min-w-0 break-words">
                             {order.deliveryAddress.address}, {order.deliveryAddress.city} - {order.deliveryAddress.pincode}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
                           <span className="text-gray-600">Payment:</span>
-                          <span>{formatPaymentMethod(order.paymentMethod)}</span>
+                          <span className="break-words">{formatPaymentMethod(order.paymentMethod)}</span>
                           {renderPaymentStatusBadge(order.paymentStatus)}
                         </div>
                       </div>
@@ -510,11 +436,10 @@ export default function UserOrders() {
                 </div>
               </div>
             );
-          })
-          )}
+          })}
         </div>
       )}
-    </div>
+      </div>
     </div>
   );
 }

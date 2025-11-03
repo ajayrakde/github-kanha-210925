@@ -530,7 +530,7 @@ export default function Cart() {
       </div>
 
       {/* Sticky Checkout Bar - Mobile Only */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 z-20" id="cart-summary-mobile">
+      <div className="lg:hidden fixed bottom-14 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 z-20" id="cart-summary-mobile">
         <div className="flex items-center justify-between gap-3 max-w-7xl mx-auto" id="order-total-mobile">
           <div className="flex-1 min-w-0">
             <div className="text-xs text-gray-600">Total ({cartItems.length} items)</div>

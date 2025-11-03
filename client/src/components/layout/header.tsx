@@ -1,13 +1,9 @@
 import { Link } from "wouter";
+import { Heart } from "lucide-react";
 
-import { useCart } from "@/hooks/use-cart";
 import UserMenu from "./user-menu";
 
 export default function Header() {
-  const { itemCount } = useCart();
-
-  const cartCount = itemCount;
-
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
       <div className="container px-3 py-1.5 md:py-3">
@@ -29,23 +25,14 @@ export default function Header() {
           </Link>
           <div className="flex items-center gap-1.5 md:gap-2">
             <UserMenu />
-            <Link
-              href="/cart"
+            <button
               className="relative flex h-9 w-9 md:h-10 md:w-10 items-center justify-center rounded bg-secondary text-primary border border-secondary/20 transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-1"
-              aria-label="View cart"
-              data-testid="button-cart"
+              aria-label="Favorites"
+              data-testid="button-favorites"
             >
-              <i className="fas fa-shopping-cart text-sm md:text-base" aria-hidden="true"></i>
-              <span className="sr-only">Cart</span>
-              {cartCount > 0 && (
-                <span
-                  className="absolute -top-0.5 -right-0.5 flex h-4.5 w-4.5 items-center justify-center rounded bg-tertiary text-[10px] font-bold text-white border border-tertiary/20"
-                  data-testid="text-cart-count"
-                >
-                  {cartCount}
-                </span>
-              )}
-            </Link>
+              <Heart size={18} className="md:w-5 md:h-5" />
+              <span className="sr-only">Favorites</span>
+            </button>
           </div>
         </nav>
       </div>
