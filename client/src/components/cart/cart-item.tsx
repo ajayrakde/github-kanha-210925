@@ -79,10 +79,10 @@ export default function CartItem({ item }: CartItemProps) {
 
         {/* Product Name & Price - 70% width, top-left aligned */}
         <div className="w-[70%] flex-shrink-0 flex flex-col justify-start">
-          <h4 className="font-semibold text-sm text-gray-900 leading-[1.3] line-clamp-2 mb-0.5" data-testid={`cart-item-name-${item.id}`}>
+          <h4 className="font-semibold text-sm sm:text-base text-gray-900 leading-tight mb-0.5 line-clamp-2" data-testid={`cart-item-name-${item.id}`}>
             {item.product.name}
           </h4>
-          <p className="text-xs text-gray-600 leading-[1.3]" data-testid={`cart-item-price-${item.id}`}>
+          <p className="text-xs sm:text-sm text-gray-600" data-testid={`cart-item-price-${item.id}`}>
             ₹{parseFloat(item.product.price).toFixed(2)}
           </p>
         </div>
@@ -92,18 +92,18 @@ export default function CartItem({ item }: CartItemProps) {
           <button
             onClick={() => handleQuantityChange(-1)}
             disabled={updateQuantityMutation.isPending}
-            className="w-[26px] h-[26px] flex-shrink-0 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all focus:ring-2 focus:ring-primary/20 focus:ring-offset-1 active:bg-gray-100 active:ring-2 active:ring-primary/30 disabled:opacity-50"
+            className="w-[26px] h-[32px] flex-shrink-0 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all focus:ring-2 focus:ring-primary/20 focus:ring-offset-1 active:bg-gray-100 active:ring-2 active:ring-primary/30 disabled:opacity-50"
             data-testid={`button-decrease-${item.id}`}
           >
             <i className="fas fa-minus text-[8px]"></i>
           </button>
-          <span className="w-[32px] h-[26px] flex-shrink-0 flex items-center justify-center text-xs font-medium border-y border-gray-300 bg-gray-50" data-testid={`cart-item-quantity-${item.id}`}>
+          <span className="w-[32px] h-[32px] flex-shrink-0 flex items-center justify-center text-xs font-medium border-y border-gray-300 bg-gray-50" data-testid={`cart-item-quantity-${item.id}`}>
             {item.quantity}
           </span>
           <button
             onClick={() => handleQuantityChange(1)}
             disabled={updateQuantityMutation.isPending}
-            className="w-[26px] h-[26px] flex-shrink-0 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all focus:ring-2 focus:ring-primary/20 focus:ring-offset-1 active:bg-gray-100 active:ring-2 active:ring-primary/30 disabled:opacity-50"
+            className="w-[26px] h-[32px] flex-shrink-0 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all focus:ring-2 focus:ring-primary/20 focus:ring-offset-1 active:bg-gray-100 active:ring-2 active:ring-primary/30 disabled:opacity-50"
             data-testid={`button-increase-${item.id}`}
           >
             <i className="fas fa-plus text-[8px]"></i>
