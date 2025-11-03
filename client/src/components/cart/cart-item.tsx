@@ -65,7 +65,7 @@ export default function CartItem({ item }: CartItemProps) {
   };
 
   return (
-    <div className="relative py-3" data-testid={`cart-item-${item.id}`}>
+    <div className="relative py-3 px-3 sm:px-4" data-testid={`cart-item-${item.id}`}>
       {/* Cart Item Content - Horizontal Distribution: 15% image, 70% name/price, 15% quantity controls */}
       <div className="flex items-center gap-2 bg-white">
         {/* Product Image - 15% width, square (3:3 ratio) */}
@@ -79,10 +79,10 @@ export default function CartItem({ item }: CartItemProps) {
 
         {/* Product Name & Price - 70% width, top-left aligned */}
         <div className="w-[70%] flex-shrink-0 flex flex-col justify-start">
-          <h4 className="font-semibold text-sm sm:text-base text-gray-900 leading-tight mb-0.5 line-clamp-2" data-testid={`cart-item-name-${item.id}`}>
+          <h4 className="font-semibold text-xs sm:text-sm text-gray-900 leading-tight mb-0.5 line-clamp-2" data-testid={`cart-item-name-${item.id}`}>
             {item.product.name}
           </h4>
-          <p className="text-xs sm:text-sm text-gray-600" data-testid={`cart-item-price-${item.id}`}>
+          <p className="text-[11px] sm:text-xs text-gray-600" data-testid={`cart-item-price-${item.id}`}>
             ₹{parseFloat(item.product.price).toFixed(2)}
           </p>
         </div>
