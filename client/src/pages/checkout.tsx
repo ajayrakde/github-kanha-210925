@@ -6,12 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { ArrowLeft, Plus, Loader2, MapPin, Check, ShoppingCart, Home, CreditCard } from "lucide-react";
+import { ArrowLeft, Plus, Loader2, MapPin } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { scrollToContext } from "@/lib/scroll-utils";
@@ -40,15 +39,6 @@ export default function Checkout() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { cartItems, subtotal, clearCart, isLoading: isCartLoading } = useCart();
-  
-  const [expandedStep, setExpandedStep] = useState<string>("summary");
-  const [completedSteps, setCompletedSteps] = useState({
-    summary: false,
-    address: false,
-    payment: false,
-  });
-  const [confirmedCartSnapshot, setConfirmedCartSnapshot] = useState<string | null>(null);
-  
   const [step, setStep] = useState<"phone" | "otp" | "details">("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -58,7 +48,7 @@ export default function Checkout() {
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
   const [showNewAddressForm, setShowNewAddressForm] = useState(false);
   const [makePreferred, setMakePreferred] = useState(false);
-  const [shippingCharge, setShippingCharge] = useState(50);
+  const [shippingCharge, setShippingCharge] = useState(50); // Default shipping
   const [isCalculatingShipping, setIsCalculatingShipping] = useState(false);
   const [isPincodeValid, setIsPincodeValid] = useState(false);
   const [previousSelectedAddressId, setPreviousSelectedAddressId] = useState<string | null>(null);
@@ -67,6 +57,7 @@ export default function Checkout() {
   const [couponError, setCouponError] = useState("");
   const [isAddressSheetOpen, setIsAddressSheetOpen] = useState(false);
 
+  // Load selected offer from cart if available
   useEffect(() => {
     const selectedOffer = queryClient.getQueryData<{ id: string; code: string } | null>([
       "checkout",
@@ -77,6 +68,7 @@ export default function Checkout() {
     }
   }, []);
 
+  // Calculate discount based on applied offer
   const calculateDiscount = () => {
     if (!appliedOffer) return 0;
 
@@ -91,13 +83,15 @@ export default function Checkout() {
 
   const discount = calculateDiscount();
 
+  // Function to validate pincode (6 digits)
   const validatePincode = useCallback((pincode: string): boolean => {
     return /^\d{6}$/.test(pincode);
   }, []);
 
+  // Function to calculate shipping charges
   const calculateShipping = useCallback(async (pincode: string) => {
     if (!validatePincode(pincode)) {
-      setShippingCharge(50);
+      setShippingCharge(50); // Default fallback
       setIsPincodeValid(false);
       return;
     }
@@ -107,7 +101,7 @@ export default function Checkout() {
         return;
       }
 
-      setShippingCharge(50);
+      setShippingCharge(50); // Default fallback
       setIsPincodeValid(false);
       return;
     }
@@ -125,23 +119,26 @@ export default function Checkout() {
       setShippingCharge(result.shippingCharge);
     } catch (error) {
       console.error("Error calculating shipping:", error);
-      setShippingCharge(50);
+      setShippingCharge(50); // Fall back to default
     } finally {
       setIsCalculatingShipping(false);
     }
   }, [cartItems, isCartLoading, subtotal, validatePincode]);
 
+  // Check if user is already logged in
   const { data: authData } = useQuery<{ authenticated: boolean; user?: any }>({
     queryKey: ["/api/auth/me"],
     retry: false,
   });
 
+  // Get user addresses if logged in
   const { data: addresses } = useQuery<any[]>({
     queryKey: ["/api/auth/addresses"],
     enabled: authData?.authenticated || false,
     retry: false,
   });
 
+  // Get last order's delivery address if logged in
   const { data: lastOrderAddress } = useQuery<any>({
     queryKey: ["/api/auth/addresses/last"],
     enabled: authData?.authenticated && addresses && addresses.length > 1,
@@ -153,6 +150,7 @@ export default function Checkout() {
       setUser(authData.user);
       setStep("details");
       
+      // Auto-populate name from user data if available and not already set
       if (authData.user.name && !userInfo.name) {
         setUserInfo(prev => ({
           ...prev,
@@ -265,6 +263,7 @@ export default function Checkout() {
       setUser(result.user);
       setStep("details");
 
+      // Auto-populate name from user data if available
       if (result.user.name && !userInfo.name) {
         setUserInfo(prev => ({
           ...prev,
@@ -272,11 +271,13 @@ export default function Checkout() {
         }));
       }
 
+      // Update authentication cache to reflect logged-in state
       queryClient.setQueryData(["/api/auth/me"], {
         authenticated: true,
         user: result.user
       });
 
+      // Invalidate queries to refresh user data
       queryClient.invalidateQueries({ queryKey: ["/api/auth/addresses"] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/orders"] });
 
@@ -330,6 +331,7 @@ export default function Checkout() {
         description: "Your new address has been saved successfully",
       });
 
+      // Scroll to continue/checkout button after address is saved
       setTimeout(() => scrollToContext("address-saved"), 300);
 
       queryClient.setQueryData(["/api/auth/addresses"], (existing: any[] | undefined) => {
@@ -395,10 +397,12 @@ export default function Checkout() {
       };
       let addressIdToUse = selectedAddressId || null;
 
+      // If user selected an existing address, save it if marked as preferred
       if (selectedAddressId && makePreferred) {
         await apiRequest("PUT", `/api/auth/addresses/${selectedAddressId}/preferred`, {});
       }
 
+      // If user is adding a new address, create it first
       if (showNewAddressForm && authData?.authenticated) {
         const addressData = {
           name: "Delivery Address",
@@ -411,18 +415,20 @@ export default function Checkout() {
         addressIdToUse = newAddress?.id ?? addressIdToUse;
       }
 
+      // For logged-in users with no saved addresses, automatically save the current address
       if (authData?.authenticated && (!addresses || addresses.length === 0) && !selectedAddressId && !showNewAddressForm) {
         const addressData = {
           name: "Primary Address",
           address: [userInfo.addressLine1, userInfo.addressLine2, userInfo.addressLine3].filter(line => line.trim()).join('\n'),
           city: userInfo.city,
           pincode: userInfo.pincode,
-          isPreferred: true,
+          isPreferred: true, // First address becomes preferred automatically
         };
         const newAddress = await createAddressMutation.mutateAsync(addressData);
         addressIdToUse = newAddress?.id ?? addressIdToUse;
       }
 
+      // Check if we have an existing checkout intent to reuse the ID
       let checkoutIntentId: string | undefined;
       
       try {
@@ -430,12 +436,14 @@ export default function Checkout() {
         if (existingIntentStr) {
           const existingIntent = JSON.parse(existingIntentStr);
           
+          // Compare cart items (by product ID and quantity)
           const currentCartSignature = cartItems.map(item => `${item.productId}:${item.quantity}`).sort().join(',');
           const existingCartSignature = existingIntent.cartItems?.map((item: any) => `${item.productId}:${item.quantity}`).sort().join(',');
           
           if (currentCartSignature === existingCartSignature && 
               existingIntent.total === (subtotal + shippingCharge - discount) &&
               existingIntent.offerCode === (appliedOffer?.code ?? null)) {
+            // Cart hasn't changed, reuse the intent ID
             checkoutIntentId = existingIntent.checkoutIntentId;
             console.log('[Checkout] Reusing checkout intent ID:', checkoutIntentId);
           }
@@ -444,27 +452,32 @@ export default function Checkout() {
         console.error('[Checkout] Failed to parse existing intent:', error);
       }
 
+      // Generate new intent ID if we don't have one to reuse
       if (!checkoutIntentId) {
         checkoutIntentId = `intent_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
         console.log('[Checkout] Created new checkout intent ID:', checkoutIntentId);
       }
       
+      // ALWAYS save/update intent to backend (even when reusing ID)
+      // This ensures address, user info, and other details stay current
       const checkoutIntent = {
         checkoutIntentId,
         userInfo: orderUserInfoSnapshot,
         paymentMethod,
         offerCode: appliedOffer?.code ?? null,
         selectedAddressId: addressIdToUse,
-        cartItems,
+        cartItems, // Store cart items for display on payment page
         subtotal,
         discount,
         shippingCharge,
         total: subtotal + shippingCharge - discount,
       };
       
+      // Save/update intent in backend (upsert operation)
       const intentResponse = await apiRequest("POST", "/api/orders/checkout-intent", checkoutIntent);
       const intentResult = await intentResponse.json();
       
+      // Also update in sessionStorage
       sessionStorage.setItem('checkoutIntent', JSON.stringify(checkoutIntent));
       console.log('[Checkout] Saved checkout intent to backend:', checkoutIntentId);
 
@@ -476,11 +489,16 @@ export default function Checkout() {
     onSuccess: async ({ checkoutIntentId, orderUserInfo }) => {
       const isUpiPayment = paymentMethod === 'upi';
 
+      // Clear selected offer from cache
       queryClient.setQueryData(["checkout", "selectedOffer"], null);
       
+      // Redirect to payment page with intent ID
+      // Order will be created when payment page loads
       if (isUpiPayment || paymentMethod === 'cashfree') {
         setLocation(`/payment?intentId=${checkoutIntentId}`);
       } else {
+        // For non-UPI payments, we still need to create the order
+        // This case is not implemented yet - would need separate flow
         toast({
           title: "Payment Method Not Supported",
           description: "Please select UPI payment method",
@@ -495,10 +513,12 @@ export default function Checkout() {
         description: "Unable to process your order. Please try again.",
         variant: "destructive",
       });
+      // Scroll to top where error will be visible
       setTimeout(() => scrollToContext("checkout-error"), 300);
     },
   });
 
+  // Debug validation states for Place Order button
   useEffect(() => {
     console.log('[Checkout] Place Order Button Validation States:', {
       step,
@@ -523,74 +543,28 @@ export default function Checkout() {
     });
   }, [step, userInfo, isPincodeValid, isCalculatingShipping, placeOrderMutation.isPending]);
 
+  // Scroll to pincode input during shipping calculation
   useEffect(() => {
     if (isCalculatingShipping) {
       setTimeout(() => scrollToContext("pincode-checking"), 100);
     }
   }, [isCalculatingShipping]);
 
+  // Scroll to OTP input during verification
   useEffect(() => {
     if (verifyOtpMutation.isPending) {
       setTimeout(() => scrollToContext("otp-verification"), 100);
     }
   }, [verifyOtpMutation.isPending]);
 
+  // Scroll to payment status during order processing
   useEffect(() => {
     if (placeOrderMutation.isPending) {
       setTimeout(() => scrollToContext("payment-processing"), 100);
     }
   }, [placeOrderMutation.isPending]);
 
-  const total = subtotal + shippingCharge - discount;
-
-  const handleConfirmSummary = () => {
-    if (cartItems && cartItems.length > 0) {
-      // Save cart snapshot when confirming
-      const snapshot = JSON.stringify(cartItems.map(item => ({ id: item.productId, quantity: item.quantity })));
-      setConfirmedCartSnapshot(snapshot);
-      setCompletedSteps(prev => ({ ...prev, summary: true }));
-      setExpandedStep("address");
-    }
-  };
-
-  const handleProceedToPayment = () => {
-    if (userInfo.name && userInfo.addressLine1 && userInfo.addressLine2 && 
-        userInfo.city && userInfo.pincode && isPincodeValid && !isCalculatingShipping) {
-      setCompletedSteps(prev => ({ ...prev, address: true }));
-      setExpandedStep("payment");
-    }
-  };
-
-  const isAddressComplete = step === "details" && 
-    userInfo.name && 
-    userInfo.addressLine1 && 
-    userInfo.addressLine2 && 
-    userInfo.city && 
-    userInfo.pincode && 
-    isPincodeValid && 
-    !isCalculatingShipping;
-
-  // Reset Step 1 completion when cart changes
-  useEffect(() => {
-    if (completedSteps.summary && cartItems) {
-      const currentSnapshot = JSON.stringify(cartItems.map(item => ({ id: item.productId, quantity: item.quantity })));
-      if (currentSnapshot !== confirmedCartSnapshot) {
-        setCompletedSteps(prev => ({ ...prev, summary: false }));
-        setConfirmedCartSnapshot(null);
-      }
-    }
-  }, [cartItems, completedSteps.summary, confirmedCartSnapshot]);
-
-  // Reset Step 2 completion when address becomes invalid or user opens new address form
-  useEffect(() => {
-    if (completedSteps.address) {
-      const addressStillValid = userInfo.name && userInfo.addressLine1 && userInfo.addressLine2 && 
-                                userInfo.city && userInfo.pincode && isPincodeValid && !isCalculatingShipping;
-      if (!addressStillValid || showNewAddressForm) {
-        setCompletedSteps(prev => ({ ...prev, address: false }));
-      }
-    }
-  }, [completedSteps.address, userInfo, isPincodeValid, isCalculatingShipping, showNewAddressForm]);
+  const total = subtotal + shippingCharge - discount; // Add shipping and subtract discount
 
   if (!cartItems || cartItems.length === 0) {
     return (
@@ -604,620 +578,704 @@ export default function Checkout() {
     );
   }
 
-  const OrderSummaryContent = () => (
-    <>
-      <div className="space-y-3 mb-4">
-        {cartItems.map((item) => (
-          <div key={item.id} className="flex items-center gap-3 border border-gray-200 rounded p-3">
-            <div className="w-16 h-16 bg-gray-100 rounded">
-              {item.product?.imageUrl && (
-                <img 
-                  src={item.product.imageUrl} 
-                  alt={item.product.name}
-                  className="w-full h-full object-cover rounded"
-                />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h4 className="font-medium text-sm truncate">{item.product?.name}</h4>
-              <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
-            </div>
-            <div className="text-sm font-medium">
-              ₹{(Number(item.product?.price || 0) * item.quantity).toFixed(2)}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="space-y-2 text-sm mb-4 border-t border-gray-200 pt-4">
-        <div className="flex justify-between">
-          <span className="text-gray-600">Subtotal</span>
-          <span data-testid="text-order-subtotal">₹{(subtotal / 1.05).toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-600">Tax (5%)</span>
-          <span data-testid="text-order-tax">₹{(subtotal - (subtotal / 1.05)).toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-600">Shipping</span>
-          <span data-testid="text-order-shipping">
-            {isCalculatingShipping ? (
-              <span className="text-blue-600">Calculating...</span>
-            ) : (
-              `₹${shippingCharge.toFixed(2)}`
-            )}
-          </span>
-        </div>
-        
-        {discount > 0 && (
-          <div className="flex justify-between text-green-600">
-            <span>Discount ({appliedOffer?.code})</span>
-            <span data-testid="text-order-discount">-₹{discount.toFixed(2)}</span>
-          </div>
-        )}
-        
-        <hr className="my-2" />
-        <div className="flex justify-between font-semibold text-lg">
-          <span>Total</span>
-          <span data-testid="text-order-total">₹{total.toFixed(2)}</span>
-        </div>
-      </div>
-
-      <div className="border-t border-gray-200 pt-4">
-        <h3 className="text-sm font-medium text-gray-900 mb-3">Apply Coupon</h3>
-        {!appliedOffer ? (
-          <>
-            <div className="flex space-x-2">
-              <Input
-                type="text"
-                placeholder="Enter coupon code"
-                value={couponCode}
-                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                className={`flex-1 text-sm ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
-                data-testid="input-coupon-code"
-              />
-              <Button
-                onClick={() => {
-                  if (couponCode.trim() && user?.id) {
-                    setCouponError("");
-                    validateOfferMutation.mutate({
-                      code: couponCode.trim(),
-                      userId: user.id,
-                      cartValue: subtotal
-                    });
-                  }
-                }}
-                disabled={!couponCode.trim() || validateOfferMutation.isPending || !user?.id}
-                size="sm"
-                data-testid="button-apply-coupon"
-              >
-                {validateOfferMutation.isPending ? "Applying..." : "Apply"}
-              </Button>
-            </div>
-            {couponError && (
-              <div className="mt-2 text-xs text-red-600" data-testid="coupon-error">
-                {couponError}
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="flex items-center justify-between bg-green-50 p-2 rounded">
-            <div className="text-xs text-green-600">
-              <Check className="w-3 h-3 inline mr-1" />
-              "{appliedOffer.code}" applied
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setAppliedOffer(null);
-                setCouponError("");
-                setCouponCode("");
-                queryClient.setQueryData(["checkout", "selectedOffer"], null);
-                toast({
-                  title: "Coupon Removed",
-                  description: "The coupon has been removed from your order",
-                });
-              }}
-              className="text-gray-500 hover:text-red-600 h-6 px-2 text-xs"
-              data-testid="button-remove-coupon"
-            >
-              Remove
-            </Button>
-          </div>
-        )}
-      </div>
-    </>
-  );
-
   return (
     <div className="max-w-7xl mx-auto px-4">
-      <div className="space-y-6">
-        <div className="flex items-center gap-4 mb-6">
-          <Button
-            onClick={() => setLocation("/")}
-            variant="ghost"
-            className="-ml-2 text-gray-800 hover:bg-gray-100 hover:text-gray-900"
-            data-testid="button-back-to-products"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
-          </Button>
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-900">Checkout</h2>
-          </div>
+      <div className="space-y-3 sm:space-y-3 sm:space-y-6">
+        {/* Back Button and Title */}
+        <div className="flex sm:flex-row items-center sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-6">
+        <Button
+          onClick={() => setLocation("/")}
+          variant="ghost"
+          className="-ml-2 text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-white"
+          data-testid="button-back-to-products"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back
+        </Button>
+        <div>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-1">Checkout</h2>
         </div>
+      </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <Accordion 
-              type="single" 
-              value={expandedStep} 
-              onValueChange={setExpandedStep}
-              collapsible
-              className="space-y-4"
-            >
-              <AccordionItem value="summary" className="border border-gray-200 rounded bg-white">
-                <AccordionTrigger className="px-4 sm:px-6 hover:no-underline" data-testid="accordion-trigger-summary">
-                  <div className="flex items-center gap-3">
-                    {completedSteps.summary ? (
-                      <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
-                        <Check className="w-5 h-5 text-white" />
-                      </div>
-                    ) : (
-                      <div className="w-8 h-8 rounded-full border-2 border-gray-300 flex items-center justify-center">
-                        <ShoppingCart className="w-4 h-4 text-gray-500" />
-                      </div>
-                    )}
-                    <div className="flex flex-col items-start">
-                      <span className="font-semibold">Step 1: Order Summary</span>
-                      <span className="text-xs text-gray-500">Review your cart items</span>
-                    </div>
+      <div className="grid lg:grid-cols-3 gap-3 sm:gap-6">
+        <div className="lg:col-span-2 space-y-3 sm:space-y-6">
+          {/* Phone Verification */}
+          {step === "phone" && (
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+              <h3 className="font-semibold text-gray-900 mb-2 sm:mb-4 flex items-center">
+                <i className="fas fa-mobile-alt text-blue-600 mr-2"></i>
+                Phone Verification
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="phone">Phone Number</Label>
+                  <div className="flex mt-2">
+                    <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
+                      +91
+                    </span>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      placeholder="9876543210"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      className="rounded-l-none"
+                      data-testid="input-phone"
+                    />
                   </div>
-                </AccordionTrigger>
-                <AccordionContent className="px-4 sm:px-6 pb-4">
-                  <div className="lg:hidden">
-                    <OrderSummaryContent />
+                </div>
+                <Button
+                  onClick={() => sendOtpMutation.mutate()}
+                  disabled={!phone || sendOtpMutation.isPending}
+                  data-testid="button-send-otp"
+                >
+                  Send OTP
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* OTP Verification */}
+          {step === "otp" && (
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+              <h3 className="font-semibold text-gray-900 mb-2 sm:mb-4 flex items-center">
+                <i className="fas fa-shield-alt text-green-600 mr-2"></i>
+                Enter OTP
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="otp">6-Digit OTP</Label>
+                  <div className="flex justify-center sm:justify-start mt-2">
+                    <InputOTP 
+                      maxLength={6} 
+                      value={otp}
+                      onChange={(value) => setOtp(value)}
+                      data-testid="input-otp"
+                    >
+                      <InputOTPGroup>
+                        <InputOTPSlot index={0} className="h-14 w-14 text-xl sm:h-12 sm:w-12 sm:text-lg" />
+                        <InputOTPSlot index={1} className="h-14 w-14 text-xl sm:h-12 sm:w-12 sm:text-lg" />
+                        <InputOTPSlot index={2} className="h-14 w-14 text-xl sm:h-12 sm:w-12 sm:text-lg" />
+                        <InputOTPSlot index={3} className="h-14 w-14 text-xl sm:h-12 sm:w-12 sm:text-lg" />
+                        <InputOTPSlot index={4} className="h-14 w-14 text-xl sm:h-12 sm:w-12 sm:text-lg" />
+                        <InputOTPSlot index={5} className="h-14 w-14 text-xl sm:h-12 sm:w-12 sm:text-lg" />
+                      </InputOTPGroup>
+                    </InputOTP>
                   </div>
-                  <div className="hidden lg:block text-sm text-gray-600 mb-4">
-                    Your cart contains {cartItems.length} item{cartItems.length !== 1 ? 's' : ''}. Review the order summary on the right.
-                  </div>
+                  <p className="text-xs text-gray-500 mt-2">Paste your OTP or type it digit by digit</p>
+                </div>
+                <div className="flex space-x-3">
                   <Button
-                    onClick={handleConfirmSummary}
-                    className="w-full"
-                    data-testid="button-confirm-summary"
+                    onClick={() => verifyOtpMutation.mutate()}
+                    disabled={!otp || verifyOtpMutation.isPending}
+                    className="bg-green-600 hover:bg-green-700"
+                    data-testid="button-verify-otp"
                   >
-                    Confirm & Continue
+                    Verify OTP
                   </Button>
-                </AccordionContent>
-              </AccordionItem>
+                  <Button
+                    variant="outline"
+                    onClick={() => sendOtpMutation.mutate()}
+                    disabled={sendOtpMutation.isPending}
+                    data-testid="button-resend-otp"
+                  >
+                    Resend OTP
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
 
-              <AccordionItem value="address" className="border border-gray-200 rounded bg-white">
-                <AccordionTrigger className="px-4 sm:px-6 hover:no-underline" data-testid="accordion-trigger-address">
-                  <div className="flex items-center gap-3">
-                    {completedSteps.address ? (
-                      <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
-                        <Check className="w-5 h-5 text-white" />
-                      </div>
-                    ) : (
-                      <div className="w-8 h-8 rounded-full border-2 border-gray-300 flex items-center justify-center">
-                        <Home className="w-4 h-4 text-gray-500" />
-                      </div>
-                    )}
-                    <div className="flex flex-col items-start">
-                      <span className="font-semibold">Step 2: Delivery Address</span>
-                      <span className="text-xs text-gray-500">
-                        {completedSteps.address ? "Address confirmed" : "Enter delivery details"}
-                      </span>
-                    </div>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="px-4 sm:px-6 pb-4">
-                  {step === "phone" && !authData?.authenticated && (
-                    <div className="space-y-4">
-                      <h3 className="font-medium text-gray-900">Phone Verification</h3>
-                      <div>
-                        <Label htmlFor="phone">Phone Number</Label>
-                        <div className="flex mt-2">
-                          <span className="inline-flex items-center px-3 rounded-l border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
-                            +91
-                          </span>
-                          <Input
-                            id="phone"
-                            type="tel"
-                            placeholder="9876543210"
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                            className="rounded-l-none"
-                            data-testid="input-phone"
-                          />
-                        </div>
-                      </div>
-                      <Button
-                        onClick={() => sendOtpMutation.mutate()}
-                        disabled={!phone || sendOtpMutation.isPending}
-                        data-testid="button-send-otp"
-                      >
-                        {sendOtpMutation.isPending ? "Sending..." : "Send OTP"}
-                      </Button>
-                    </div>
-                  )}
+          {/* Delivery Information */}
+          {step === "details" && (
+            <>
+              <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6">
+                <h3 className="font-semibold text-gray-900 mb-2 sm:mb-4 flex items-center">
+                  <i className="fas fa-truck text-blue-600 mr-2"></i>
+                  Delivery Information
+                </h3>
 
-                  {step === "otp" && !authData?.authenticated && (
-                    <div className="space-y-4">
-                      <h3 className="font-medium text-gray-900">Enter OTP</h3>
-                      <div>
-                        <Label htmlFor="otp">6-Digit OTP</Label>
-                        <div className="flex justify-center sm:justify-start mt-2">
-                          <InputOTP 
-                            maxLength={6} 
-                            value={otp}
-                            onChange={(value) => setOtp(value)}
-                            data-testid="input-otp"
+                {/* User Name */}
+                <div className="mb-3 sm:mb-6">
+                  <Label htmlFor="name">Full Name</Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    placeholder="John Doe"
+                    value={userInfo.name}
+                    onChange={(e) => setUserInfo({ ...userInfo, name: e.target.value })}
+                    className="mt-2"
+                    data-testid="input-name"
+                  />
+                </div>
+
+                {/* Address Selection/Management */}
+                {addresses && addresses.length > 0 && (
+                  <>
+                    {/* Preferred Address Card (shown above form) */}
+                    {(() => {
+                      const preferredAddress = addresses.find(addr => addr.isPreferred);
+                      return preferredAddress && !showNewAddressForm ? (
+                        <div className="mb-3 sm:mb-6">
+                          <Label className="text-base font-medium">Preferred Address</Label>
+                          <div
+                            className={`mt-2 border rounded-lg p-4 cursor-pointer transition-colors ${
+                              selectedAddressId === preferredAddress.id
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                            onClick={() => {
+                              setShowNewAddressForm(false);
+                              setSelectedAddressId(preferredAddress.id);
+                            }}
+                            data-testid={`preferred-address-${preferredAddress.id}`}
                           >
-                            <InputOTPGroup>
-                              <InputOTPSlot index={0} className="h-12 w-12" />
-                              <InputOTPSlot index={1} className="h-12 w-12" />
-                              <InputOTPSlot index={2} className="h-12 w-12" />
-                              <InputOTPSlot index={3} className="h-12 w-12" />
-                              <InputOTPSlot index={4} className="h-12 w-12" />
-                              <InputOTPSlot index={5} className="h-12 w-12" />
-                            </InputOTPGroup>
-                          </InputOTP>
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-start gap-3">
+                                <input
+                                  type="radio"
+                                  name="addressSelection"
+                                  checked={selectedAddressId === preferredAddress.id}
+                                  onChange={() => {}}
+                                  className="mt-1"
+                                />
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-medium">{preferredAddress.name}</h4>
+                                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                                      Preferred
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-600 mt-1">
+                                    {preferredAddress.address}, {preferredAddress.city} - {preferredAddress.pincode}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex space-x-3">
-                        <Button
-                          onClick={() => verifyOtpMutation.mutate()}
-                          disabled={!otp || verifyOtpMutation.isPending}
-                          data-testid="button-verify-otp"
-                        >
-                          {verifyOtpMutation.isPending ? "Verifying..." : "Verify OTP"}
-                        </Button>
+                      ) : null;
+                    })()}
+
+                    {/* Option to use different address or add new */}
+                    {!showNewAddressForm && (
+                      <div className="space-y-3">
                         <Button
                           variant="outline"
-                          onClick={() => sendOtpMutation.mutate()}
-                          disabled={sendOtpMutation.isPending}
-                          data-testid="button-resend-otp"
+                          onClick={() => {
+                            setPreviousSelectedAddressId(selectedAddressId || null);
+                            setSelectedAddressId("");
+                            setShowNewAddressForm(true);
+                            setMakePreferred(false);
+                            setUserInfo(prev => ({
+                              ...EMPTY_USER_INFO,
+                              name: prev.name,
+                            }));
+                            setIsPincodeValid(false);
+                            setShippingCharge(50);
+                          }}
+                          className="w-full"
+                          data-testid="button-use-different-address"
                         >
-                          Resend OTP
+                          <Plus className="w-4 h-4 mr-2" />
+                          Use Different Address
                         </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {step === "details" && (
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="name">Full Name</Label>
-                        <Input
-                          id="name"
-                          type="text"
-                          placeholder="John Doe"
-                          value={userInfo.name}
-                          onChange={(e) => setUserInfo({ ...userInfo, name: e.target.value })}
-                          className="mt-2"
-                          data-testid="input-name"
-                        />
-                      </div>
-
-                      {addresses && addresses.length > 0 && (
-                        <>
-                          {(() => {
-                            const preferredAddress = addresses.find(addr => addr.isPreferred);
-                            return preferredAddress && !showNewAddressForm ? (
-                              <div>
-                                <Label className="text-base font-medium">Preferred Address</Label>
-                                <div
-                                  className={`mt-2 border rounded p-4 cursor-pointer transition-colors ${
-                                    selectedAddressId === preferredAddress.id
-                                      ? 'border-blue-500 bg-blue-50'
-                                      : 'border-gray-200 hover:border-gray-300'
-                                  }`}
-                                  onClick={() => {
-                                    setShowNewAddressForm(false);
-                                    setSelectedAddressId(preferredAddress.id);
-                                  }}
-                                  data-testid={`preferred-address-${preferredAddress.id}`}
-                                >
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex items-start gap-3">
-                                      <input
-                                        type="radio"
-                                        name="addressSelection"
-                                        checked={selectedAddressId === preferredAddress.id}
-                                        onChange={() => {}}
-                                        className="mt-1"
-                                      />
-                                      <div className="flex-1">
-                                        <div className="flex items-center gap-2">
-                                          <h4 className="font-medium">{preferredAddress.name}</h4>
-                                          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                                            Preferred
-                                          </span>
+                        
+                        {addresses.length > 1 && (
+                          <>
+                            {/* Desktop: Details Element */}
+                            <details className="hidden md:block group">
+                              <summary className="cursor-pointer text-sm text-blue-600 hover:text-blue-800">
+                                Choose from other saved addresses
+                              </summary>
+                              <div className="mt-2 space-y-2">
+                                {addresses.filter(addr => !addr.isPreferred).map((address) => (
+                                  <div
+                                    key={address.id}
+                                    className={`border rounded-lg p-3 cursor-pointer transition-colors ${
+                                      selectedAddressId === address.id
+                                        ? 'border-blue-500 bg-blue-50'
+                                        : 'border-gray-200 hover:border-gray-300'
+                                    }`}
+                                    onClick={() => {
+                                      setShowNewAddressForm(false);
+                                      setSelectedAddressId(address.id);
+                                    }}
+                                    data-testid={`address-option-${address.id}`}
+                                  >
+                                    <div className="flex items-start justify-between">
+                                      <div className="flex items-start gap-3">
+                                        <input
+                                          type="radio"
+                                          name="addressSelection"
+                                          checked={selectedAddressId === address.id}
+                                          onChange={() => {}}
+                                          className="mt-1"
+                                        />
+                                        <div className="flex-1">
+                                          <h4 className="font-medium text-sm">{address.name}</h4>
+                                          <p className="text-xs text-gray-600 mt-1">
+                                            {address.address}, {address.city} - {address.pincode}
+                                          </p>
                                         </div>
-                                        <p className="text-sm text-gray-600 mt-1">
-                                          {preferredAddress.address}, {preferredAddress.city} - {preferredAddress.pincode}
-                                        </p>
                                       </div>
                                     </div>
                                   </div>
-                                </div>
+                                ))}
                               </div>
-                            ) : null;
-                          })()}
+                            </details>
 
-                          {!showNewAddressForm && (
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setPreviousSelectedAddressId(selectedAddressId || null);
-                                setSelectedAddressId("");
-                                setShowNewAddressForm(true);
-                                setMakePreferred(false);
-                                setUserInfo(prev => ({
-                                  ...EMPTY_USER_INFO,
-                                  name: prev.name,
-                                }));
-                                setIsPincodeValid(false);
-                                setShippingCharge(50);
-                              }}
-                              className="w-full"
-                              data-testid="button-use-different-address"
-                            >
-                              <Plus className="w-4 h-4 mr-2" />
-                              Use Different Address
-                            </Button>
-                          )}
-                        </>
-                      )}
-
-                      {(showNewAddressForm || (!addresses || addresses.length === 0)) && (
-                        <div className="space-y-4">
-                          {showNewAddressForm && (
-                            <div className="flex items-center justify-between bg-blue-50 p-3 rounded">
-                              <span className="text-sm text-blue-800">Adding new address</span>
+                            {/* Mobile: Bottom Sheet */}
+                            <div className="md:hidden">
                               <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setShowNewAddressForm(false);
-                                  if (previousSelectedAddressId) {
-                                    setSelectedAddressId(previousSelectedAddressId);
-                                  }
-                                  setPreviousSelectedAddressId(null);
-                                  setMakePreferred(false);
-                                }}
-                                className="text-xs"
+                                variant="outline"
+                                onClick={() => setIsAddressSheetOpen(true)}
+                                className="w-full"
+                                data-testid="button-choose-saved-address"
                               >
-                                Cancel
+                                <MapPin className="w-4 h-4 mr-2" />
+                                Choose from saved addresses
                               </Button>
-                            </div>
-                          )}
-                          <div>
-                            <Label htmlFor="addressLine1">Address Line 1 *</Label>
-                            <Input
-                              id="addressLine1"
-                              type="text"
-                              placeholder="House/Flat No, Building Name"
-                              value={userInfo.addressLine1}
-                              onChange={(e) => setUserInfo({ ...userInfo, addressLine1: e.target.value })}
-                              className="mt-2"
-                              data-testid="input-address-line1"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="addressLine2">Address Line 2 *</Label>
-                            <Input
-                              id="addressLine2"
-                              type="text"
-                              placeholder="Street Name, Area"
-                              value={userInfo.addressLine2}
-                              onChange={(e) => setUserInfo({ ...userInfo, addressLine2: e.target.value })}
-                              className="mt-2"
-                              data-testid="input-address-line2"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="addressLine3">Address Line 3</Label>
-                            <Input
-                              id="addressLine3"
-                              type="text"
-                              placeholder="Sector, Locality (Optional)"
-                              value={userInfo.addressLine3}
-                              onChange={(e) => setUserInfo({ ...userInfo, addressLine3: e.target.value })}
-                              className="mt-2"
-                              data-testid="input-address-line3"
-                            />
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <Label htmlFor="city">City *</Label>
-                              <Input
-                                id="city"
-                                type="text"
-                                placeholder="Mumbai"
-                                value={userInfo.city}
-                                onChange={(e) => setUserInfo({ ...userInfo, city: e.target.value })}
-                                className="mt-2"
-                                data-testid="input-city"
-                              />
-                            </div>
-                            <div>
-                              <Label htmlFor="pincode">PIN Code *</Label>
-                              <Input
-                                id="pincode"
-                                type="text"
-                                placeholder="400001"
-                                maxLength={6}
-                                value={userInfo.pincode}
-                                onChange={(e) => {
-                                  const newPincode = e.target.value;
-                                  setUserInfo({ ...userInfo, pincode: newPincode });
-                                  
-                                  if (validatePincode(newPincode)) {
-                                    calculateShipping(newPincode);
-                                  } else {
-                                    setIsPincodeValid(false);
-                                    setShippingCharge(50);
-                                  }
-                                }}
-                                className={`mt-2 ${!validatePincode(userInfo.pincode) && userInfo.pincode ? 'border-red-500' : ''}`}
-                                data-testid="input-pincode"
-                              />
-                              {userInfo.pincode && !validatePincode(userInfo.pincode) && (
-                                <p className="text-red-500 text-sm mt-1">PIN code must be exactly 6 digits</p>
-                              )}
-                            </div>
-                          </div>
 
-                          {authData?.authenticated && (
-                            <div className="flex items-center space-x-2">
-                              <Checkbox
-                                id="makePreferredNew"
-                                checked={makePreferred}
-                                onCheckedChange={(checked) => setMakePreferred(checked as boolean)}
-                              />
-                              <Label htmlFor="makePreferredNew" className="text-sm">
-                                Save this address and set as preferred
-                              </Label>
+                              <BottomSheet
+                                open={isAddressSheetOpen}
+                                onOpenChange={setIsAddressSheetOpen}
+                                title="Select Address"
+                              >
+                                <div className="space-y-3 pb-6">
+                                  {addresses.filter(addr => !addr.isPreferred).map((address) => (
+                                    <div
+                                      key={address.id}
+                                      className={`border rounded-lg p-4 cursor-pointer transition-all active:scale-98 ${
+                                        selectedAddressId === address.id
+                                          ? 'border-blue-500 bg-blue-50'
+                                          : 'border-gray-200 active:bg-gray-50'
+                                      }`}
+                                      onClick={() => {
+                                        setShowNewAddressForm(false);
+                                        setSelectedAddressId(address.id);
+                                        setIsAddressSheetOpen(false);
+                                      }}
+                                      data-testid={`address-option-mobile-${address.id}`}
+                                    >
+                                      <div className="flex items-start gap-3">
+                                        <input
+                                          type="radio"
+                                          name="addressSelectionMobile"
+                                          checked={selectedAddressId === address.id}
+                                          onChange={() => {}}
+                                          className="mt-1"
+                                        />
+                                        <div className="flex-1">
+                                          <h4 className="font-medium text-base">{address.name}</h4>
+                                          <p className="text-sm text-gray-600 mt-1">
+                                            {address.address}, {address.city} - {address.pincode}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </BottomSheet>
                             </div>
-                          )}
-                        </div>
-                      )}
-
-                      <Button
-                        onClick={handleProceedToPayment}
-                        disabled={!isAddressComplete}
-                        className="w-full"
-                        data-testid="button-proceed-to-payment"
-                      >
-                        {isCalculatingShipping ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Calculating shipping...
                           </>
-                        ) : (
-                          "Proceed to Payment"
                         )}
-                      </Button>
-                    </div>
-                  )}
-                </AccordionContent>
-              </AccordionItem>
-
-              <AccordionItem value="payment" className="border border-gray-200 rounded bg-white">
-                <AccordionTrigger className="px-4 sm:px-6 hover:no-underline" data-testid="accordion-trigger-payment">
-                  <div className="flex items-center gap-3">
-                    {completedSteps.payment ? (
-                      <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
-                        <Check className="w-5 h-5 text-white" />
-                      </div>
-                    ) : (
-                      <div className="w-8 h-8 rounded-full border-2 border-gray-300 flex items-center justify-center">
-                        <CreditCard className="w-4 h-4 text-gray-500" />
                       </div>
                     )}
-                    <div className="flex flex-col items-start">
-                      <span className="font-semibold">Step 3: Payment</span>
-                      <span className="text-xs text-gray-500">Choose payment method</span>
-                    </div>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="px-4 sm:px-6 pb-4">
+                  </>
+                )}
+
+                {/* New Address Form */}
+                {showNewAddressForm && (
                   <div className="space-y-4">
-                    <div>
-                      <Label className="text-base font-medium mb-3 block">Payment Method</Label>
-                      <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
-                        <div className="flex items-center space-x-2 border border-gray-200 rounded p-3">
-                          <RadioGroupItem value="upi" id="upi" />
-                          <Label htmlFor="upi" className="flex-1 cursor-pointer">UPI Payment</Label>
-                        </div>
-                      </RadioGroup>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-base font-medium">Add New Address</Label>
+                      {addresses && addresses.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setShowNewAddressForm(false);
+                            setMakePreferred(false);
+                            if (previousSelectedAddressId) {
+                              setSelectedAddressId(previousSelectedAddressId);
+                              setPreviousSelectedAddressId(null);
+                            }
+                          }}
+                          data-testid="button-cancel-new-address"
+                        >
+                          Cancel
+                        </Button>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="addressLine1">Address Line 1 *</Label>
+                        <Input
+                          id="addressLine1"
+                          type="text"
+                          placeholder="House/Flat No, Building Name"
+                          value={userInfo.addressLine1}
+                          onChange={(e) => setUserInfo({ ...userInfo, addressLine1: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-address-line1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="addressLine2">Address Line 2 *</Label>
+                        <Input
+                          id="addressLine2"
+                          type="text"
+                          placeholder="Street Name, Area"
+                          value={userInfo.addressLine2}
+                          onChange={(e) => setUserInfo({ ...userInfo, addressLine2: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-address-line2"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="addressLine3">Address Line 3</Label>
+                        <Input
+                          id="addressLine3"
+                          type="text"
+                          placeholder="Sector, Locality (Optional)"
+                          value={userInfo.addressLine3}
+                          onChange={(e) => setUserInfo({ ...userInfo, addressLine3: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-address-line3"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="landmark">Nearest Landmark</Label>
+                        <Input
+                          id="landmark"
+                          type="text"
+                          placeholder="Near Mall, School, etc. (Optional)"
+                          value={userInfo.landmark}
+                          onChange={(e) => setUserInfo({ ...userInfo, landmark: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-landmark"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="city">City</Label>
+                        <Input
+                          id="city"
+                          type="text"
+                          placeholder="Mumbai"
+                          value={userInfo.city}
+                          onChange={(e) => setUserInfo({ ...userInfo, city: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-city"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="pincode">PIN Code</Label>
+                        <Input
+                          id="pincode"
+                          type="text"
+                          placeholder="400001"
+                          maxLength={6}
+                          value={userInfo.pincode}
+                          onChange={(e) => {
+                            const newPincode = e.target.value;
+                            setUserInfo({ ...userInfo, pincode: newPincode });
+                            
+                            // Validate and calculate shipping on every change
+                            if (validatePincode(newPincode)) {
+                              calculateShipping(newPincode);
+                            } else {
+                              setIsPincodeValid(false);
+                              setShippingCharge(50); // Default fallback
+                            }
+                          }}
+                          className={`mt-2 ${!validatePincode(userInfo.pincode) && userInfo.pincode ? 'border-red-500' : ''}`}
+                          data-testid="input-pincode"
+                        />
+                        {userInfo.pincode && !validatePincode(userInfo.pincode) && (
+                          <p className="text-red-500 text-sm mt-1">PIN code must be exactly 6 digits</p>
+                        )}
+                      </div>
                     </div>
 
+                    {authData?.authenticated && (
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="makePreferredNew"
+                          checked={makePreferred}
+                          onCheckedChange={(checked) => setMakePreferred(checked as boolean)}
+                        />
+                        <Label htmlFor="makePreferredNew" className="text-sm">
+                          Save this address and set as preferred
+                        </Label>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Show address form for users with no saved addresses */}
+                {(!addresses || addresses.length === 0) && !showNewAddressForm && (
+                  <div className="space-y-4">
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="addressLine1">Address Line 1 *</Label>
+                        <Input
+                          id="addressLine1"
+                          type="text"
+                          placeholder="House/Flat No, Building Name"
+                          value={userInfo.addressLine1}
+                          onChange={(e) => setUserInfo({ ...userInfo, addressLine1: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-address-line1"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="addressLine2">Address Line 2 *</Label>
+                        <Input
+                          id="addressLine2"
+                          type="text"
+                          placeholder="Street Name, Area"
+                          value={userInfo.addressLine2}
+                          onChange={(e) => setUserInfo({ ...userInfo, addressLine2: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-address-line2"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="addressLine3">Address Line 3</Label>
+                        <Input
+                          id="addressLine3"
+                          type="text"
+                          placeholder="Sector, Locality (Optional)"
+                          value={userInfo.addressLine3}
+                          onChange={(e) => setUserInfo({ ...userInfo, addressLine3: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-address-line3"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="landmark">Nearest Landmark</Label>
+                        <Input
+                          id="landmark"
+                          type="text"
+                          placeholder="Near Mall, School, etc. (Optional)"
+                          value={userInfo.landmark}
+                          onChange={(e) => setUserInfo({ ...userInfo, landmark: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-landmark"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="city">City</Label>
+                        <Input
+                          id="city"
+                          type="text"
+                          placeholder="Mumbai"
+                          value={userInfo.city}
+                          onChange={(e) => setUserInfo({ ...userInfo, city: e.target.value })}
+                          className="mt-2"
+                          data-testid="input-city"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="pincode">PIN Code</Label>
+                        <Input
+                          id="pincode"
+                          type="text"
+                          placeholder="400001"
+                          maxLength={6}
+                          value={userInfo.pincode}
+                          onChange={(e) => {
+                            const newPincode = e.target.value;
+                            setUserInfo({ ...userInfo, pincode: newPincode });
+                            
+                            // Validate and calculate shipping on every change
+                            if (validatePincode(newPincode)) {
+                              calculateShipping(newPincode);
+                            } else {
+                              setIsPincodeValid(false);
+                              setShippingCharge(50); // Default fallback
+                            }
+                          }}
+                          className={`mt-2 ${!validatePincode(userInfo.pincode) && userInfo.pincode ? 'border-red-500' : ''}`}
+                          data-testid="input-pincode"
+                        />
+                        {userInfo.pincode && !validatePincode(userInfo.pincode) && (
+                          <p className="text-red-500 text-sm mt-1">PIN code must be exactly 6 digits</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {authData?.authenticated && (
+                      <div className="bg-blue-50 p-3 rounded-lg">
+                        <p className="text-sm text-blue-800">
+                          ✓ This address will be saved automatically for future orders
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+            </>
+          )}
+        </div>
+
+        {/* Order Summary */}
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 sticky top-24">
+            <h3 className="font-semibold text-gray-900 mb-2 sm:mb-4">Order Summary</h3>
+            
+            {/* Summary Totals */}
+            <div className="space-y-2 text-sm mb-2 sm:mb-4">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Subtotal</span>
+                <span data-testid="text-order-subtotal">₹{(subtotal / 1.05).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Tax (5%)</span>
+                <span data-testid="text-order-tax">₹{(subtotal - (subtotal / 1.05)).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Shipping</span>
+                <span data-testid="text-order-shipping">
+                  {isCalculatingShipping ? (
+                    <span className="text-blue-600">Calculating...</span>
+                  ) : (
+                    `₹${shippingCharge.toFixed(2)}`
+                  )}
+                </span>
+              </div>
+              
+              {discount > 0 && (
+                <div className="flex justify-between text-green-600">
+                  <span>Discount ({appliedOffer?.code})</span>
+                  <span data-testid="text-order-discount">-₹{discount.toFixed(2)}</span>
+                </div>
+              )}
+              
+              <hr className="my-2" />
+              <div className="flex justify-between font-semibold text-lg">
+                <span>Total</span>
+                <span data-testid="text-order-total">₹{total.toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Coupon Section */}
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <h3 className="text-sm font-medium text-gray-900 mb-3">Apply Coupon</h3>
+              {!appliedOffer ? (
+                <>
+                  <div className="flex space-x-2">
+                    <Input
+                      type="text"
+                      placeholder="Enter coupon code"
+                      value={couponCode}
+                      onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                      className={`flex-1 text-sm ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+                      data-testid="input-coupon-code"
+                    />
                     <Button
                       onClick={() => {
-                        console.log('[Checkout] Place Order button clicked');
-                        placeOrderMutation.mutate();
+                        if (couponCode.trim() && user?.id) {
+                          setCouponError("");
+                          validateOfferMutation.mutate({
+                            code: couponCode.trim(),
+                            userId: user.id,
+                            cartValue: subtotal
+                          });
+                        }
                       }}
-                      disabled={!completedSteps.summary || !completedSteps.address || placeOrderMutation.isPending}
-                      className="w-full bg-green-600 hover:bg-green-700"
-                      data-testid="button-place-order"
+                      disabled={!couponCode.trim() || validateOfferMutation.isPending || !user?.id}
+                      size="sm"
+                      data-testid="button-apply-coupon"
                     >
-                      {placeOrderMutation.isPending ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          Place Order - ₹{total.toFixed(2)}
-                        </>
-                      )}
+                      {validateOfferMutation.isPending ? "Applying..." : "Apply"}
                     </Button>
-
-                    <div className="text-xs text-gray-500 flex items-center justify-center">
-                      <Check className="w-3 h-3 mr-1" />
-                      Secure checkout with 256-bit SSL encryption
-                    </div>
                   </div>
-                </AccordionContent>
-              </AccordionItem>
-            </Accordion>
-          </div>
-
-          <div className="lg:col-span-1 hidden lg:block">
-            <div className="bg-white border border-gray-200 rounded p-6 sticky top-24">
-              <h3 className="font-semibold text-gray-900 mb-4">Order Summary</h3>
-              <OrderSummaryContent />
+                  {couponError && (
+                    <div className="mt-2 text-xs text-red-600" data-testid="coupon-error">
+                      {couponError}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex items-center justify-between bg-green-50 p-2 rounded">
+                  <div className="text-xs text-green-600">
+                    <i className="fas fa-check-circle mr-1"></i>
+                    "{appliedOffer.code}" applied
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setAppliedOffer(null);
+                      setCouponError("");
+                      setCouponCode("");
+                      queryClient.setQueryData(["checkout", "selectedOffer"], null);
+                      toast({
+                        title: "Coupon Removed",
+                        description: "The coupon has been removed from your order",
+                      });
+                    }}
+                    className="text-gray-500 hover:text-red-600 h-6 px-2 text-xs"
+                    data-testid="button-remove-coupon"
+                  >
+                    Remove
+                  </Button>
+                </div>
+              )}
             </div>
+
+            <div className="space-y-3 mt-4 mb-3 sm:mb-6">
+              <div className="text-xs text-gray-500 flex items-center">
+                <i className="fas fa-shield-alt mr-1"></i>
+                Secure checkout with 256-bit SSL encryption
+              </div>
+            </div>
+
+            {step === "details" && (
+              <Button
+                id="continue-button"
+                className="w-full bg-green-600 hover:bg-green-700"
+                onClick={() => {
+                  console.log('[Checkout] Place Order button clicked');
+                  placeOrderMutation.mutate();
+                }}
+                disabled={
+                  !userInfo.name || 
+                  !userInfo.addressLine1 || 
+                  !userInfo.addressLine2 || 
+                  !userInfo.city || 
+                  !userInfo.pincode || 
+                  !isPincodeValid || 
+                  isCalculatingShipping || 
+                  placeOrderMutation.isPending
+                }
+                data-testid="button-place-order"
+              >
+                {isCalculatingShipping ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Proceed to Payment - ₹{total.toFixed(2)}
+                  </>
+                ) : (
+                  <>
+                    <i className="fas fa-lock mr-2"></i>
+                    Proceed to Payment - ₹{total.toFixed(2)}
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </div>
       </div>
-
-      {isAddressSheetOpen && addresses && addresses.length > 1 && (
-        <BottomSheet
-          open={isAddressSheetOpen}
-          onOpenChange={setIsAddressSheetOpen}
-          title="Select Address"
-        >
-          <div className="space-y-3 pb-6">
-            {addresses.filter(addr => !addr.isPreferred).map((address) => (
-              <div
-                key={address.id}
-                className={`border rounded p-3 cursor-pointer transition-colors ${
-                  selectedAddressId === address.id
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200'
-                }`}
-                onClick={() => {
-                  setShowNewAddressForm(false);
-                  setSelectedAddressId(address.id);
-                  setIsAddressSheetOpen(false);
-                }}
-                data-testid={`address-option-${address.id}`}
-              >
-                <div className="flex items-start gap-3">
-                  <input
-                    type="radio"
-                    name="addressSelection"
-                    checked={selectedAddressId === address.id}
-                    onChange={() => {}}
-                    className="mt-1"
-                  />
-                  <div className="flex-1">
-                    <h4 className="font-medium text-sm">{address.name}</h4>
-                    <p className="text-xs text-gray-600 mt-1">
-                      {address.address}, {address.city} - {address.pincode}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </BottomSheet>
-      )}
+    </div>
     </div>
   );
 }

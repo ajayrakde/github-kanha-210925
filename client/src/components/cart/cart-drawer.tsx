@@ -59,16 +59,14 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
       ) : (
         <div className="flex flex-col h-full min-h-0">
           {/* Cart Items - Scrollable */}
-          <div className="flex-1 overflow-y-auto divide-y min-h-0">
+          <div className="flex-1 overflow-y-auto px-4 divide-y min-h-0">
             {cartItems.map((item) => (
-              <div key={item.id} className="px-4">
-                <CartItem item={item} />
-              </div>
+              <CartItem key={item.id} item={item} />
             ))}
           </div>
 
-          {/* Cart Summary - Sticky at bottom */}
-          <div className="border-t border-gray-200 bg-white px-4 py-4 space-y-4 mt-auto">
+          {/* Cart Summary - Fixed at bottom */}
+          <div className="border-t bg-white px-4 py-4 space-y-4">
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Subtotal</span>
@@ -80,7 +78,7 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
                 <span className="text-gray-600">Delivery</span>
                 <span className="text-sm text-gray-500">Calculated at checkout</span>
               </div>
-              <div className="flex justify-between text-base font-semibold pt-2 border-t border-gray-200">
+              <div className="flex justify-between text-base font-semibold pt-2 border-t">
                 <span>Total</span>
                 <span data-testid="text-total-drawer">₹{subtotal.toFixed(2)}</span>
               </div>
