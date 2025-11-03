@@ -102,12 +102,12 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
 
       {/* Flat Info Section - Instagram style */}
       <div className="pt-2 pb-1 space-y-1" onClick={handleCardNavigation}>
-        <h3 className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2" data-testid={`product-name-${product.id}`}>
+        <h3 className="text-xs font-normal text-gray-900 leading-snug line-clamp-2" data-testid={`product-name-${product.id}`}>
           {product.name}
         </h3>
         
         <div className="flex items-center justify-between">
-          <span className="text-base font-bold text-gray-900" data-testid={`product-price-${product.id}`}>
+          <span className="text-sm font-bold text-gray-900" data-testid={`product-price-${product.id}`}>
             ₹{parseFloat(product.price).toFixed(2)}
           </span>
           
@@ -126,7 +126,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              className="flex-1 h-8 rounded-md bg-gray-100 hover:bg-gray-200 active:bg-gray-300 flex items-center justify-center transition-colors"
+              className="flex-1 h-7 rounded-md bg-gray-100 hover:bg-gray-200 active:bg-gray-300 flex items-center justify-center transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
                 handleDecreaseQuantity();
@@ -135,14 +135,14 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
               data-testid={`button-decrease-quantity-${product.id}`}
               aria-label={`Decrease quantity of ${product.name}`}
             >
-              <Minus size={14} />
+              <Minus size={12} />
             </button>
-            <span className="min-w-[28px] text-center font-semibold text-xs" data-testid={`cart-quantity-${product.id}`}>
+            <span className="min-w-[24px] text-center font-medium text-[11px]" data-testid={`cart-quantity-${product.id}`}>
               {cartQuantity}
             </span>
             <button
               type="button"
-              className="flex-1 h-8 rounded-md bg-primary text-white hover:bg-primary/90 active:bg-primary/80 flex items-center justify-center transition-colors"
+              className="flex-1 h-7 rounded-md bg-primary text-white hover:bg-primary/90 active:bg-primary/80 flex items-center justify-center transition-colors"
               onClick={(e) => {
                 e.stopPropagation();
                 handleIncreaseQuantity();
@@ -151,13 +151,13 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
               data-testid={`button-increase-quantity-${product.id}`}
               aria-label={`Increase quantity of ${product.name}`}
             >
-              <Plus size={14} />
+              <Plus size={12} />
             </button>
           </div>
         ) : (
           <button
             type="button"
-            className="w-full h-8 rounded-md bg-secondary hover:bg-secondary/90 active:bg-secondary/80 text-primary font-semibold text-xs transition-colors flex items-center justify-center gap-1"
+            className="w-full h-7 rounded-md bg-secondary hover:bg-secondary/90 active:bg-secondary/80 text-primary font-medium text-[11px] transition-colors flex items-center justify-center gap-1"
             onClick={(e) => {
               e.stopPropagation();
               haptic.add();
@@ -170,7 +170,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
             disabled={addToCart.isPending}
             data-testid={`button-add-to-cart-${product.id}`}
           >
-            <Plus size={14} />
+            <Plus size={12} />
             <span>Add</span>
           </button>
         )}
