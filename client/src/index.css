@@ -729,9 +729,9 @@
     padding: 0 !important;
     overflow: hidden;
     width: 100% !important;
-    border-right: 1px solid #e5e7eb;
-    border-bottom: 1px solid #e5e7eb;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
+    border-right: 1px solid #9ca3af;
+    border-bottom: 1px solid #9ca3af;
+    box-shadow: none !important;
   }
   
   /* Remove right border on even columns (2nd column on mobile) */
