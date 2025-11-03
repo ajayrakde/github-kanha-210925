@@ -34,12 +34,6 @@ const APP_TILES = [
     logoUrl: phonepeLogo,
   },
   {
-    id: "paytm" as const,
-    label: "Paytm",
-    shortLabel: "Paytm",
-    logoUrl: paytmLogo,
-  },
-  {
     id: "other" as const,
     label: "Other Apps",
     shortLabel: "UPI",
