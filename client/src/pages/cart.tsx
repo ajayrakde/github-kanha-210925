@@ -296,10 +296,10 @@ export default function Cart() {
       <div className="grid lg:grid-cols-3 gap-3 sm:gap-6">
         <div className="lg:col-span-2 space-y-3 sm:space-y-6">
           {/* Cart Items */}
-          <div className="bg-white rounded-lg shadow-sm py-2">
-            <div className="space-y-0">
+          <div className="bg-white rounded-lg shadow-sm">
+            <div>
               {cartItems.map((item, index) => (
-                <div key={item.id} className="px-4 sm:px-6">
+                <div key={item.id}>
                   <CartItem item={item} />
                   {index < cartItems.length - 1 && <hr className="border-gray-100" />}
                 </div>
