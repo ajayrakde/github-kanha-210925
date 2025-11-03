@@ -3,6 +3,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { CartItemWithProduct } from "@/lib/types";
+import { useState, useRef, useEffect, TouchEvent } from "react";
+import { Trash2 } from "lucide-react";
 
 interface CartItemProps {
   item: CartItemWithProduct;
@@ -11,6 +13,15 @@ interface CartItemProps {
 export default function CartItem({ item }: CartItemProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  
+  // Swipe-to-delete state
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+  const currentOffset = useRef(0);
+  const swipeThreshold = 120; // Pixels to swipe for delete
+  const deleteActionWidth = 80; // Width of delete button
 
   const updateQuantityMutation = useMutation({
     mutationFn: async (newQuantity: number) => {
@@ -62,56 +73,139 @@ export default function CartItem({ item }: CartItemProps) {
     updateQuantityMutation.mutate(newQuantity);
   };
 
+  // Touch handlers for swipe-to-delete on mobile
+  const handleTouchStart = (e: TouchEvent) => {
+    if (window.innerWidth >= 768) return; // Desktop only uses buttons
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    setIsSwiping(true);
+  };
+
+  const handleTouchMove = (e: TouchEvent) => {
+    if (!isSwiping || window.innerWidth >= 768) return;
+    
+    const deltaX = touchStartX.current - e.touches[0].clientX;
+    const deltaY = Math.abs(touchStartY.current - e.touches[0].clientY);
+    
+    // Only horizontal swipe (not vertical scroll)
+    if (deltaY < 30 && deltaX > 0) {
+      // Don't clamp during swipe - allow full swipe distance for threshold check
+      currentOffset.current = deltaX;
+      setSwipeOffset(Math.min(deltaX, deleteActionWidth)); // Visual clamping only
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!isSwiping || window.innerWidth >= 768) return;
+    setIsSwiping(false);
+    
+    if (currentOffset.current >= swipeThreshold) {
+      // Swiped far enough - delete item
+      removeItemMutation.mutate();
+      setSwipeOffset(0);
+      currentOffset.current = 0;
+    } else if (currentOffset.current >= deleteActionWidth * 0.5) {
+      // Show delete button
+      setSwipeOffset(deleteActionWidth);
+      currentOffset.current = deleteActionWidth;
+    } else {
+      // Reset
+      setSwipeOffset(0);
+      currentOffset.current = 0;
+    }
+  };
+
+  const handleDeleteClick = () => {
+    removeItemMutation.mutate();
+    setSwipeOffset(0);
+    currentOffset.current = 0;
+  };
+
+  // Reset swipe on successful delete
+  useEffect(() => {
+    if (removeItemMutation.isSuccess) {
+      setSwipeOffset(0);
+      currentOffset.current = 0;
+    }
+  }, [removeItemMutation.isSuccess]);
+
   return (
-    <div className="flex items-center space-x-4 py-4" data-testid={`cart-item-${item.id}`}>
-      <img
-        src={item.product.imageUrl || `https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?ixlib=rb-4.0.3&auto=format&fit=crop&w=80&h=80`}
-        alt={item.product.name}
-        className="w-16 h-16 object-cover rounded-md"
-      />
-      <div className="flex-1">
-        <h4 className="font-medium text-gray-900" data-testid={`cart-item-name-${item.id}`}>
-          {item.product.name}
-        </h4>
-        <p className="text-sm text-gray-600" data-testid={`cart-item-price-${item.id}`}>
-          ₹{parseFloat(item.product.price).toFixed(2)}
-        </p>
-      </div>
-      <div className="flex items-center space-x-2">
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-8 h-8 rounded-full p-0"
-          onClick={() => handleQuantityChange(-1)}
-          disabled={updateQuantityMutation.isPending}
-          data-testid={`button-decrease-${item.id}`}
-        >
-          <i className="fas fa-minus text-xs"></i>
-        </Button>
-        <span className="w-8 text-center" data-testid={`cart-item-quantity-${item.id}`}>
-          {item.quantity}
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-8 h-8 rounded-full p-0"
-          onClick={() => handleQuantityChange(1)}
-          disabled={updateQuantityMutation.isPending}
-          data-testid={`button-increase-${item.id}`}
-        >
-          <i className="fas fa-plus text-xs"></i>
-        </Button>
-      </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="text-red-600 hover:text-red-700 p-2"
-        onClick={() => removeItemMutation.mutate()}
-        disabled={removeItemMutation.isPending}
-        data-testid={`button-remove-${item.id}`}
+    <div className="relative overflow-hidden" data-testid={`cart-item-${item.id}`}>
+      {/* Delete Action Background (Mobile Only) */}
+      <div 
+        className="absolute right-0 top-0 bottom-0 md:hidden flex items-center justify-center bg-red-500 text-white"
+        style={{ width: `${deleteActionWidth}px` }}
       >
-        <i className="fas fa-trash text-sm"></i>
-      </Button>
+        <button
+          onClick={handleDeleteClick}
+          className="w-full h-full flex items-center justify-center"
+          disabled={removeItemMutation.isPending}
+          data-testid={`button-swipe-delete-${item.id}`}
+        >
+          <Trash2 className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Cart Item Content */}
+      <div 
+        className="flex items-center space-x-4 py-4 bg-white transition-transform duration-200 ease-out"
+        style={{ 
+          transform: `translateX(-${swipeOffset}px)`,
+          touchAction: isSwiping ? 'none' : 'auto'
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        <img
+          src={item.product.imageUrl || `https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?ixlib=rb-4.0.3&auto=format&fit=crop&w=80&h=80`}
+          alt={item.product.name}
+          className="w-16 h-16 object-cover rounded-md"
+        />
+        <div className="flex-1">
+          <h4 className="font-medium text-gray-900" data-testid={`cart-item-name-${item.id}`}>
+            {item.product.name}
+          </h4>
+          <p className="text-sm text-gray-600" data-testid={`cart-item-price-${item.id}`}>
+            ₹{parseFloat(item.product.price).toFixed(2)}
+          </p>
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-8 h-8 rounded-full p-0"
+            onClick={() => handleQuantityChange(-1)}
+            disabled={updateQuantityMutation.isPending}
+            data-testid={`button-decrease-${item.id}`}
+          >
+            <i className="fas fa-minus text-xs"></i>
+          </Button>
+          <span className="w-8 text-center" data-testid={`cart-item-quantity-${item.id}`}>
+            {item.quantity}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-8 h-8 rounded-full p-0"
+            onClick={() => handleQuantityChange(1)}
+            disabled={updateQuantityMutation.isPending}
+            data-testid={`button-increase-${item.id}`}
+          >
+            <i className="fas fa-plus text-xs"></i>
+          </Button>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-red-600 hover:text-red-700 p-2 hidden md:flex"
+          onClick={() => removeItemMutation.mutate()}
+          disabled={removeItemMutation.isPending}
+          data-testid={`button-remove-${item.id}`}
+        >
+          <i className="fas fa-trash text-sm"></i>
+        </Button>
+      </div>
     </div>
   );
 }
