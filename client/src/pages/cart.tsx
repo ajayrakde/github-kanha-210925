@@ -306,36 +306,31 @@ export default function Cart() {
         </div>
       </div>
 
-      {/* Desktop: Original Header */}
-      <div className="hidden md:block px-3 sm:px-4">
-      <div className="space-y-3 sm:space-y-6">
-      <div className="flex sm:flex-row items-center sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-6">
-        <Button
-          onClick={() => setLocation("/")}
-          variant="ghost"
-          className="text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-white"
-          data-testid="button-back-to-products-desktop"
-        >
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back
-        </Button>
-        <div>
-          <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-1">Shopping Cart</h2>
-          <p className="text-sm sm:text-base text-gray-600 hidden sm:block">Review your items before checkout</p>
-        </div>
-      </div>
-      </div>
-      </div>
-
       {/* Cart Content */}
       <div className="px-3 sm:px-4">
-      <div className="space-y-3 sm:space-y-6">
-
-      <div className="grid lg:grid-cols-3 gap-3 sm:gap-6">
-        <div className="lg:col-span-2 space-y-3 sm:space-y-6">
-          {/* Cart Items */}
-          <div className="bg-white rounded-lg shadow-sm">
+        <div className="space-y-3 sm:space-y-6">
+          {/* Desktop: Back Button and Title */}
+          <div className="hidden md:flex items-center gap-3 sm:gap-4 mb-3 sm:mb-6">
+            <Button
+              onClick={() => setLocation("/")}
+              variant="ghost"
+              className="text-gray-800 hover:bg-gray-100 hover:text-gray-900"
+              data-testid="button-back-to-products-desktop"
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
             <div>
+              <h2 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-1">Shopping Cart</h2>
+              <p className="text-sm sm:text-base text-gray-600">Review your items before checkout</p>
+            </div>
+          </div>
+
+          <div className="grid lg:grid-cols-3 gap-3 sm:gap-6">
+            <div className="lg:col-span-2 space-y-3 sm:space-y-6">
+              {/* Cart Items */}
+              <div className="bg-white rounded-lg shadow-sm">
+                <div>
               {cartItems.map((item, index) => (
                 <div key={item.id}>
                   <CartItem item={item} />
