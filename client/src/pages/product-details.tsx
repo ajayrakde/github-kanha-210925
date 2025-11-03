@@ -338,7 +338,7 @@ export default function ProductDetails() {
                     <button
                       onClick={handleDecreaseQuantity}
                       disabled={removeFromCartMutation.isPending || updateCartMutation.isPending}
-                      className="w-7 h-7 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center quantity-btn disabled:opacity-50"
+                      className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-md border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all focus:ring-2 focus:ring-primary/20 focus:ring-offset-1 active:bg-gray-100 active:ring-2 active:ring-primary/30 disabled:opacity-50"
                       data-testid="button-decrease-quantity"
                     >
                       <i className="fas fa-minus text-[10px]"></i>
@@ -349,7 +349,7 @@ export default function ProductDetails() {
                     <button
                       onClick={handleIncreaseQuantity}
                       disabled={cartQuantity >= 10 || updateCartMutation.isPending}
-                      className="w-7 h-7 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center quantity-btn disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="min-w-[44px] min-h-[44px] w-11 h-11 rounded-md border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all focus:ring-2 focus:ring-primary/20 focus:ring-offset-1 active:bg-gray-100 active:ring-2 active:ring-primary/30 disabled:opacity-50 disabled:cursor-not-allowed"
                       data-testid="button-increase-quantity"
                     >
                       <i className="fas fa-plus text-[10px]"></i>
