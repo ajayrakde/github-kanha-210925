@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CartItemWithProduct } from "@/lib/types";
 import { useState, useRef, useEffect, TouchEvent } from "react";
 import { Trash2 } from "lucide-react";
+import { haptic } from "@/lib/haptic-utils";
 
 interface CartItemProps {
   item: CartItemWithProduct;
@@ -70,6 +71,7 @@ export default function CartItem({ item }: CartItemProps) {
 
   const handleQuantityChange = (delta: number) => {
     const newQuantity = item.quantity + delta;
+    haptic.tap(); // Light haptic for quantity change
     updateQuantityMutation.mutate(newQuantity);
   };
 
@@ -79,6 +81,7 @@ export default function CartItem({ item }: CartItemProps) {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
     setIsSwiping(true);
+    haptic.swipeStart(); // Light haptic feedback on swipe start
   };
 
   const handleTouchMove = (e: TouchEvent) => {
@@ -101,11 +104,13 @@ export default function CartItem({ item }: CartItemProps) {
     
     if (currentOffset.current >= swipeThreshold) {
       // Swiped far enough - delete item
+      haptic.delete(); // Heavy haptic for deletion
       removeItemMutation.mutate();
       setSwipeOffset(0);
       currentOffset.current = 0;
     } else if (currentOffset.current >= deleteActionWidth * 0.5) {
       // Show delete button
+      haptic.swipeEnd(); // Medium haptic when delete button appears
       setSwipeOffset(deleteActionWidth);
       currentOffset.current = deleteActionWidth;
     } else {
@@ -116,6 +121,7 @@ export default function CartItem({ item }: CartItemProps) {
   };
 
   const handleDeleteClick = () => {
+    haptic.delete(); // Heavy haptic for delete button tap
     removeItemMutation.mutate();
     setSwipeOffset(0);
     currentOffset.current = 0;

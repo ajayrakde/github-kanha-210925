@@ -2,6 +2,7 @@ import { Product } from "@/lib/types";
 import { Plus, Minus } from "lucide-react";
 import { useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
+import { haptic } from "@/lib/haptic-utils";
 
 interface ProductCardProps {
   product: Product;
@@ -53,6 +54,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
 
   const handleIncreaseQuantity = () => {
     if (cartItem && cartItem.quantity < 10) {
+      haptic.add(); // Medium haptic for adding quantity
       updateCartItem.mutate({
         productId: product.id,
         quantity: cartItem.quantity + 1
@@ -62,6 +64,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
 
   const handleDecreaseQuantity = () => {
     if (cartItem) {
+      haptic.tap(); // Light haptic for decreasing quantity
       if (cartItem.quantity === 1) {
         removeFromCart.mutate(product.id);
       } else {
@@ -104,6 +107,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
             className="md:hidden absolute bottom-3 right-3 w-12 h-12 bg-white rounded-full shadow-lg flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-all duration-200 active:scale-95 z-10"
             onClick={(e) => {
               e.stopPropagation();
+              haptic.add(); // Medium haptic for quick add
               addToCart.mutate({
                 productId: product.id,
                 quantity: 1,
@@ -225,6 +229,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                 className="btn-secondary card-add-btn"
                 onClick={(e) => {
                   e.stopPropagation();
+                  haptic.add(); // Medium haptic for desktop add to cart
                   addToCart.mutate({
                     productId: product.id,
                     quantity: 1,
