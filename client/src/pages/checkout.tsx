@@ -11,6 +11,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { ArrowLeft, Plus, Loader2 } from "lucide-react";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 interface UserInfo {
   name: string;
@@ -607,16 +608,24 @@ export default function Checkout() {
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="otp">6-Digit OTP</Label>
-                  <Input
-                    id="otp"
-                    type="text"
-                    placeholder="123456"
-                    maxLength={6}
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                    className="w-40 text-center font-mono text-lg mt-2"
-                    data-testid="input-otp"
-                  />
+                  <div className="flex justify-center sm:justify-start mt-2">
+                    <InputOTP 
+                      maxLength={6} 
+                      value={otp}
+                      onChange={(value) => setOtp(value)}
+                      data-testid="input-otp"
+                    >
+                      <InputOTPGroup>
+                        <InputOTPSlot index={0} className="h-14 w-14 text-xl sm:h-12 sm:w-12 sm:text-lg" />
+                        <InputOTPSlot index={1} className="h-14 w-14 text-xl sm:h-12 sm:w-12 sm:text-lg" />
+                        <InputOTPSlot index={2} className="h-14 w-14 text-xl sm:h-12 sm:w-12 sm:text-lg" />
+                        <InputOTPSlot index={3} className="h-14 w-14 text-xl sm:h-12 sm:w-12 sm:text-lg" />
+                        <InputOTPSlot index={4} className="h-14 w-14 text-xl sm:h-12 sm:w-12 sm:text-lg" />
+                        <InputOTPSlot index={5} className="h-14 w-14 text-xl sm:h-12 sm:w-12 sm:text-lg" />
+                      </InputOTPGroup>
+                    </InputOTP>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">Paste your OTP or type it digit by digit</p>
                 </div>
                 <div className="flex space-x-3">
                   <Button
