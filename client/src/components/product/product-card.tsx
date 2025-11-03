@@ -1,8 +1,8 @@
 import { Product } from "@/lib/types";
+import { Plus, Minus } from "lucide-react";
 import { useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
 import { haptic } from "@/lib/haptic-utils";
-import ProductAction from "./product-action";
 
 interface ProductCardProps {
   product: Product;
@@ -111,26 +111,60 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
             ₹{parseFloat(product.price).toFixed(2)}
           </span>
           
-          {/* Product Action Button */}
+          {/* Minimal add button - responsive dimensions */}
           <div onClick={(e) => e.stopPropagation()} className="ml-auto shrink-0">
-            <ProductAction
-              quantity={cartQuantity}
-              onAdd={() => {
-                haptic.add();
-                addToCart.mutate({
-                  productId: product.id,
-                  quantity: 1,
-                  product,
-                });
-              }}
-              onIncrease={handleIncreaseQuantity}
-              onDecrease={handleDecreaseQuantity}
-              isAddPending={addToCart.isPending}
-              isUpdatePending={updateCartItem.isPending || removeFromCart.isPending}
-              maxQuantity={10}
-              productName={product.name}
-              productId={product.id}
-            />
+            {cartQuantity > 0 ? (
+              <div className="flex items-center gap-0.5 bg-primary rounded h-5 md:h-7 w-[58px] md:w-[72px] min-w-[58px] md:min-w-[72px] max-w-[58px] md:max-w-[72px] justify-center border border-transparent">
+                <button
+                  type="button"
+                  className="h-4 w-4 md:h-5 md:w-5 rounded bg-white/20 hover:bg-white/30 flex items-center justify-center transition-all flex-shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-1 focus-visible:ring-offset-primary active:scale-95 active:shadow-[0_0_8px_rgba(255,255,255,0.4)] disabled:opacity-50 disabled:active:scale-100 disabled:active:shadow-none"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDecreaseQuantity();
+                  }}
+                  disabled={updateCartItem.isPending || removeFromCart.isPending}
+                  data-testid={`button-decrease-quantity-${product.id}`}
+                  aria-label={`Decrease quantity of ${product.name}`}
+                >
+                  <Minus size={10} className="text-white md:scale-110" />
+                </button>
+                <span className="flex-1 text-center font-bold text-[10px] md:text-xs text-white" data-testid={`cart-quantity-${product.id}`}>
+                  {cartQuantity}
+                </span>
+                <button
+                  type="button"
+                  className="h-4 w-4 md:h-5 md:w-5 rounded bg-white/20 hover:bg-white/30 flex items-center justify-center transition-all flex-shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-1 focus-visible:ring-offset-primary active:scale-95 active:shadow-[0_0_8px_rgba(255,255,255,0.4)] disabled:opacity-50 disabled:active:scale-100 disabled:active:shadow-none"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleIncreaseQuantity();
+                  }}
+                  disabled={updateCartItem.isPending || cartQuantity >= 10}
+                  data-testid={`button-increase-quantity-${product.id}`}
+                  aria-label={`Increase quantity of ${product.name}`}
+                >
+                  <Plus size={10} className="text-white md:scale-110" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="h-5 md:h-7 w-[58px] md:w-[72px] min-w-[58px] md:min-w-[72px] max-w-[58px] md:max-w-[72px] rounded bg-secondary hover:bg-secondary/90 text-primary transition-all flex items-center justify-center border border-transparent font-medium text-[10px] md:text-xs outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 active:scale-95 active:shadow-[0_0_8px_rgba(34,197,94,0.3)] disabled:opacity-50 disabled:active:scale-100 disabled:active:shadow-none"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  haptic.add();
+                  addToCart.mutate({
+                    productId: product.id,
+                    quantity: 1,
+                    product,
+                  });
+                }}
+                disabled={addToCart.isPending}
+                data-testid={`button-add-to-cart-${product.id}`}
+                aria-label={`Add ${product.name} to cart`}
+              >
+                Add
+              </button>
+            )}
           </div>
         </div>
       </div>
