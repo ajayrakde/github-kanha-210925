@@ -57,18 +57,18 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
           </Button>
         </div>
       ) : (
-        <>
+        <div className="flex flex-col h-full min-h-0">
           {/* Cart Items - Scrollable */}
-          <div className="flex-1 overflow-y-auto px-4 divide-y min-h-0 -mx-4">
-            <div className="px-4">
-              {cartItems.map((item) => (
-                <CartItem key={item.id} item={item} />
-              ))}
-            </div>
+          <div className="flex-1 overflow-y-auto divide-y min-h-0">
+            {cartItems.map((item) => (
+              <div key={item.id} className="px-4">
+                <CartItem item={item} />
+              </div>
+            ))}
           </div>
 
           {/* Cart Summary - Sticky at bottom */}
-          <div className="sticky bottom-0 border-t border-gray-200 bg-white px-4 py-4 space-y-4 mt-auto">
+          <div className="border-t border-gray-200 bg-white px-4 py-4 space-y-4 mt-auto">
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">Subtotal</span>
@@ -103,7 +103,7 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
               Continue Shopping
             </button>
           </div>
-        </>
+        </div>
       )}
     </BottomSheet>
   );

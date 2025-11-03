@@ -1240,88 +1240,84 @@ export default function Payment() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-3 sm:gap-6">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-4">
           {/* Payment Status */}
-          <Card className="rounded border border-gray-200">
-            <CardContent className="space-y-6">
-              <span className="sr-only" data-testid="text-upi-widget-status">{widgetStatus}</span>
-              <UpiPaymentWidget
-                status={derivedWidgetStatus}
-                upiUrl={upiUrl ?? ''}
-                qrDataUrl={isQrPlaceholder ? undefined : upiQrDataUrl ?? undefined}
-                merchant={widgetMerchant}
-                metadata={widgetMetadataItems}
-                transactionReference={transactionReference}
-                note={widgetNote}
-                helperNotes={widgetHelperNotes}
-                onCopyUpiUrl={handleCopyUpiLink}
-                onCopyTransactionReference={handleCopyTransactionReference}
-                onCopyVpa={handleCopyMerchantVpa}
-                onModeChange={handleWidgetModeChange}
-                onIntentAppSelect={handleWidgetIntentLaunch}
-                onCtaClick={handleWidgetCta}
-                ctaLabel={widgetCtaLabel}
-                ctaDisabled={widgetCtaDisabled}
-                ctaTestId="button-initiate-payment"
-                onCollectTriggered={handleWidgetCollectTriggered}
-                disabled={
-                  isActionLocked ||
-                  createPaymentMutation.isPending || 
-                  createCashfreePaymentMutation.isPending || 
-                  isPaymentInProgress
-                }
-                showUpiIdTab={isCashfree && !!cashfreePaymentSessionId}
-                upiId={upiId}
-                onUpiIdChange={setUpiId}
-                onUpiIdPayment={() => {
-                  if (isActionLocked) return;
-                  setIsActionLocked(true);
-                  setPaymentStatus('initiating');
-                  handleWidgetCollectTriggered();
-                  initiateUPIPaymentMutation.mutate();
-                }}
-                isUpiIdPaymentPending={initiateUPIPaymentMutation.isPending}
-              />
+          <div className="space-y-4">
+            <span className="sr-only" data-testid="text-upi-widget-status">{widgetStatus}</span>
+            <UpiPaymentWidget
+              status={derivedWidgetStatus}
+              upiUrl={upiUrl ?? ''}
+              qrDataUrl={isQrPlaceholder ? undefined : upiQrDataUrl ?? undefined}
+              merchant={widgetMerchant}
+              metadata={widgetMetadataItems}
+              transactionReference={transactionReference}
+              note={widgetNote}
+              helperNotes={widgetHelperNotes}
+              onCopyUpiUrl={handleCopyUpiLink}
+              onCopyTransactionReference={handleCopyTransactionReference}
+              onCopyVpa={handleCopyMerchantVpa}
+              onModeChange={handleWidgetModeChange}
+              onIntentAppSelect={handleWidgetIntentLaunch}
+              onCtaClick={handleWidgetCta}
+              ctaLabel={widgetCtaLabel}
+              ctaDisabled={widgetCtaDisabled}
+              ctaTestId="button-initiate-payment"
+              onCollectTriggered={handleWidgetCollectTriggered}
+              disabled={
+                isActionLocked ||
+                createPaymentMutation.isPending || 
+                createCashfreePaymentMutation.isPending || 
+                isPaymentInProgress
+              }
+              showUpiIdTab={isCashfree && !!cashfreePaymentSessionId}
+              upiId={upiId}
+              onUpiIdChange={setUpiId}
+              onUpiIdPayment={() => {
+                if (isActionLocked) return;
+                setIsActionLocked(true);
+                setPaymentStatus('initiating');
+                handleWidgetCollectTriggered();
+                initiateUPIPaymentMutation.mutate();
+              }}
+              isUpiIdPaymentPending={initiateUPIPaymentMutation.isPending}
+            />
 
-
-
-              {paymentStatus === 'failed' ? (
-                <div className="space-y-3 rounded border border-red-200 bg-red-50 p-4">
-                  <div className="flex items-center gap-3 text-sm text-red-900">
-                    <AlertCircle className="h-4 w-4" />
-                    <span>Your payment could not be processed. Please try again.</span>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <Button
-                      onClick={handleRetryPayment}
-                      disabled={isLoading}
-                      size="lg"
-                      data-testid="button-retry-payment"
-                    >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Retrying...
-                        </>
-                      ) : (
-                        <>
-                          <CreditCard className="mr-2 h-4 w-4" />
-                          Retry Payment
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={handleBackToCheckout}
-                      data-testid="button-back-to-checkout-failed"
-                    >
-                      Back
-                    </Button>
-                  </div>
+            {paymentStatus === 'failed' && (
+              <div className="space-y-3 rounded border border-red-200 bg-red-50 p-4">
+                <div className="flex items-center gap-3 text-sm text-red-900">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>Your payment could not be processed. Please try again.</span>
                 </div>
-              ) : null}
-            </CardContent>
-          </Card>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button
+                    onClick={handleRetryPayment}
+                    disabled={isLoading}
+                    size="lg"
+                    data-testid="button-retry-payment"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Retrying...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="mr-2 h-4 w-4" />
+                        Retry Payment
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleBackToCheckout}
+                    data-testid="button-back-to-checkout-failed"
+                  >
+                    Back
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Order Summary - Right Side */}
