@@ -5,9 +5,10 @@ import { useCart } from "@/hooks/use-cart";
 
 interface ProductCardProps {
   product: Product;
+  onClick?: (productId: string) => void;
 }
 
-export default function ProductCard({ product }: ProductCardProps) {
+export default function ProductCard({ product, onClick }: ProductCardProps) {
   const [, navigate] = useLocation();
 
   const { cartItems, addToCart, updateCartItem, removeFromCart } = useCart();
@@ -42,8 +43,12 @@ export default function ProductCard({ product }: ProductCardProps) {
   const displaySummary = summary.length > 120 ? `${summary.slice(0, 117)}…` : summary;
 
   const handleCardNavigation = () => {
-    sessionStorage.setItem("productsScrollPosition", window.scrollY.toString());
-    navigate(`/product/${product.id}`);
+    if (onClick) {
+      onClick(product.id);
+    } else {
+      sessionStorage.setItem("productsScrollPosition", window.scrollY.toString());
+      navigate(`/product/${product.id}`);
+    }
   };
 
   const handleIncreaseQuantity = () => {

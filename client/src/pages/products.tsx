@@ -6,6 +6,7 @@ import { ArrowRight } from "lucide-react";
 import { useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
 import { StoryCircles } from "@/components/product/story-circles";
+import { ProductDetailsSheet } from "@/components/product/product-details-sheet";
 import { useState, useEffect } from "react";
 
 export default function Products() {
@@ -18,6 +19,24 @@ export default function Products() {
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [isPullRefreshing, setIsPullRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
+  const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+  const [isProductSheetOpen, setIsProductSheetOpen] = useState(false);
+
+  // Handle product selection - on mobile, open sheet; on desktop, navigate
+  const handleProductClick = (productId: string) => {
+    if (window.innerWidth < 768) {
+      setSelectedProductId(productId);
+      setIsProductSheetOpen(true);
+    } else {
+      sessionStorage.setItem("productsScrollPosition", window.scrollY.toString());
+      setLocation(`/product/${productId}`);
+    }
+  };
+
+  const handleCloseProductSheet = () => {
+    setIsProductSheetOpen(false);
+    setTimeout(() => setSelectedProductId(null), 300); // Clear after animation
+  };
 
   // Pull-to-refresh for mobile
   useEffect(() => {
@@ -300,12 +319,25 @@ export default function Products() {
           ) : (
             <div className="product-grid">
               {filteredProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
+                <ProductCard 
+                  key={product.id} 
+                  product={product}
+                  onClick={() => handleProductClick(product.id)}
+                />
               ))}
             </div>
           )}
         </div>
       </section>
+
+      {/* Product Details Bottom Sheet - Mobile Only */}
+      {selectedProductId && (
+        <ProductDetailsSheet
+          productId={selectedProductId}
+          open={isProductSheetOpen}
+          onClose={handleCloseProductSheet}
+        />
+      )}
     </>
   );
 }

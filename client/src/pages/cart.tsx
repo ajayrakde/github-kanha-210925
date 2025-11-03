@@ -341,8 +341,8 @@ export default function Cart() {
           </div>
         </div>
 
-        {/* Order Summary */}
-        <div className="lg:col-span-1">
+        {/* Order Summary - Hidden on mobile (shown in sticky bar instead) */}
+        <div className="hidden lg:block lg:col-span-1">
           <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 sticky top-24">
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Order Summary</h3>
             <div className="space-y-3 text-sm">
@@ -380,6 +380,29 @@ export default function Cart() {
           </div>
         </div>
       </div>
+
+      {/* Sticky Checkout Bar - Mobile Only */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4 lg:hidden z-40">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="text-sm text-gray-600">Total ({cartItems.length} items)</div>
+            <div className="text-2xl font-bold text-gray-900">₹{total.toFixed(2)}</div>
+            {appliedOffer && (
+              <div className="text-xs text-green-600">Saved ₹{discount.toFixed(2)}</div>
+            )}
+          </div>
+          <Button
+            className="bg-green-600 hover:bg-green-700 h-12 px-8 text-lg"
+            onClick={() => setLocation("/checkout")}
+            data-testid="button-proceed-checkout-mobile"
+          >
+            Checkout
+          </Button>
+        </div>
+      </div>
+      
+      {/* Spacer for sticky bar on mobile */}
+      <div className="h-24 lg:hidden" />
     </div>
     </div>
   );
