@@ -112,9 +112,9 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
           </span>
           
           {/* Minimal add button - responsive dimensions */}
-          <div onClick={(e) => e.stopPropagation()} className="ml-auto flex-none h-7 md:h-8">
+          <div onClick={(e) => e.stopPropagation()} className="ml-auto flex-none h-7 md:h-8 !min-w-[76px] w-[76px] md:!min-w-[88px] md:w-[88px]">
             {cartQuantity > 0 ? (
-              <div className="flex items-center bg-primary hover:bg-primary/90 rounded-md h-7 md:h-8 w-[76px] md:w-[88px] transition-all duration-200 border border-transparent box-border overflow-visible relative focus-within:ring-2 focus-within:ring-white focus-within:ring-offset-1 focus-within:ring-offset-transparent">
+              <div className="flex items-center bg-primary hover:bg-primary/90 rounded-md h-7 md:h-8 w-[76px] md:w-[88px] !min-w-[76px] md:!min-w-[88px] transition-all duration-200 border border-transparent box-border overflow-visible relative focus-within:ring-2 focus-within:ring-white focus-within:ring-offset-1 focus-within:ring-offset-transparent">
                 <button
                   type="button"
                   className="h-full w-[23px] md:w-[26px] flex-none rounded-l-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -148,7 +148,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
             ) : (
               <button
                 type="button"
-                className="h-7 md:h-8 w-[76px] md:w-[88px] rounded-md bg-primary hover:bg-primary/90 text-white transition-all duration-200 flex items-center justify-center border border-transparent box-border font-semibold text-[11px] md:text-xs outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-1 focus-visible:ring-offset-transparent active:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="h-7 md:h-8 w-[76px] md:w-[88px] !min-w-[76px] md:!min-w-[88px] rounded-md bg-primary hover:bg-primary/90 text-white transition-all duration-200 flex items-center justify-center border border-transparent box-border font-semibold text-[11px] md:text-xs outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-1 focus-visible:ring-offset-transparent active:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={(e) => {
                   e.stopPropagation();
                   haptic.add();
