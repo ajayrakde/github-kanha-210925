@@ -42,7 +42,7 @@ export default function ProductAction({
 
   if (quantity > 0) {
     return (
-      <div className={sharedShellClasses}>
+      <div className={`${sharedShellClasses} gap-0.5 px-0.5`}>
         <button
           type="button"
           className={iconButtonClasses}
