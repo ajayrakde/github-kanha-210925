@@ -8,7 +8,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, ChevronDown, Tag, ChevronLeft, Heart } from "lucide-react";
+import { ArrowLeft, ChevronDown, Tag, ChevronLeft, Heart, User } from "lucide-react";
 import type { Offer, Product } from "@/lib/types";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { scrollToContext } from "@/lib/scroll-utils";
@@ -295,6 +295,20 @@ export default function Cart() {
           
           {/* Right: User + Heart Icons */}
           <div className="flex items-center justify-end gap-1">
+            <button
+              onClick={() => {
+                if (authData?.authenticated) {
+                  setLocation("/orders");
+                } else {
+                  setLocation("/");
+                }
+              }}
+              className="flex items-center justify-center w-11 h-11 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
+              aria-label={authData?.authenticated ? "My orders" : "Account"}
+              data-testid="button-user-cart"
+            >
+              <User className="w-5 h-5 text-gray-900" strokeWidth={2} />
+            </button>
             <button
               className="flex items-center justify-center w-11 h-11 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
               aria-label="Favorites"
