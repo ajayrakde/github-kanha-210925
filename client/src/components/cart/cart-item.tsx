@@ -65,50 +65,48 @@ export default function CartItem({ item }: CartItemProps) {
   };
 
   return (
-    <div className="relative py-3 px-3 sm:px-4" data-testid={`cart-item-${item.id}`}>
-      {/* Cart Item: Fixed 60px Thumbnail | Flexible Text | Fixed Controls */}
-      <div className="flex items-center gap-3 bg-white">
-        {/* Product Image - Fixed 60px square */}
-        <div className="w-[60px] h-[60px] flex-shrink-0">
+    <div className="relative py-3 px-2 sm:px-4" data-testid={`cart-item-${item.id}`}>
+      {/* Cart Item Content - Horizontal Distribution: 14% image, 68% name/price, 18% quantity controls */}
+      <div className="flex items-center gap-1.5 sm:gap-2 bg-white">
+        {/* Product Image - 14% width, square (3:3 ratio) */}
+        <div className="w-[14%] flex-shrink-0">
           <img
-            src={item.product.imageUrl || `https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?ixlib=rb-4.0.3&auto=format&fit=crop&w=60&h=60`}
+            src={item.product.imageUrl || `https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?ixlib=rb-4.0.3&auto=format&fit=crop&w=80&h=80`}
             alt={item.product.name}
-            className="w-full h-full object-cover rounded border border-gray-300"
+            className="w-full aspect-square object-cover rounded border border-gray-200"
           />
         </div>
 
-        {/* Product Name & Price - Flexible width with proper truncation */}
-        <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
-          <h4 className="text-sm font-medium text-gray-900 leading-snug line-clamp-2 break-words" data-testid={`cart-item-name-${item.id}`}>
+        {/* Product Name & Price - 68% width, top-left aligned */}
+        <div className="w-[68%] flex-shrink-0 flex flex-col justify-start pr-1 sm:pr-2 min-w-0">
+          <h4 className="text-xs sm:text-sm text-gray-900 leading-tight mb-0.5 line-clamp-2 break-words overflow-hidden" data-testid={`cart-item-name-${item.id}`}>
             {item.product.name}
           </h4>
-          <p className="text-sm text-gray-700 font-semibold" data-testid={`cart-item-price-${item.id}`}>
+          <p className="text-[11px] sm:text-xs text-gray-600 truncate" data-testid={`cart-item-price-${item.id}`}>
             ₹{parseFloat(item.product.price).toFixed(2)}
           </p>
         </div>
 
-        {/* Quantity Controls - Touch-friendly 44x44px minimum */}
-        <div className="flex items-center gap-0.5 flex-shrink-0">
+        {/* Quantity Controls - 18% width, 3:1 ratio buttons (0.9:1.2:0.9) */}
+        <div className="w-[18%] flex-shrink-0 flex items-center justify-end gap-0.5">
           <button
             onClick={() => handleQuantityChange(-1)}
             disabled={updateQuantityMutation.isPending}
-            className="w-9 h-9 flex-shrink-0 rounded-md border-2 border-gray-400 bg-white hover:bg-gray-50 flex items-center justify-center transition-all active:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-[26px] h-[26px] min-w-[26px] min-h-[26px] max-w-[26px] max-h-[26px] flex-shrink-0 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all focus:ring-2 focus:ring-primary/20 focus:ring-offset-1 active:bg-gray-100 active:ring-2 active:ring-primary/30 disabled:opacity-50 p-0"
             data-testid={`button-decrease-${item.id}`}
-            aria-label="Decrease quantity"
           >
-            <i className="fas fa-minus text-xs text-gray-700"></i>
+            <i className="fas fa-minus text-[8px]"></i>
           </button>
-          <span className="w-10 h-9 flex-shrink-0 flex items-center justify-center text-base font-semibold text-gray-900" data-testid={`cart-item-quantity-${item.id}`}>
+          <span className="w-[32px] h-[32px] min-w-[32px] min-h-[32px] max-w-[32px] max-h-[32px] flex-shrink-0 flex items-center justify-center text-xs font-medium bg-gray-50" data-testid={`cart-item-quantity-${item.id}`}>
             {item.quantity}
           </span>
           <button
             onClick={() => handleQuantityChange(1)}
             disabled={updateQuantityMutation.isPending}
-            className="w-9 h-9 flex-shrink-0 rounded-md border-2 border-gray-400 bg-white hover:bg-gray-50 flex items-center justify-center transition-all active:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-[26px] h-[26px] min-w-[26px] min-h-[26px] max-w-[26px] max-h-[26px] flex-shrink-0 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all focus:ring-2 focus:ring-primary/20 focus:ring-offset-1 active:bg-gray-100 active:ring-2 active:ring-primary/30 disabled:opacity-50 p-0"
             data-testid={`button-increase-${item.id}`}
-            aria-label="Increase quantity"
           >
-            <i className="fas fa-plus text-xs text-gray-700"></i>
+            <i className="fas fa-plus text-[8px]"></i>
           </button>
         </div>
       </div>
