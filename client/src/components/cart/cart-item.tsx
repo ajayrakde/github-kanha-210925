@@ -85,7 +85,7 @@ export default function CartItem({ item }: CartItemProps) {
           <button
             onClick={() => handleQuantityChange(-1)}
             disabled={updateQuantityMutation.isPending}
-            className="min-w-[44px] min-h-[44px] w-11 h-11 flex-shrink-0 rounded-md border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all focus:ring-2 focus:ring-primary/20 focus:ring-offset-1 active:bg-gray-100 active:ring-2 active:ring-primary/30 disabled:opacity-50"
+            className="w-8 h-8 flex-shrink-0 rounded-md border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all focus:ring-2 focus:ring-primary/20 focus:ring-offset-1 active:bg-gray-100 active:ring-2 active:ring-primary/30 disabled:opacity-50"
             data-testid={`button-decrease-${item.id}`}
           >
             <i className="fas fa-minus text-[9px]"></i>
@@ -96,7 +96,7 @@ export default function CartItem({ item }: CartItemProps) {
           <button
             onClick={() => handleQuantityChange(1)}
             disabled={updateQuantityMutation.isPending}
-            className="min-w-[44px] min-h-[44px] w-11 h-11 flex-shrink-0 rounded-md border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all focus:ring-2 focus:ring-primary/20 focus:ring-offset-1 active:bg-gray-100 active:ring-2 active:ring-primary/30 disabled:opacity-50"
+            className="w-8 h-8 flex-shrink-0 rounded-md border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all focus:ring-2 focus:ring-primary/20 focus:ring-offset-1 active:bg-gray-100 active:ring-2 active:ring-primary/30 disabled:opacity-50"
             data-testid={`button-increase-${item.id}`}
           >
             <i className="fas fa-plus text-[9px]"></i>
