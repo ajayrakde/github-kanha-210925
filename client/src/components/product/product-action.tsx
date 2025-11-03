@@ -23,14 +23,17 @@ export default function ProductAction({
   productName,
   productId,
 }: ProductActionProps) {
-  const sharedShellClasses = `
-    rounded-md h-5 md:h-7 w-[58px] md:w-[72px] min-w-[58px] md:min-w-[72px] max-w-[58px] md:max-w-[72px]
+  const baseShellClasses = `
+    rounded-md h-5 md:h-7
     flex items-center justify-center
     bg-primary text-white border border-transparent transition-all outline-none
     focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-1 focus-visible:ring-offset-primary
     active:scale-95 active:shadow-[0_0_8px_rgba(255,255,255,0.35)]
     disabled:opacity-50 disabled:active:scale-100 disabled:active:shadow-none
   `.trim().replace(/\s+/g, ' ');
+  
+  const addButtonClasses = `${baseShellClasses} w-[58px] md:w-[72px] min-w-[58px] md:min-w-[72px] max-w-[58px] md:max-w-[72px]`;
+  const stepperClasses = `${baseShellClasses} w-[62px] md:w-[76px] min-w-[62px] md:min-w-[76px] max-w-[62px] md:max-w-[76px]`;
 
   const iconButtonClasses = `
     h-4 w-4 md:h-5 md:w-5 rounded bg-white/20 hover:bg-white/30
@@ -42,7 +45,7 @@ export default function ProductAction({
 
   if (quantity > 0) {
     return (
-      <div className={`${sharedShellClasses} gap-0.5 px-0.5`}>
+      <div className={`${stepperClasses} gap-0.5 px-0.5`}>
         <button
           type="button"
           className={iconButtonClasses}
@@ -76,7 +79,7 @@ export default function ProductAction({
   return (
     <button
       type="button"
-      className={`${sharedShellClasses} font-medium text-[10px] md:text-xs`}
+      className={`${addButtonClasses} font-medium text-[10px] md:text-xs`}
       onClick={onAdd}
       disabled={isAddPending}
       data-testid={`button-add-to-cart-${productId}`}
