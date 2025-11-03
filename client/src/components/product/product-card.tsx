@@ -112,9 +112,9 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
           </span>
           
           {/* Minimal add button - responsive dimensions */}
-          <div onClick={(e) => e.stopPropagation()} className="ml-auto">
+          <div onClick={(e) => e.stopPropagation()} className="ml-auto shrink-0">
             {cartQuantity > 0 ? (
-              <div className="flex items-center gap-0.5 bg-primary rounded h-5 md:h-7 w-[58px] md:w-[72px] justify-center border border-transparent">
+              <div className="flex items-center gap-0.5 bg-primary rounded h-5 md:h-7 w-[58px] md:w-[72px] min-w-[58px] md:min-w-[72px] max-w-[58px] md:max-w-[72px] justify-center border border-transparent">
                 <button
                   type="button"
                   className="h-4 w-4 md:h-5 md:w-5 rounded bg-white/20 hover:bg-white/30 active:bg-white/40 flex items-center justify-center transition-colors flex-shrink-0"
@@ -128,7 +128,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                 >
                   <Minus size={10} className="text-white md:scale-110" />
                 </button>
-                <span className="min-w-[18px] md:min-w-[22px] text-center font-bold text-[10px] md:text-xs text-white" data-testid={`cart-quantity-${product.id}`}>
+                <span className="flex-1 text-center font-bold text-[10px] md:text-xs text-white" data-testid={`cart-quantity-${product.id}`}>
                   {cartQuantity}
                 </span>
                 <button
@@ -148,7 +148,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
             ) : (
               <button
                 type="button"
-                className="h-5 md:h-7 w-[58px] md:w-[72px] rounded bg-secondary hover:bg-secondary/90 active:bg-secondary/80 text-primary transition-colors flex items-center justify-center border border-transparent font-medium text-[10px] md:text-xs"
+                className="h-5 md:h-7 w-[58px] md:w-[72px] min-w-[58px] md:min-w-[72px] max-w-[58px] md:max-w-[72px] rounded bg-secondary hover:bg-secondary/90 active:bg-secondary/80 text-primary transition-colors flex items-center justify-center border border-transparent font-medium text-[10px] md:text-xs"
                 onClick={(e) => {
                   e.stopPropagation();
                   haptic.add();
