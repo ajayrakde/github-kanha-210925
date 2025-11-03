@@ -717,10 +717,10 @@
     padding: 0 0.5rem;
   }
 
-  /* Product grid - 2 columns on mobile, compact gaps */
+  /* Product grid - 2 columns on mobile, no gaps - borders create grid lines */
   .product-grid {
-    column-gap: 0.625rem !important;
-    row-gap: 1rem !important;
+    column-gap: 0 !important;
+    row-gap: 0 !important;
     grid-template-columns: repeat(2, 1fr) !important;
   }
 
