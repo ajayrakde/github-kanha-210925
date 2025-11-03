@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, ChevronDown, Tag } from "lucide-react";
 import type { Offer, Product } from "@/lib/types";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { scrollToContext } from "@/lib/scroll-utils";
 
 export default function Cart() {
   const [, setLocation] = useLocation();
@@ -118,6 +119,8 @@ export default function Cart() {
           title: "Coupon Applied!",
           description: `You saved with ${result.offer.code}`,
         });
+        // Scroll to show the updated total with discount
+        setTimeout(() => scrollToContext("coupon-applied"), 300);
       } else {
         setCouponError(result.message);
         toast({
@@ -125,6 +128,8 @@ export default function Cart() {
           description: result.message,
           variant: "destructive",
         });
+        // Scroll to coupon input on error
+        setTimeout(() => scrollToContext("coupon-invalid"), 300);
       }
     },
     onError: (error) => {
@@ -311,6 +316,7 @@ export default function Cart() {
                 <>
                   <div className="flex space-x-3">
                     <Input
+                      id="coupon-input-desktop"
                       type="text"
                       placeholder="Enter coupon code"
                       value={couponCode}
@@ -406,6 +412,7 @@ export default function Cart() {
                     <>
                       <div className="flex space-x-3">
                         <Input
+                          id="coupon-input-mobile"
                           type="text"
                           placeholder="Enter coupon code"
                           value={couponCode}
@@ -478,9 +485,9 @@ export default function Cart() {
 
         {/* Order Summary - Hidden on mobile (shown in sticky bar instead) */}
         <div className="hidden lg:block lg:col-span-1">
-          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 sticky top-24">
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 sticky top-24" id="order-total-desktop">
             <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Order Summary</h3>
-            <div className="space-y-3 text-sm">
+            <div className="space-y-3 text-sm" id="cart-summary-desktop">
               <div className="flex justify-between">
                 <span className="text-gray-600">Subtotal ({cartItems.length} items)</span>
                 <span data-testid="text-subtotal">₹{basePrice.toFixed(2)}</span>
@@ -517,8 +524,8 @@ export default function Cart() {
       </div>
 
       {/* Sticky Checkout Bar - Mobile Only */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4 lg:hidden z-40">
-        <div className="flex items-center justify-between mb-3">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg p-4 lg:hidden z-40" id="cart-summary-mobile">
+        <div className="flex items-center justify-between mb-3" id="order-total-mobile">
           <div>
             <div className="text-sm text-gray-600">Total ({cartItems.length} items)</div>
             <div className="text-2xl font-bold text-gray-900">₹{total.toFixed(2)}</div>

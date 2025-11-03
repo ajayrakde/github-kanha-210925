@@ -13,6 +13,7 @@ import { useLocation } from "wouter";
 import { ArrowLeft, Plus, Loader2, MapPin } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
+import { scrollToContext } from "@/lib/scroll-utils";
 
 interface UserInfo {
   name: string;
@@ -330,6 +331,9 @@ export default function Checkout() {
         description: "Your new address has been saved successfully",
       });
 
+      // Scroll to continue/checkout button after address is saved
+      setTimeout(() => scrollToContext("address-saved"), 300);
+
       queryClient.setQueryData(["/api/auth/addresses"], (existing: any[] | undefined) => {
         if (!existing) {
           return newAddress ? [newAddress] : existing;
@@ -501,6 +505,16 @@ export default function Checkout() {
           variant: "destructive",
         });
       }
+    },
+    onError: (error: any) => {
+      console.error('[Checkout] Place order failed:', error);
+      toast({
+        title: "Checkout Failed",
+        description: "Unable to process your order. Please try again.",
+        variant: "destructive",
+      });
+      // Scroll to top where error will be visible
+      setTimeout(() => scrollToContext("checkout-error"), 300);
     },
   });
 
@@ -1206,6 +1220,7 @@ export default function Checkout() {
 
             {step === "details" && (
               <Button
+                id="continue-button"
                 className="w-full bg-green-600 hover:bg-green-700"
                 onClick={() => {
                   console.log('[Checkout] Place Order button clicked');

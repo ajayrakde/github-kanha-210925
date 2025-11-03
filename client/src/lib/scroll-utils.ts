@@ -35,7 +35,7 @@ export type ScrollContext =
 const SCROLL_TARGETS: Record<ScrollContext, string> = {
   // Success states - show the result
   "payment-success": "#order-confirmation, #payment-status, main",
-  "coupon-applied": "#order-total, #cart-summary, #pricing-section",
+  "coupon-applied": "#order-total-mobile, #cart-summary-mobile, #order-total-desktop, #cart-summary-desktop, #pricing-section",
   "address-saved": "#continue-button, #payment-section, #checkout-actions",
   "item-added-to-cart-mobile": "#sticky-cart-bar, #mobile-cart",
   "item-added-to-cart-desktop": "#cart-summary, #cart-icon",
@@ -45,7 +45,7 @@ const SCROLL_TARGETS: Record<ScrollContext, string> = {
   // Failure states - show the error and action
   "payment-failed": "#retry-section, #payment-error, #error-message",
   "payment-timeout": "#try-again-button, #payment-retry, #retry-section",
-  "coupon-invalid": "#coupon-input, #coupon-error, .error-message",
+  "coupon-invalid": "#coupon-input-mobile, #coupon-input-desktop, #coupon-error, .error-message",
   "out-of-stock": "#alternative-products, #product-suggestions, #continue-shopping",
   "checkout-error": "#error-message, #retry-checkout, main",
   
@@ -87,17 +87,21 @@ export function scrollToContext(
     return false;
   }
 
-  // Try multiple selectors (first one found wins)
+  // Try multiple selectors (first visible one wins)
   const selectors = targetSelectors.split(",").map((s) => s.trim());
-  let element: Element | null = null;
+  let element: HTMLElement | null = null;
 
   for (const selector of selectors) {
-    element = document.querySelector(selector);
-    if (element) break;
+    const candidate = document.querySelector(selector) as HTMLElement | null;
+    // Check if element exists AND is visible (not display:none or hidden)
+    if (candidate && candidate.offsetHeight > 0 && candidate.offsetWidth > 0) {
+      element = candidate;
+      break;
+    }
   }
 
   if (!element) {
-    console.warn(`No element found for context: ${context}, tried: ${selectors.join(", ")}`);
+    console.warn(`No visible element found for context: ${context}, tried: ${selectors.join(", ")}`);
     return false;
   }
 
