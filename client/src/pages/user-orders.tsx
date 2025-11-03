@@ -185,20 +185,20 @@ export default function UserOrders() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-4 overflow-x-hidden">
-      <div className="space-y-3 sm:space-y-6 min-w-0">
+    <div className="max-w-7xl mx-auto px-3 sm:px-4 overflow-x-hidden w-full">
+      <div className="space-y-3 sm:space-y-6 min-w-0 w-full">
         {/* Back Button and Title */}
-        <div className="flex sm:flex-row items-center sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-6">
+        <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-6 w-full">
         <Button
           onClick={() => setLocation("/")}
           variant="ghost"
-          className="text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-white"
+          className="text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-white flex-shrink-0"
           data-testid="button-back-from-orders"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back
         </Button>
-        <div>
+        <div className="flex-1 min-w-0">
           <h2 className="text-2xl font-semibold text-gray-900 mb-1">My Orders</h2>
           <p className="text-gray-600 hidden sm:block">View your order history and track deliveries</p>
         </div>
@@ -214,21 +214,21 @@ export default function UserOrders() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-4 min-w-0">
+        <div className="space-y-4 min-w-0 w-full">
           {orders.map(order => {
             const latestPayment = getLatestPayment(order.payments);
 
             const isExpanded = expandedOrders.has(order.id);
             
             return (
-              <div key={order.id} className="bg-white rounded border border-gray-200 overflow-hidden min-w-0">
-                <div className="p-4 sm:p-6 min-w-0">
-                  <div className="flex justify-between items-start gap-2 mb-2 sm:mb-4 min-w-0">
-                    <div className="flex-1 min-w-0">
+              <div key={order.id} className="bg-white rounded border border-gray-200 overflow-hidden min-w-0 w-full">
+                <div className="p-4 sm:p-6 min-w-0 w-full overflow-hidden">
+                  <div className="flex justify-between items-start gap-2 mb-2 sm:mb-4 min-w-0 w-full">
+                    <div className="flex-1 min-w-0 overflow-hidden">
                       <h3 className="font-semibold text-gray-900 truncate">
                         Order #{order.id.slice(0, 8).toUpperCase()}
                       </h3>
-                      <p className="text-sm text-gray-500 mt-1 truncate">
+                      <p className="text-sm text-gray-500 mt-1 break-words">
                         {new Date(order.createdAt).toLocaleDateString('en-IN', {
                           year: 'numeric',
                           month: 'long',
@@ -245,24 +245,24 @@ export default function UserOrders() {
 
                   <Separator className="mb-2 sm:mb-4" />
 
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Subtotal:</span>
-                      <span>₹{parseFloat(order.subtotal).toFixed(2)}</span>
+                  <div className="space-y-2 text-sm w-full overflow-hidden">
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-600 flex-shrink-0">Subtotal:</span>
+                      <span className="flex-shrink-0">₹{parseFloat(order.subtotal).toFixed(2)}</span>
                     </div>
                     {parseFloat(order.discountAmount) > 0 && (
-                      <div className="flex justify-between text-green-600">
-                        <span>Discount:</span>
-                        <span>-₹{parseFloat(order.discountAmount).toFixed(2)}</span>
+                      <div className="flex justify-between text-green-600 gap-2">
+                        <span className="flex-shrink-0">Discount:</span>
+                        <span className="flex-shrink-0">-₹{parseFloat(order.discountAmount).toFixed(2)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Shipping:</span>
-                      <span>₹{parseFloat(order.shippingCharge).toFixed(2)}</span>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-600 flex-shrink-0">Shipping:</span>
+                      <span className="flex-shrink-0">₹{parseFloat(order.shippingCharge).toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between font-semibold text-base pt-2 border-t">
-                      <span>Total:</span>
-                      <span>₹{parseFloat(order.total).toFixed(2)}</span>
+                    <div className="flex justify-between font-semibold text-base pt-2 border-t gap-2">
+                      <span className="flex-shrink-0">Total:</span>
+                      <span className="flex-shrink-0">₹{parseFloat(order.total).toFixed(2)}</span>
                     </div>
                   </div>
 
@@ -279,26 +279,26 @@ export default function UserOrders() {
                   </div>
 
                   {/* Desktop: Always Show Details */}
-                  <div className="hidden md:block">
+                  <div className="hidden md:block w-full overflow-hidden">
                     <Separator className="my-4" />
 
-                    <div className="space-y-2 text-sm min-w-0">
-                      <div className="flex items-start gap-2 min-w-0">
+                    <div className="space-y-2 text-sm min-w-0 w-full overflow-hidden">
+                      <div className="flex items-start gap-2 min-w-0 w-full">
                         <span className="text-gray-600 flex-shrink-0">Delivery Address:</span>
-                        <span className="flex-1 min-w-0 break-words">
+                        <span className="flex-1 min-w-0 break-words overflow-hidden">
                           {order.deliveryAddress.address}, {order.deliveryAddress.city} - {order.deliveryAddress.pincode}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 flex-wrap min-w-0">
-                        <span className="text-gray-600">Payment:</span>
+                      <div className="flex items-center gap-2 flex-wrap min-w-0 w-full">
+                        <span className="text-gray-600 flex-shrink-0">Payment:</span>
                         <span className="break-words">{formatPaymentMethod(order.paymentMethod)}</span>
                         {renderPaymentStatusBadge(order.paymentStatus)}
                       </div>
                     </div>
 
                     {latestPayment && (
-                      <div className="mt-3 bg-gray-50 rounded-md p-4 text-sm text-gray-600 space-y-2">
-                        <div className="flex items-center justify-between min-w-0">
+                      <div className="mt-3 bg-gray-50 rounded-md p-4 text-sm text-gray-600 space-y-2 w-full overflow-hidden">
+                        <div className="flex items-center justify-between min-w-0 gap-2 w-full">
                           <span className="flex-shrink-0">Gateway Status:</span>
                           <div className="flex items-center gap-2 flex-shrink-0">
                             <Badge variant="outline" className="uppercase tracking-wide text-xs">
@@ -308,45 +308,45 @@ export default function UserOrders() {
                           </div>
                         </div>
                         {formatIdentifier(latestPayment.providerPaymentId || latestPayment.providerReferenceId) && (
-                          <div className="flex justify-between min-w-0 gap-2">
-                            <span className="flex-shrink-0">Merchant Txn ID:</span>
-                            <span className="font-mono text-xs truncate">
+                          <div className="flex justify-between min-w-0 gap-2 w-full overflow-hidden">
+                            <span className="flex-shrink-0 whitespace-nowrap">Merchant Txn ID:</span>
+                            <span className="font-mono text-xs truncate overflow-hidden text-right">
                               {formatIdentifier(latestPayment.providerPaymentId || latestPayment.providerReferenceId)}
                             </span>
                           </div>
                         )}
                         {latestPayment.providerTransactionId && (
-                          <div className="flex justify-between min-w-0 gap-2">
-                            <span className="flex-shrink-0">Provider Txn ID:</span>
-                            <span className="font-mono text-xs truncate">{formatIdentifier(latestPayment.providerTransactionId)}</span>
+                          <div className="flex justify-between min-w-0 gap-2 w-full overflow-hidden">
+                            <span className="flex-shrink-0 whitespace-nowrap">Provider Txn ID:</span>
+                            <span className="font-mono text-xs truncate overflow-hidden text-right">{formatIdentifier(latestPayment.providerTransactionId)}</span>
                           </div>
                         )}
                         {latestPayment.upiUtr && (
-                          <div className="flex justify-between min-w-0 gap-2">
+                          <div className="flex justify-between min-w-0 gap-2 w-full overflow-hidden">
                             <span className="flex-shrink-0">UTR:</span>
-                            <span className="font-mono text-xs truncate">{latestPayment.upiUtr}</span>
+                            <span className="font-mono text-xs truncate overflow-hidden text-right">{latestPayment.upiUtr}</span>
                           </div>
                         )}
                         {latestPayment.upiPayerHandle && (
-                          <div className="flex justify-between min-w-0 gap-2">
+                          <div className="flex justify-between min-w-0 gap-2 w-full overflow-hidden">
                             <span className="flex-shrink-0">Payer VPA:</span>
-                            <span className="font-mono text-xs truncate">{latestPayment.upiPayerHandle}</span>
+                            <span className="font-mono text-xs truncate overflow-hidden text-right">{latestPayment.upiPayerHandle}</span>
                           </div>
                         )}
-                        <div className="flex justify-between min-w-0">
+                        <div className="flex justify-between min-w-0 gap-2 w-full">
                           <span className="flex-shrink-0">Amount Paid:</span>
                           <span className="font-medium text-green-600 flex-shrink-0">
                             ₹{formatMinorAmount(latestPayment.amountCapturedMinor ?? latestPayment.amountAuthorizedMinor ?? 0)}
                           </span>
                         </div>
                         {latestPayment.receiptUrl && (
-                          <div className="flex justify-between items-center min-w-0">
+                          <div className="flex justify-between items-center min-w-0 gap-2 w-full">
                             <span className="flex-shrink-0">Receipt:</span>
                             <a
                               href={latestPayment.receiptUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline truncate"
+                              className="text-blue-600 hover:underline truncate overflow-hidden"
                             >
                               View Receipt
                             </a>
@@ -358,24 +358,24 @@ export default function UserOrders() {
 
                   {/* Mobile: Collapsible Details */}
                   {isExpanded && (
-                    <div className="md:hidden mt-4 pt-4 border-t">
-                      <div className="space-y-2 text-sm min-w-0">
-                        <div className="flex items-start gap-2 min-w-0">
+                    <div className="md:hidden mt-4 pt-4 border-t w-full overflow-hidden">
+                      <div className="space-y-2 text-sm min-w-0 w-full overflow-hidden">
+                        <div className="flex items-start gap-2 min-w-0 w-full">
                           <span className="text-gray-600 flex-shrink-0">Delivery Address:</span>
-                          <span className="flex-1 min-w-0 break-words">
+                          <span className="flex-1 min-w-0 break-words overflow-hidden">
                             {order.deliveryAddress.address}, {order.deliveryAddress.city} - {order.deliveryAddress.pincode}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 flex-wrap min-w-0">
-                          <span className="text-gray-600">Payment:</span>
+                        <div className="flex items-center gap-2 flex-wrap min-w-0 w-full">
+                          <span className="text-gray-600 flex-shrink-0">Payment:</span>
                           <span className="break-words">{formatPaymentMethod(order.paymentMethod)}</span>
                           {renderPaymentStatusBadge(order.paymentStatus)}
                         </div>
                       </div>
 
                       {latestPayment && (
-                        <div className="mt-3 bg-gray-50 rounded-md p-4 text-sm text-gray-600 space-y-2">
-                          <div className="flex items-center justify-between min-w-0">
+                        <div className="mt-3 bg-gray-50 rounded-md p-4 text-sm text-gray-600 space-y-2 w-full overflow-hidden">
+                          <div className="flex items-center justify-between min-w-0 gap-2 w-full">
                             <span className="flex-shrink-0">Gateway Status:</span>
                             <div className="flex items-center gap-2 flex-shrink-0">
                               <Badge variant="outline" className="uppercase tracking-wide text-xs">
@@ -385,45 +385,45 @@ export default function UserOrders() {
                             </div>
                           </div>
                           {formatIdentifier(latestPayment.providerPaymentId || latestPayment.providerReferenceId) && (
-                            <div className="flex justify-between min-w-0 gap-2">
-                              <span className="flex-shrink-0">Merchant Txn ID:</span>
-                              <span className="font-mono text-xs truncate">
+                            <div className="flex justify-between min-w-0 gap-2 w-full overflow-hidden">
+                              <span className="flex-shrink-0 whitespace-nowrap">Merchant Txn ID:</span>
+                              <span className="font-mono text-xs truncate overflow-hidden text-right">
                                 {formatIdentifier(latestPayment.providerPaymentId || latestPayment.providerReferenceId)}
                               </span>
                             </div>
                           )}
                           {latestPayment.providerTransactionId && (
-                            <div className="flex justify-between min-w-0 gap-2">
-                              <span className="flex-shrink-0">Provider Txn ID:</span>
-                              <span className="font-mono text-xs truncate">{formatIdentifier(latestPayment.providerTransactionId)}</span>
+                            <div className="flex justify-between min-w-0 gap-2 w-full overflow-hidden">
+                              <span className="flex-shrink-0 whitespace-nowrap">Provider Txn ID:</span>
+                              <span className="font-mono text-xs truncate overflow-hidden text-right">{formatIdentifier(latestPayment.providerTransactionId)}</span>
                             </div>
                           )}
                           {latestPayment.upiUtr && (
-                            <div className="flex justify-between min-w-0 gap-2">
+                            <div className="flex justify-between min-w-0 gap-2 w-full overflow-hidden">
                               <span className="flex-shrink-0">UTR:</span>
-                              <span className="font-mono text-xs truncate">{latestPayment.upiUtr}</span>
+                              <span className="font-mono text-xs truncate overflow-hidden text-right">{latestPayment.upiUtr}</span>
                             </div>
                           )}
                           {latestPayment.upiPayerHandle && (
-                            <div className="flex justify-between min-w-0 gap-2">
+                            <div className="flex justify-between min-w-0 gap-2 w-full overflow-hidden">
                               <span className="flex-shrink-0">Payer VPA:</span>
-                              <span className="font-mono text-xs truncate">{latestPayment.upiPayerHandle}</span>
+                              <span className="font-mono text-xs truncate overflow-hidden text-right">{latestPayment.upiPayerHandle}</span>
                             </div>
                           )}
-                          <div className="flex justify-between min-w-0">
+                          <div className="flex justify-between min-w-0 gap-2 w-full">
                             <span className="flex-shrink-0">Amount Paid:</span>
                             <span className="font-medium text-green-600 flex-shrink-0">
                               ₹{formatMinorAmount(latestPayment.amountCapturedMinor ?? latestPayment.amountAuthorizedMinor ?? 0)}
                             </span>
                           </div>
                           {latestPayment.receiptUrl && (
-                            <div className="flex justify-between items-center min-w-0">
+                            <div className="flex justify-between items-center min-w-0 gap-2 w-full">
                               <span className="flex-shrink-0">Receipt:</span>
                               <a
                                 href={latestPayment.receiptUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-blue-600 hover:underline truncate"
+                                className="text-blue-600 hover:underline truncate overflow-hidden"
                               >
                                 View Receipt
                               </a>
