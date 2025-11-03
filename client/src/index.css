@@ -647,7 +647,7 @@
 /* Extra small devices (phones, 375px and down) */
 @media (max-width: 375px) {
   .container {
-    @apply px-3;
+    @apply px-2;
   }
 
   .hero-title {
@@ -666,7 +666,7 @@
 /* Small devices (phones, 640px and down) */
 @media (max-width: 640px) {
   .container {
-    @apply px-4;
+    @apply px-3;
   }
   
   /* Dramatically reduce header padding */
@@ -760,8 +760,8 @@
 
   /* Ensure container doesn't add excessive side padding */
   .container {
-    padding-left: 0.75rem !important;
-    padding-right: 0.75rem !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
   }
 
   /* Fix payment provider icons - prevent shrinking */
