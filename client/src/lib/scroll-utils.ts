@@ -6,6 +6,7 @@ export type ScrollContext =
   | "item-added-to-cart-mobile"
   | "item-added-to-cart-desktop"
   | "order-placed"
+  | "order-confirmation"
   
   // Failure states
   | "payment-failed"
@@ -39,6 +40,7 @@ const SCROLL_TARGETS: Record<ScrollContext, string> = {
   "item-added-to-cart-mobile": "#sticky-cart-bar, #mobile-cart",
   "item-added-to-cart-desktop": "#cart-summary, #cart-icon",
   "order-placed": "#order-confirmation, #order-details",
+  "order-confirmation": "#order-confirmation, #order-details, main",
   
   // Failure states - show the error and action
   "payment-failed": "#retry-section, #payment-error, #error-message",
