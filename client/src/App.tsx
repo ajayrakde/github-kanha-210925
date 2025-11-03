@@ -15,6 +15,7 @@ import PhonePeReconciliationAdminPage from "@/pages/admin/phonepe-reconciliation
 import Influencer from "@/pages/influencer";
 import ThankYou from "@/pages/thank-you";
 import UserOrders from "@/pages/user-orders";
+import Profile from "@/pages/profile";
 import TermsOfService from "@/pages/terms-of-service";
 import RefundPolicy from "@/pages/refund-policy";
 import Header from "@/components/layout/header";
@@ -51,6 +52,7 @@ function Router() {
                     <Route path="/payment" component={Payment} />
                     <Route path="/thank-you" component={ThankYou} />
                     <Route path="/orders" component={UserOrders} />
+                    <Route path="/profile" component={Profile} />
                     <Route path="/terms-of-service" component={TermsOfService} />
                     <Route path="/refund-policy" component={RefundPolicy} />
                     <Route component={NotFound} />
