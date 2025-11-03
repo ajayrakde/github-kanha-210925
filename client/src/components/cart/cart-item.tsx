@@ -85,18 +85,18 @@ export default function CartItem({ item }: CartItemProps) {
           <button
             onClick={() => handleQuantityChange(-1)}
             disabled={updateQuantityMutation.isPending}
-            className="w-5 h-5 sm:w-6 sm:h-6 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-colors disabled:opacity-50"
+            className="w-6 h-6 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center quantity-btn disabled:opacity-50"
             data-testid={`button-decrease-${item.id}`}
           >
             <i className="fas fa-minus text-[8px]"></i>
           </button>
-          <span className="w-5 sm:w-6 text-center text-xs font-medium" data-testid={`cart-item-quantity-${item.id}`}>
+          <span className="w-6 text-center text-xs font-medium" data-testid={`cart-item-quantity-${item.id}`}>
             {item.quantity}
           </span>
           <button
             onClick={() => handleQuantityChange(1)}
             disabled={updateQuantityMutation.isPending}
-            className="w-5 h-5 sm:w-6 sm:h-6 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-colors disabled:opacity-50"
+            className="w-6 h-6 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center quantity-btn disabled:opacity-50"
             data-testid={`button-increase-${item.id}`}
           >
             <i className="fas fa-plus text-[8px]"></i>
