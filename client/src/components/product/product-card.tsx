@@ -114,7 +114,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
           {/* Minimal add button - responsive dimensions */}
           <div onClick={(e) => e.stopPropagation()} className="ml-auto shrink-0">
             {cartQuantity > 0 ? (
-              <div className="flex items-center gap-0.5 bg-primary hover:bg-primary/90 rounded h-5 md:h-7 w-[58px] md:w-[72px] min-w-[58px] md:min-w-[72px] max-w-[58px] md:max-w-[72px] justify-center border border-transparent transition-all">
+              <div className="flex items-center gap-0.5 bg-primary hover:bg-primary/90 rounded h-5 md:h-7 w-[66px] md:w-[84px] min-w-[66px] md:min-w-[84px] max-w-[66px] md:max-w-[84px] py-0.5 justify-center border border-transparent transition-all">
                 <button
                   type="button"
                   className="h-4 w-4 md:h-5 md:w-5 rounded bg-white/20 hover:bg-white/30 flex items-center justify-center transition-all flex-[0.9] outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-1 focus-visible:ring-offset-primary active:scale-95 active:shadow-[0_0_8px_rgba(255,255,255,0.4)] disabled:opacity-50 disabled:active:scale-100 disabled:active:shadow-none"
@@ -126,9 +126,9 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                   data-testid={`button-decrease-quantity-${product.id}`}
                   aria-label={`Decrease quantity of ${product.name}`}
                 >
-                  <Minus size={10} className="text-white md:scale-110" />
+                  <Minus size={10} className="text-white md:scale-[1.05]" />
                 </button>
-                <span className="flex-[1.2] text-center font-bold text-[10px] md:text-xs text-white" data-testid={`cart-quantity-${product.id}`}>
+                <span className="flex-[1.2] text-center font-bold text-[10px] md:text-[11px] leading-none text-white" data-testid={`cart-quantity-${product.id}`}>
                   {cartQuantity}
                 </span>
                 <button
@@ -142,13 +142,13 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                   data-testid={`button-increase-quantity-${product.id}`}
                   aria-label={`Increase quantity of ${product.name}`}
                 >
-                  <Plus size={10} className="text-white md:scale-110" />
+                  <Plus size={10} className="text-white md:scale-[1.05]" />
                 </button>
               </div>
             ) : (
               <button
                 type="button"
-                className="h-5 md:h-7 w-[58px] md:w-[72px] min-w-[58px] md:min-w-[72px] max-w-[58px] md:max-w-[72px] rounded bg-primary hover:bg-primary/90 text-white transition-all flex items-center justify-center border border-transparent font-medium text-[10px] md:text-xs outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-1 active:scale-95 active:shadow-[0_0_8px_rgba(255,255,255,0.4)] disabled:opacity-50 disabled:active:scale-100 disabled:active:shadow-none"
+                className="h-5 md:h-7 w-[66px] md:w-[84px] min-w-[66px] md:min-w-[84px] max-w-[66px] md:max-w-[84px] py-0.5 rounded bg-primary hover:bg-primary/90 text-white transition-all flex items-center justify-center border border-transparent font-medium text-[10px] md:text-xs outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-1 active:scale-95 active:shadow-[0_0_8px_rgba(255,255,255,0.4)] disabled:opacity-50 disabled:active:scale-100 disabled:active:shadow-none"
                 onClick={(e) => {
                   e.stopPropagation();
                   haptic.add();
