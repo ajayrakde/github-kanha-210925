@@ -97,7 +97,7 @@ export default function CartItem({ item }: CartItemProps) {
           >
             <i className="fas fa-minus text-[8px]"></i>
           </button>
-          <span className="w-[32px] h-[32px] min-w-[32px] min-h-[32px] max-w-[32px] max-h-[32px] flex-shrink-0 flex items-center justify-center text-xs font-medium border-y border-gray-300 bg-gray-50" data-testid={`cart-item-quantity-${item.id}`}>
+          <span className="w-[32px] h-[32px] min-w-[32px] min-h-[32px] max-w-[32px] max-h-[32px] flex-shrink-0 flex items-center justify-center text-xs font-medium bg-gray-50" data-testid={`cart-item-quantity-${item.id}`}>
             {item.quantity}
           </span>
           <button
