@@ -77,7 +77,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
   };
 
   const controlBaseClasses =
-    "w-[76px] h-11 md:w-[88px] md:h-8 !min-w-[76px] md:!min-w-[88px] rounded-md bg-primary hover:bg-primary/90 text-white transition-all duration-200 border border-transparent box-border font-semibold text-[11px] md:text-xs outline-none active:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed";
+    "w-[76px] h-[40px] md:w-[88px] md:h-8 !min-w-[76px] md:!min-w-[88px] rounded-md bg-primary hover:bg-primary/90 text-white transition-all duration-200 border border-transparent box-border font-semibold text-[11px] md:text-xs outline-none active:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed";
   const controlFocusRingClasses =
     "focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-1 focus-visible:ring-offset-transparent";
 
@@ -117,14 +117,14 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
           </span>
           
           {/* Minimal add button - responsive dimensions */}
-          <div onClick={(e) => e.stopPropagation()} className="ml-auto w-[76px] h-11 md:w-[88px] md:h-8 !min-w-[76px] md:!min-w-[88px]">
+          <div onClick={(e) => e.stopPropagation()} className="ml-auto w-[76px] h-[40px] md:w-[88px] md:h-8 !min-w-[76px] md:!min-w-[88px]">
             {cartQuantity > 0 ? (
               <div
                 className={`${controlBaseClasses} flex items-center md:gap-0 relative focus-within:ring-2 focus-within:ring-white focus-within:ring-offset-1 focus-within:ring-offset-transparent`}
               >
                 <button
                   type="button"
-                  className="w-[24px] md:flex-1 h-full rounded-l-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-[24px] md:flex-1 h-full rounded-l-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed text-white"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDecreaseQuantity();
@@ -133,7 +133,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                   data-testid={`button-decrease-quantity-${product.id}`}
                   aria-label={`Decrease quantity of ${product.name}`}
                 >
-                  <Minus size={12} className="text-white" />
+                  <Minus size={12} />
                 </button>
                 <span
                   className="w-[28px] md:flex-1 text-center font-semibold text-[11px] md:text-xs text-white flex items-center justify-center"
@@ -143,7 +143,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                 </span>
                 <button
                   type="button"
-                  className="w-[24px] md:flex-1 h-full rounded-r-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-[24px] md:flex-1 h-full rounded-r-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed text-white"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleIncreaseQuantity();
@@ -152,7 +152,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                   data-testid={`button-increase-quantity-${product.id}`}
                   aria-label={`Increase quantity of ${product.name}`}
                 >
-                  <Plus size={12} className="text-white" />
+                  <Plus size={12} />
                 </button>
               </div>
             ) : (
