@@ -57,9 +57,9 @@ export function CartDrawer({ open, onOpenChange }: CartDrawerProps) {
           </Button>
         </div>
       ) : (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full min-h-0">
           {/* Cart Items - Scrollable */}
-          <div className="flex-1 overflow-y-auto px-4 divide-y">
+          <div className="flex-1 overflow-y-auto px-4 divide-y min-h-0">
             {cartItems.map((item) => (
               <CartItem key={item.id} item={item} />
             ))}
