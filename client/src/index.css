@@ -321,6 +321,55 @@
     position: sticky;
     top: 1.5rem;
   }
+
+  /* Touch/Click feedback - Subtle glow effects instead of borders */
+  button:focus,
+  input:focus,
+  textarea:focus,
+  select:focus {
+    outline: none;
+  }
+
+  button:active {
+    transform: scale(0.98);
+  }
+
+  /* Quantity button styling */
+  .quantity-btn {
+    @apply transition-all duration-150;
+  }
+
+  .quantity-btn:focus {
+    box-shadow: 0 0 0 2px rgba(11, 111, 167, 0.2);
+  }
+
+  .quantity-btn:active {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 2px rgba(11, 111, 167, 0.3);
+  }
+
+  /* Input glow effects */
+  input:focus,
+  textarea:focus,
+  select:focus {
+    box-shadow: 0 0 0 3px rgba(11, 111, 167, 0.15);
+    border-color: var(--primary);
+  }
+
+  /* Dark mode glow effects */
+  .dark button:focus {
+    box-shadow: 0 0 0 3px rgba(74, 177, 226, 0.2);
+  }
+
+  .dark button:active {
+    box-shadow: 0 0 0 3px rgba(74, 177, 226, 0.3);
+  }
+
+  .dark input:focus,
+  .dark textarea:focus,
+  .dark select:focus {
+    box-shadow: 0 0 0 3px rgba(74, 177, 226, 0.15);
+  }
 }
 
 @layer utilities {
