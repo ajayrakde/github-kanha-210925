@@ -690,6 +690,7 @@
   /* Product section - minimal padding to show grid immediately */
   .product-section {
     padding: 0.5rem 0 1.5rem !important;
+    background-color: #ffffff !important;
   }
 
   .section-heading {
@@ -719,7 +720,7 @@
   /* Product grid - 2 columns on mobile, compact gaps */
   .product-grid {
     column-gap: 0.625rem !important;
-    row-gap: 0.875rem !important;
+    row-gap: 1rem !important;
     grid-template-columns: repeat(2, 1fr) !important;
   }
 
@@ -730,6 +731,7 @@
     width: 100% !important;
     border-right: 1px solid #e5e7eb;
     border-bottom: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
   }
   
   /* Remove right border on even columns (2nd column on mobile) */
@@ -1348,6 +1350,7 @@ a:hover {
 
 .product-section {
   padding: 1.5rem 0 3rem;
+  background-color: #ffffff;
 }
 
 .section-heading {
@@ -1369,7 +1372,7 @@ a:hover {
 .product-grid {
   display: grid;
   column-gap: 1.25rem;
-  row-gap: 1.75rem;
+  row-gap: 2rem;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   align-items: stretch;
 }
@@ -1378,13 +1381,14 @@ a:hover {
   .product-grid {
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     column-gap: 1.25rem;
-    row-gap: 1.75rem;
+    row-gap: 2rem;
   }
   
   /* Override mobile card borders for desktop - use gap instead */
   .card {
     border-right: none !important;
     border-bottom: none !important;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
   }
 }
 
