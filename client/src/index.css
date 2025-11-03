@@ -108,6 +108,26 @@
       font-size: 16px;
     }
   }
+
+  button,
+  a,
+  [role="button"],
+  input,
+  textarea,
+  select {
+    outline: none;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  [role="button"]:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+  }
 }
 
 @layer components {
@@ -322,14 +342,7 @@
     top: 1.5rem;
   }
 
-  /* Touch/Click feedback - Subtle glow effects instead of borders */
-  button:focus,
-  input:focus,
-  textarea:focus,
-  select:focus {
-    outline: none;
-  }
-
+  /* Touch/Click feedback - Keyboard-only focus with subtle glow effects */
   button:active {
     transform: scale(0.98);
   }
@@ -339,7 +352,7 @@
     @apply transition-all duration-150;
   }
 
-  .quantity-btn:focus {
+  .quantity-btn:focus-visible {
     box-shadow: 0 0 0 2px rgba(11, 111, 167, 0.2);
   }
 
@@ -348,16 +361,16 @@
     box-shadow: 0 0 0 2px rgba(11, 111, 167, 0.3);
   }
 
-  /* Input glow effects */
-  input:focus,
-  textarea:focus,
-  select:focus {
+  /* Input glow effects - keyboard only */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
     box-shadow: 0 0 0 3px rgba(11, 111, 167, 0.15);
     border-color: var(--primary);
   }
 
-  /* Dark mode glow effects */
-  .dark button:focus {
+  /* Dark mode glow effects - keyboard only */
+  .dark button:focus-visible {
     box-shadow: 0 0 0 3px rgba(74, 177, 226, 0.2);
   }
 
@@ -365,9 +378,9 @@
     box-shadow: 0 0 0 3px rgba(74, 177, 226, 0.3);
   }
 
-  .dark input:focus,
-  .dark textarea:focus,
-  .dark select:focus {
+  .dark input:focus-visible,
+  .dark textarea:focus-visible,
+  .dark select:focus-visible {
     box-shadow: 0 0 0 3px rgba(74, 177, 226, 0.15);
   }
 }
@@ -1272,11 +1285,11 @@
   color: var(--text-light);
 }
 
-/* Focus and accessibility improvements */
-button:focus,
-input:focus,
-select:focus,
-textarea:focus {
+/* Focus and accessibility improvements - keyboard only */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }

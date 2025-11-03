@@ -4,6 +4,12 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { CartItemWithProduct } from "@/lib/types";
 import { haptic } from "@/lib/haptic-utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface CartItemProps {
   item: CartItemWithProduct;
@@ -79,9 +85,22 @@ export default function CartItem({ item }: CartItemProps) {
 
         {/* Product Name & Price - 68% width, top-left aligned */}
         <div className="w-[68%] flex-shrink-0 flex flex-col justify-start pr-1 sm:pr-2 min-w-0">
-          <h4 className="text-xs sm:text-sm text-gray-900 leading-tight mb-0.5 line-clamp-2 break-words overflow-hidden" data-testid={`cart-item-name-${item.id}`}>
-            {item.product.name}
-          </h4>
+          <TooltipProvider delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <h4 
+                  className="text-xs sm:text-sm text-gray-900 leading-tight mb-0.5 truncate cursor-default" 
+                  data-testid={`cart-item-name-${item.id}`}
+                  aria-label={item.product.name}
+                >
+                  {item.product.name}
+                </h4>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <p className="text-xs">{item.product.name}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <p className="text-[11px] sm:text-xs text-gray-600 truncate" data-testid={`cart-item-price-${item.id}`}>
             ₹{parseFloat(item.product.price).toFixed(2)}
           </p>
@@ -92,7 +111,8 @@ export default function CartItem({ item }: CartItemProps) {
           <button
             onClick={() => handleQuantityChange(-1)}
             disabled={updateQuantityMutation.isPending}
-            className="w-[26px] h-[26px] min-w-[26px] min-h-[26px] max-w-[26px] max-h-[26px] flex-shrink-0 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all focus:ring-2 focus:ring-primary/20 focus:ring-offset-1 active:bg-gray-100 active:ring-2 active:ring-primary/30 disabled:opacity-50 p-0"
+            aria-label="Decrease quantity"
+            className="w-[26px] h-[26px] min-w-[26px] min-h-[26px] max-w-[26px] max-h-[26px] flex-shrink-0 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 active:scale-95 active:shadow-[0_0_8px_rgba(34,197,94,0.3)] disabled:opacity-50 disabled:active:scale-100 disabled:active:shadow-none p-0"
             data-testid={`button-decrease-${item.id}`}
           >
             <i className="fas fa-minus text-[8px]"></i>
@@ -103,7 +123,8 @@ export default function CartItem({ item }: CartItemProps) {
           <button
             onClick={() => handleQuantityChange(1)}
             disabled={updateQuantityMutation.isPending}
-            className="w-[26px] h-[26px] min-w-[26px] min-h-[26px] max-w-[26px] max-h-[26px] flex-shrink-0 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all focus:ring-2 focus:ring-primary/20 focus:ring-offset-1 active:bg-gray-100 active:ring-2 active:ring-primary/30 disabled:opacity-50 p-0"
+            aria-label="Increase quantity"
+            className="w-[26px] h-[26px] min-w-[26px] min-h-[26px] max-w-[26px] max-h-[26px] flex-shrink-0 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 active:scale-95 active:shadow-[0_0_8px_rgba(34,197,94,0.3)] disabled:opacity-50 disabled:active:scale-100 disabled:active:shadow-none p-0"
             data-testid={`button-increase-${item.id}`}
           >
             <i className="fas fa-plus text-[8px]"></i>
