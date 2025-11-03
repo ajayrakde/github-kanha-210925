@@ -74,7 +74,7 @@ export function TabAccordion({
               <button
                 onClick={() => setValue(isActive ? "" : item.value)}
                 className={cn(
-                  "w-full flex items-center justify-between px-4 py-3 text-left transition-colors",
+                  "w-full flex items-center justify-between px-4 py-2.5 text-left transition-colors",
                   isActive
                     ? "bg-primary text-primary-foreground"
                     : "bg-white hover:bg-gray-50 text-gray-900"
@@ -82,12 +82,12 @@ export function TabAccordion({
                 data-testid={`accordion-trigger-${item.value}`}
                 aria-expanded={isActive}
               >
-                <div className="flex items-center gap-2 font-medium">
+                <div className="flex items-center gap-2 font-medium text-sm">
                   {item.icon}
                   <span>{item.label}</span>
                 </div>
                 <ChevronDown
-                  size={20}
+                  size={18}
                   className={cn(
                     "transition-transform",
                     isActive ? "rotate-180" : ""
@@ -97,7 +97,7 @@ export function TabAccordion({
               
               {isActive && (
                 <div
-                  className="px-4 py-4 bg-white border-t border-gray-200"
+                  className="bg-white border-t border-gray-200"
                   data-testid={`accordion-content-${item.value}`}
                 >
                   {item.content}

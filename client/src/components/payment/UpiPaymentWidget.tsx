@@ -323,7 +323,7 @@ export function UpiPaymentWidget({
       label: "Pay via app",
       icon: <Smartphone size={16} />,
       content: (
-        <section aria-label="UPI apps" className="grid grid-cols-4 gap-2 p-4">
+        <section aria-label="UPI apps" className="grid grid-cols-4 gap-3 md:gap-4 p-3 md:p-4">
           {apps.map((app) => (
             <Button
               key={app.id}

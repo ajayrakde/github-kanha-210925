@@ -529,9 +529,9 @@ export default function Cart() {
         </div>
       </div>
 
-      {/* Sticky Checkout Bar - Hidden on mobile, not needed */}
-      <div className="hidden" id="cart-summary-mobile">
-        <div className="flex items-center justify-between gap-3" id="order-total-mobile">
+      {/* Sticky Checkout Bar - Mobile Only */}
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-3 z-20" id="cart-summary-mobile">
+        <div className="flex items-center justify-between gap-3 max-w-7xl mx-auto" id="order-total-mobile">
           <div className="flex-1 min-w-0">
             <div className="text-xs text-gray-600">Total ({cartItems.length} items)</div>
             <div className="text-xl font-bold text-gray-900">₹{total.toFixed(2)}</div>
@@ -540,7 +540,7 @@ export default function Cart() {
             )}
           </div>
           <Button
-            className="bg-green-600 hover:bg-green-700 active:bg-green-800 h-12 px-6 text-base font-semibold shadow-md flex-shrink-0"
+            className="bg-green-600 hover:bg-green-700 active:bg-green-800 h-12 px-6 text-base font-semibold flex-shrink-0"
             onClick={() => setLocation("/checkout")}
             data-testid="button-proceed-checkout-mobile"
           >
