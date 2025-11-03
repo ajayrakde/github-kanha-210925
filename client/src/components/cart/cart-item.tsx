@@ -65,11 +65,11 @@ export default function CartItem({ item }: CartItemProps) {
   };
 
   return (
-    <div className="relative py-3 px-3 sm:px-4" data-testid={`cart-item-${item.id}`}>
-      {/* Cart Item Content - Horizontal Distribution: 15% image, 65% name/price, 20% quantity controls */}
-      <div className="flex items-center gap-2 bg-white">
-        {/* Product Image - 15% width, square (3:3 ratio) */}
-        <div className="w-[15%] flex-shrink-0">
+    <div className="relative py-3 px-2 sm:px-4" data-testid={`cart-item-${item.id}`}>
+      {/* Cart Item Content - Horizontal Distribution: 14% image, 68% name/price, 18% quantity controls */}
+      <div className="flex items-center gap-1.5 sm:gap-2 bg-white">
+        {/* Product Image - 14% width, square (3:3 ratio) */}
+        <div className="w-[14%] flex-shrink-0">
           <img
             src={item.product.imageUrl || `https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?ixlib=rb-4.0.3&auto=format&fit=crop&w=80&h=80`}
             alt={item.product.name}
@@ -77,8 +77,8 @@ export default function CartItem({ item }: CartItemProps) {
           />
         </div>
 
-        {/* Product Name & Price - 65% width, top-left aligned */}
-        <div className="w-[65%] flex-shrink-0 flex flex-col justify-start pr-2">
+        {/* Product Name & Price - 68% width, top-left aligned */}
+        <div className="w-[68%] flex-shrink-0 flex flex-col justify-start pr-1 sm:pr-2">
           <h4 className="text-xs sm:text-sm text-gray-900 leading-tight mb-0.5 line-clamp-2" data-testid={`cart-item-name-${item.id}`}>
             {item.product.name}
           </h4>
@@ -87,8 +87,8 @@ export default function CartItem({ item }: CartItemProps) {
           </p>
         </div>
 
-        {/* Quantity Controls - 20% width, 3:1 ratio buttons (0.9:1.2:0.9) */}
-        <div className="w-[20%] flex-shrink-0 flex items-center justify-end gap-0.5">
+        {/* Quantity Controls - 18% width, 3:1 ratio buttons (0.9:1.2:0.9) */}
+        <div className="w-[18%] flex-shrink-0 flex items-center justify-end gap-0.5">
           <button
             onClick={() => handleQuantityChange(-1)}
             disabled={updateQuantityMutation.isPending}
