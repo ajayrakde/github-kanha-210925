@@ -338,7 +338,7 @@ export default function ProductDetails() {
                     <button
                       onClick={handleDecreaseQuantity}
                       disabled={removeFromCartMutation.isPending || updateCartMutation.isPending}
-                      className="w-6 h-6 sm:w-7 sm:h-7 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-colors disabled:opacity-50"
+                      className="w-7 h-7 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center quantity-btn disabled:opacity-50"
                       data-testid="button-decrease-quantity"
                     >
                       <i className="fas fa-minus text-[10px]"></i>
@@ -349,7 +349,7 @@ export default function ProductDetails() {
                     <button
                       onClick={handleIncreaseQuantity}
                       disabled={cartQuantity >= 10 || updateCartMutation.isPending}
-                      className="w-6 h-6 sm:w-7 sm:h-7 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-7 h-7 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center quantity-btn disabled:opacity-50 disabled:cursor-not-allowed"
                       data-testid="button-increase-quantity"
                     >
                       <i className="fas fa-plus text-[10px]"></i>
@@ -357,13 +357,13 @@ export default function ProductDetails() {
                     <span className="text-sm text-gray-600">in cart</span>
                   </div>
                   
-                  {/* Proceed to Checkout Button */}
+                  {/* Proceed to Checkout Button - Smaller Blue when in cart */}
                   {cartItems && cartItems.length > 0 && (
                     <>
                       <Button
                         onClick={() => navigate('/checkout')}
-                        className="w-full bg-green-600 hover:bg-green-700 text-white"
-                        size="lg"
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                        size="default"
                         data-testid="button-proceed-checkout"
                       >
                         Proceed to Checkout
@@ -372,7 +372,7 @@ export default function ProductDetails() {
                         onClick={handleBack}
                         variant="outline"
                         className="w-full"
-                        size="lg"
+                        size="default"
                         data-testid="button-continue-shopping"
                       >
                         Continue Shopping
@@ -384,7 +384,7 @@ export default function ProductDetails() {
                 <Button
                   onClick={() => addToCartMutation.mutate()}
                   disabled={addToCartMutation.isPending || !product.isActive}
-                  className="w-full bg-blue-600 hover:bg-blue-700"
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
                   size="lg"
                   data-testid="button-add-to-cart"
                 >
