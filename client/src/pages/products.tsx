@@ -252,27 +252,6 @@ export default function Products() {
         )}
         
         <div className="container">
-          <div className="section-heading">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              {itemCount > 0 && (
-                <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end max-w-xs sm:max-w-none">
-                  <button
-                    type="button"
-                    onClick={() => setLocation("/checkout")}
-                    className="flex items-center justify-center gap-2 rounded-full bg-[linear-gradient(120deg,var(--accent),var(--purple))] px-4 py-2 text-sm font-bold text-white shadow-lg transition-all hover:-translate-y-1 hover:shadow-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-white sm:px-6"
-                    data-testid="button-proceed-checkout"
-                  >
-                    Checkout
-                    <ArrowRight size={16} />
-                  </button>
-                  <span className="text-xs text-primary/80 text-center sm:text-right">
-                    {itemCount} {itemCount === 1 ? "item" : "items"} · ₹{subtotal.toFixed(2)}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
           {!products || products.length === 0 ? (
             <div className="card center py-12 px-6">
               <div className="card-content items-center">
