@@ -49,7 +49,10 @@ export default function MobileNav() {
               <i className={`${item.icon} text-xl`} aria-hidden="true"></i>
               {item.path === "/cart" && itemCount > 0 && (
                 <span
-                  className="absolute top-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded bg-tertiary text-[9px] font-bold text-white border border-tertiary/20"
+                  className="absolute -top-1 -right-1 flex h-5 min-w-[20px] px-1 items-center justify-center rounded-full bg-red-600 text-[10px] font-bold text-white border-2 border-white shadow-md"
+                  style={{
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.3), 0 0 0 1px rgba(0,0,0,0.1)'
+                  }}
                   data-testid="text-cart-count-mobile"
                   aria-label={`${itemCount} items in cart`}
                 >
