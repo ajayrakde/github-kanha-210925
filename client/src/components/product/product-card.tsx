@@ -114,7 +114,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
           {/* Minimal add button - responsive dimensions */}
           <div onClick={(e) => e.stopPropagation()} className="ml-auto">
             {cartQuantity > 0 ? (
-              <div className="flex items-center gap-0.5 bg-primary rounded px-1 h-5 md:h-7 w-[58px] md:w-[72px] justify-center">
+              <div className="flex items-center gap-0.5 bg-primary rounded px-1 h-5 md:h-7 w-[58px] md:w-[72px] justify-center border border-transparent">
                 <button
                   type="button"
                   className="h-4 w-4 md:h-5 md:w-5 rounded bg-white/20 hover:bg-white/30 active:bg-white/40 flex items-center justify-center transition-colors flex-shrink-0"
