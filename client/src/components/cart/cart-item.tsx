@@ -78,11 +78,11 @@ export default function CartItem({ item }: CartItemProps) {
         </div>
 
         {/* Product Name & Price - 68% width, top-left aligned */}
-        <div className="w-[68%] flex-shrink-0 flex flex-col justify-start pr-1 sm:pr-2">
-          <h4 className="text-xs sm:text-sm text-gray-900 leading-tight mb-0.5 line-clamp-2" data-testid={`cart-item-name-${item.id}`}>
+        <div className="w-[68%] flex-shrink-0 flex flex-col justify-start pr-1 sm:pr-2 min-w-0">
+          <h4 className="text-xs sm:text-sm text-gray-900 leading-tight mb-0.5 line-clamp-2 break-words overflow-hidden" data-testid={`cart-item-name-${item.id}`}>
             {item.product.name}
           </h4>
-          <p className="text-[11px] sm:text-xs text-gray-600" data-testid={`cart-item-price-${item.id}`}>
+          <p className="text-[11px] sm:text-xs text-gray-600 truncate" data-testid={`cart-item-price-${item.id}`}>
             ₹{parseFloat(item.product.price).toFixed(2)}
           </p>
         </div>
