@@ -65,9 +65,9 @@ export default function CartItem({ item }: CartItemProps) {
   };
 
   return (
-    <div className="relative" data-testid={`cart-item-${item.id}`}>
+    <div className="relative py-3" data-testid={`cart-item-${item.id}`}>
       {/* Cart Item Content - Horizontal Distribution: 15% image, 70% name/price, 15% quantity controls */}
-      <div className="flex items-center gap-2 bg-white py-3 px-4 sm:px-6">
+      <div className="flex items-center gap-2 bg-white">
         {/* Product Image - 15% width, square (3:3 ratio) */}
         <div className="w-[15%] flex-shrink-0">
           <img
