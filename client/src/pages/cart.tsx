@@ -8,7 +8,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { apiRequest, getQueryFn } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, ChevronDown, Tag } from "lucide-react";
+import { ArrowLeft, ChevronDown, Tag, ChevronLeft, Heart } from "lucide-react";
 import type { Offer, Product } from "@/lib/types";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { scrollToContext } from "@/lib/scroll-utils";
@@ -274,15 +274,47 @@ export default function Cart() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-4">
+    <div className="max-w-7xl mx-auto">
+      {/* Mobile: 3-Column App Bar | ← | Kanhaa | (User + Heart) | */}
+      <div className="md:hidden sticky top-0 z-40 bg-white border-b border-gray-300">
+        <div className="grid grid-cols-3 items-center px-3 py-2.5">
+          {/* Left: Back Button */}
+          <button
+            onClick={() => setLocation("/")}
+            className="flex items-center justify-center w-11 h-11 -ml-2 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
+            aria-label="Back to products"
+            data-testid="button-back-to-products"
+          >
+            <ChevronLeft className="w-6 h-6 text-gray-900" strokeWidth={2.5} />
+          </button>
+          
+          {/* Center: Brand */}
+          <div className="flex justify-center">
+            <h1 className="text-lg font-bold text-gray-900">Kanhaa</h1>
+          </div>
+          
+          {/* Right: User + Heart Icons */}
+          <div className="flex items-center justify-end gap-1">
+            <button
+              className="flex items-center justify-center w-11 h-11 rounded-full hover:bg-gray-100 active:bg-gray-200 transition-colors"
+              aria-label="Favorites"
+              data-testid="button-favorites-cart"
+            >
+              <Heart className="w-5 h-5 text-gray-900" strokeWidth={2} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop: Original Header */}
+      <div className="hidden md:block px-3 sm:px-4">
       <div className="space-y-3 sm:space-y-6">
-      {/* Back Button and Title */}
       <div className="flex sm:flex-row items-center sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-6">
         <Button
           onClick={() => setLocation("/")}
           variant="ghost"
           className="text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-white"
-          data-testid="button-back-to-products"
+          data-testid="button-back-to-products-desktop"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back
@@ -292,6 +324,12 @@ export default function Cart() {
           <p className="text-sm sm:text-base text-gray-600 hidden sm:block">Review your items before checkout</p>
         </div>
       </div>
+      </div>
+      </div>
+
+      {/* Cart Content */}
+      <div className="px-3 sm:px-4">
+      <div className="space-y-3 sm:space-y-6">
 
       <div className="grid lg:grid-cols-3 gap-3 sm:gap-6">
         <div className="lg:col-span-2 space-y-3 sm:space-y-6">
@@ -492,7 +530,8 @@ export default function Cart() {
           </Button>
         </div>
       </div>
-    </div>
+      </div>
+      </div>
     </div>
   );
 }
