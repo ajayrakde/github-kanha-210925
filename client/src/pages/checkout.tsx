@@ -10,8 +10,9 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { ArrowLeft, Plus, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Loader2, MapPin } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { BottomSheet } from "@/components/ui/bottom-sheet";
 
 interface UserInfo {
   name: string;
@@ -53,6 +54,7 @@ export default function Checkout() {
   const [couponCode, setCouponCode] = useState("");
   const [appliedOffer, setAppliedOffer] = useState<any>(null);
   const [couponError, setCouponError] = useState("");
+  const [isAddressSheetOpen, setIsAddressSheetOpen] = useState(false);
 
   // Load selected offer from cart if available
   useEffect(() => {
@@ -745,46 +747,103 @@ export default function Checkout() {
                         </Button>
                         
                         {addresses.length > 1 && (
-                          <details className="group">
-                            <summary className="cursor-pointer text-sm text-blue-600 hover:text-blue-800">
-                              Choose from other saved addresses
-                            </summary>
-                            <div className="mt-2 space-y-2">
-                              {addresses.filter(addr => !addr.isPreferred).map((address) => (
-                                <div
-                                  key={address.id}
-                                  className={`border rounded-lg p-3 cursor-pointer transition-colors ${
-                                    selectedAddressId === address.id
-                                      ? 'border-blue-500 bg-blue-50'
-                                      : 'border-gray-200 hover:border-gray-300'
-                                  }`}
+                          <>
+                            {/* Desktop: Details Element */}
+                            <details className="hidden md:block group">
+                              <summary className="cursor-pointer text-sm text-blue-600 hover:text-blue-800">
+                                Choose from other saved addresses
+                              </summary>
+                              <div className="mt-2 space-y-2">
+                                {addresses.filter(addr => !addr.isPreferred).map((address) => (
+                                  <div
+                                    key={address.id}
+                                    className={`border rounded-lg p-3 cursor-pointer transition-colors ${
+                                      selectedAddressId === address.id
+                                        ? 'border-blue-500 bg-blue-50'
+                                        : 'border-gray-200 hover:border-gray-300'
+                                    }`}
                                     onClick={() => {
                                       setShowNewAddressForm(false);
                                       setSelectedAddressId(address.id);
                                     }}
-                                  data-testid={`address-option-${address.id}`}
-                                >
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex items-start gap-3">
-                                      <input
-                                        type="radio"
-                                        name="addressSelection"
-                                        checked={selectedAddressId === address.id}
-                                        onChange={() => {}}
-                                        className="mt-1"
-                                      />
-                                      <div className="flex-1">
-                                        <h4 className="font-medium text-sm">{address.name}</h4>
-                                        <p className="text-xs text-gray-600 mt-1">
-                                          {address.address}, {address.city} - {address.pincode}
-                                        </p>
+                                    data-testid={`address-option-${address.id}`}
+                                  >
+                                    <div className="flex items-start justify-between">
+                                      <div className="flex items-start gap-3">
+                                        <input
+                                          type="radio"
+                                          name="addressSelection"
+                                          checked={selectedAddressId === address.id}
+                                          onChange={() => {}}
+                                          className="mt-1"
+                                        />
+                                        <div className="flex-1">
+                                          <h4 className="font-medium text-sm">{address.name}</h4>
+                                          <p className="text-xs text-gray-600 mt-1">
+                                            {address.address}, {address.city} - {address.pincode}
+                                          </p>
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
+                                ))}
+                              </div>
+                            </details>
+
+                            {/* Mobile: Bottom Sheet */}
+                            <div className="md:hidden">
+                              <Button
+                                variant="outline"
+                                onClick={() => setIsAddressSheetOpen(true)}
+                                className="w-full"
+                                data-testid="button-choose-saved-address"
+                              >
+                                <MapPin className="w-4 h-4 mr-2" />
+                                Choose from saved addresses
+                              </Button>
+
+                              <BottomSheet
+                                open={isAddressSheetOpen}
+                                onOpenChange={setIsAddressSheetOpen}
+                                title="Select Address"
+                              >
+                                <div className="space-y-3 pb-6">
+                                  {addresses.filter(addr => !addr.isPreferred).map((address) => (
+                                    <div
+                                      key={address.id}
+                                      className={`border rounded-lg p-4 cursor-pointer transition-all active:scale-98 ${
+                                        selectedAddressId === address.id
+                                          ? 'border-blue-500 bg-blue-50'
+                                          : 'border-gray-200 active:bg-gray-50'
+                                      }`}
+                                      onClick={() => {
+                                        setShowNewAddressForm(false);
+                                        setSelectedAddressId(address.id);
+                                        setIsAddressSheetOpen(false);
+                                      }}
+                                      data-testid={`address-option-mobile-${address.id}`}
+                                    >
+                                      <div className="flex items-start gap-3">
+                                        <input
+                                          type="radio"
+                                          name="addressSelectionMobile"
+                                          checked={selectedAddressId === address.id}
+                                          onChange={() => {}}
+                                          className="mt-1"
+                                        />
+                                        <div className="flex-1">
+                                          <h4 className="font-medium text-base">{address.name}</h4>
+                                          <p className="text-sm text-gray-600 mt-1">
+                                            {address.address}, {address.city} - {address.pincode}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
+                              </BottomSheet>
                             </div>
-                          </details>
+                          </>
                         )}
                       </div>
                     )}
