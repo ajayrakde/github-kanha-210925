@@ -164,3 +164,42 @@ export function scrollToElement(
 
   return true;
 }
+
+export function scrollToFormError(
+  errors: Record<string, any>,
+  options: ScrollOptions = {}
+): boolean {
+  const errorFields = Object.keys(errors);
+  if (errorFields.length === 0) return false;
+
+  const firstErrorField = errorFields[0];
+  
+  const element = 
+    document.querySelector(`[name="${firstErrorField}"]`) as HTMLElement ||
+    document.querySelector(`#${firstErrorField}`) as HTMLElement ||
+    document.querySelector(`[id*="${firstErrorField}"]`) as HTMLElement;
+
+  if (!element) {
+    console.warn(`No element found for error field: ${firstErrorField}`);
+    return scrollToContext("form-error", options);
+  }
+
+  const defaultOffset = isMobileDevice() ? 100 : 20;
+  const offset = options.offset ?? defaultOffset;
+
+  const elementPosition = element.getBoundingClientRect().top;
+  const offsetPosition = elementPosition + window.pageYOffset - offset;
+
+  window.scrollTo({
+    top: Math.max(0, offsetPosition),
+    behavior: options.smooth !== false ? "smooth" : "auto",
+  });
+
+  setTimeout(() => {
+    if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) {
+      element.focus({ preventScroll: true });
+    }
+  }, 300);
+
+  return true;
+}

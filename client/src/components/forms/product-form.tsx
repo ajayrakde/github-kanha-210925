@@ -14,6 +14,7 @@ import { ObjectUploader } from "@/components/ObjectUploader";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import { Eye, FileText } from "lucide-react";
 import { useState } from "react";
+import { scrollToFormError } from "@/lib/scroll-utils";
 
 const productSchema = z.object({
   name: z.string().min(1, "Product name is required"),
@@ -116,8 +117,12 @@ export default function ProductForm({ product, onClose }: ProductFormProps) {
     createProductMutation.mutate(finalFormData);
   };
 
+  const onError = (errors: any) => {
+    scrollToFormError(errors);
+  };
+
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={form.handleSubmit(onSubmit, onError)} className="space-y-6">
       <div className="space-y-4">
         <div>
           <Label htmlFor="name">Product Name *</Label>

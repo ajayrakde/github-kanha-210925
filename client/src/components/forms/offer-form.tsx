@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { scrollToFormError } from "@/lib/scroll-utils";
 
 const offerSchema = z.object({
   code: z.string().min(1, "Coupon code is required").toUpperCase(),
@@ -172,8 +173,12 @@ export default function OfferForm({ offer, onClose }: OfferFormProps) {
   const commissionType = form.watch("commissionType");
   const hasInfluencer = Boolean(influencerId && influencerId.trim() !== "");
 
+  const onError = (errors: any) => {
+    scrollToFormError(errors);
+  };
+
   return (
-    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={form.handleSubmit(onSubmit, onError)} className="space-y-6">
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <div>

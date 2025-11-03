@@ -543,6 +543,27 @@ export default function Checkout() {
     });
   }, [step, userInfo, isPincodeValid, isCalculatingShipping, placeOrderMutation.isPending]);
 
+  // Scroll to pincode input during shipping calculation
+  useEffect(() => {
+    if (isCalculatingShipping) {
+      setTimeout(() => scrollToContext("pincode-checking"), 100);
+    }
+  }, [isCalculatingShipping]);
+
+  // Scroll to OTP input during verification
+  useEffect(() => {
+    if (verifyOtpMutation.isPending) {
+      setTimeout(() => scrollToContext("otp-verification"), 100);
+    }
+  }, [verifyOtpMutation.isPending]);
+
+  // Scroll to payment status during order processing
+  useEffect(() => {
+    if (placeOrderMutation.isPending) {
+      setTimeout(() => scrollToContext("payment-processing"), 100);
+    }
+  }, [placeOrderMutation.isPending]);
+
   const total = subtotal + shippingCharge - discount; // Add shipping and subtract discount
 
   if (!cartItems || cartItems.length === 0) {
