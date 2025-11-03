@@ -102,7 +102,7 @@ export function BottomSheet({
       <div
         ref={sheetRef}
         className={cn(
-          "fixed bottom-0 left-0 right-0 bg-white rounded-t-2xl shadow-2xl flex flex-col transition-transform",
+          "fixed bottom-0 left-0 right-0 bg-white rounded-t border-t border-gray-200 flex flex-col transition-transform",
           heightMap[height],
           className
         )}
