@@ -718,7 +718,8 @@
 
   /* Product grid - 2 columns on mobile, compact gaps */
   .product-grid {
-    gap: 0.5rem !important;
+    column-gap: 0.625rem !important;
+    row-gap: 0.875rem !important;
     grid-template-columns: repeat(2, 1fr) !important;
   }
 
@@ -727,6 +728,23 @@
     padding: 0 !important;
     overflow: hidden;
     width: 100% !important;
+    border-right: 1px solid #e5e7eb;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  
+  /* Remove right border on even columns (2nd column on mobile) */
+  .card:nth-child(2n) {
+    border-right: none;
+  }
+  
+  /* Remove bottom border from last item always */
+  .product-grid .card:last-child {
+    border-bottom: none;
+  }
+  
+  /* When total count is even (last card is at even position), also remove border from second-to-last */
+  .product-grid:has(.card:nth-child(even):last-child) .card:nth-last-child(2) {
+    border-bottom: none;
   }
 
   .card-image {
@@ -1350,7 +1368,8 @@ a:hover {
 
 .product-grid {
   display: grid;
-  gap: 1.5rem;
+  column-gap: 1.25rem;
+  row-gap: 1.75rem;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   align-items: stretch;
 }
@@ -1358,6 +1377,14 @@ a:hover {
 @media (min-width: 768px) {
   .product-grid {
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    column-gap: 1.25rem;
+    row-gap: 1.75rem;
+  }
+  
+  /* Override mobile card borders for desktop - use gap instead */
+  .card {
+    border-right: none !important;
+    border-bottom: none !important;
   }
 }
 
