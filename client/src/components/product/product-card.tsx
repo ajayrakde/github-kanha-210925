@@ -114,10 +114,10 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
           {/* Minimal add button - responsive dimensions */}
           <div onClick={(e) => e.stopPropagation()} className="ml-auto shrink-0">
             {cartQuantity > 0 ? (
-              <div className="flex items-center gap-0.5 bg-primary hover:bg-primary/90 rounded h-5 md:h-7 w-[66px] md:w-[84px] min-w-[66px] md:min-w-[84px] max-w-[66px] md:max-w-[84px] py-0.5 justify-center border border-transparent transition-all">
+              <div className="flex items-center justify-end gap-0.5">
                 <button
                   type="button"
-                  className="h-4 w-4 md:h-5 md:w-5 rounded bg-white/20 hover:bg-white/30 flex items-center justify-center transition-all flex-[0.9] outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-1 focus-visible:ring-offset-primary active:scale-95 active:shadow-[0_0_8px_rgba(255,255,255,0.4)] disabled:opacity-50 disabled:active:scale-100 disabled:active:shadow-none"
+                  className="w-[20px] h-[20px] md:w-[26px] md:h-[26px] min-w-[20px] min-h-[20px] md:min-w-[26px] md:min-h-[26px] max-w-[20px] max-h-[20px] md:max-w-[26px] md:max-h-[26px] flex-shrink-0 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 active:scale-95 active:shadow-[0_0_8px_rgba(34,197,94,0.3)] disabled:opacity-50 disabled:active:scale-100 disabled:active:shadow-none p-0"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDecreaseQuantity();
@@ -126,14 +126,14 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                   data-testid={`button-decrease-quantity-${product.id}`}
                   aria-label={`Decrease quantity of ${product.name}`}
                 >
-                  <Minus size={10} className="text-white md:scale-[1.05]" />
+                  <Minus size={8} className="md:scale-110" />
                 </button>
-                <span className="flex-[1.2] text-center font-bold text-[10px] md:text-[11px] leading-none text-white" data-testid={`cart-quantity-${product.id}`}>
+                <span className="w-[26px] h-[26px] md:w-[32px] md:h-[32px] min-w-[26px] min-h-[26px] md:min-w-[32px] md:min-h-[32px] max-w-[26px] max-h-[26px] md:max-w-[32px] md:max-h-[32px] flex-shrink-0 flex items-center justify-center text-[10px] md:text-xs font-medium bg-gray-50" data-testid={`cart-quantity-${product.id}`}>
                   {cartQuantity}
                 </span>
                 <button
                   type="button"
-                  className="h-4 w-4 md:h-5 md:w-5 rounded bg-white/20 hover:bg-white/30 flex items-center justify-center transition-all flex-[0.9] outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-1 focus-visible:ring-offset-primary active:scale-95 active:shadow-[0_0_8px_rgba(255,255,255,0.4)] disabled:opacity-50 disabled:active:scale-100 disabled:active:shadow-none"
+                  className="w-[20px] h-[20px] md:w-[26px] md:h-[26px] min-w-[20px] min-h-[20px] md:min-w-[26px] md:min-h-[26px] max-w-[20px] max-h-[20px] md:max-w-[26px] md:max-h-[26px] flex-shrink-0 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 active:scale-95 active:shadow-[0_0_8px_rgba(34,197,94,0.3)] disabled:opacity-50 disabled:active:scale-100 disabled:active:shadow-none p-0"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleIncreaseQuantity();
@@ -142,7 +142,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                   data-testid={`button-increase-quantity-${product.id}`}
                   aria-label={`Increase quantity of ${product.name}`}
                 >
-                  <Plus size={10} className="text-white md:scale-[1.05]" />
+                  <Plus size={8} className="md:scale-110" />
                 </button>
               </div>
             ) : (
