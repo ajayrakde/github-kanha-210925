@@ -64,7 +64,7 @@ export function StoryCircles({ items, activeId, className }: StoryCirclesProps) 
   return (
     <div
       className={cn(
-        "flex gap-2.5 overflow-x-auto pb-1.5 scrollbar-hide md:hidden px-0.5",
+        "flex gap-2.5 overflow-x-auto pb-1.5 px-2 scrollbar-hide md:hidden",
         className
       )}
       data-testid="story-circles-container"

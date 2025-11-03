@@ -101,79 +101,72 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
       </div>
 
       {/* Flat Info Section - Instagram style */}
-      <div className="pt-2 pb-1 space-y-1" onClick={handleCardNavigation}>
-        <h3 className="text-xs font-normal text-gray-900 leading-snug line-clamp-2" data-testid={`product-name-${product.id}`}>
+      <div className="pt-1.5 pb-0.5 space-y-0.5" onClick={handleCardNavigation}>
+        <h3 className="text-xs font-normal text-gray-900 leading-tight line-clamp-2" data-testid={`product-name-${product.id}`}>
           {product.name}
         </h3>
         
-        <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
           <span className="text-sm font-bold text-gray-900" data-testid={`product-price-${product.id}`}>
             ₹{parseFloat(product.price).toFixed(2)}
           </span>
           
-          {/* Mobile: Show in cart indicator only */}
-          {isInCart && (
-            <span className="md:hidden text-[10px] font-medium px-2 py-0.5 rounded-full bg-green-100 text-green-700">
-              In cart ({cartQuantity})
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Flat Action Section - Below info, no card borders */}
-      <div className="pt-1 pb-2" onClick={(e) => e.stopPropagation()}>
-        {cartQuantity > 0 ? (
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              className="flex-1 h-7 rounded-md bg-gray-100 hover:bg-gray-200 active:bg-gray-300 flex items-center justify-center transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDecreaseQuantity();
-              }}
-              disabled={updateCartItem.isPending || removeFromCart.isPending}
-              data-testid={`button-decrease-quantity-${product.id}`}
-              aria-label={`Decrease quantity of ${product.name}`}
-            >
-              <Minus size={12} />
-            </button>
-            <span className="min-w-[24px] text-center font-medium text-[11px]" data-testid={`cart-quantity-${product.id}`}>
-              {cartQuantity}
-            </span>
-            <button
-              type="button"
-              className="flex-1 h-7 rounded-md bg-primary text-white hover:bg-primary/90 active:bg-primary/80 flex items-center justify-center transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleIncreaseQuantity();
-              }}
-              disabled={updateCartItem.isPending || cartQuantity >= 10}
-              data-testid={`button-increase-quantity-${product.id}`}
-              aria-label={`Increase quantity of ${product.name}`}
-            >
-              <Plus size={12} />
-            </button>
+          {/* Compact add button - icon only */}
+          <div onClick={(e) => e.stopPropagation()} className="ml-auto">
+            {cartQuantity > 0 ? (
+              <div className="flex items-center gap-1 bg-primary rounded-full px-1.5 py-0.5">
+                <button
+                  type="button"
+                  className="h-5 w-5 rounded-full bg-white/20 hover:bg-white/30 active:bg-white/40 flex items-center justify-center transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDecreaseQuantity();
+                  }}
+                  disabled={updateCartItem.isPending || removeFromCart.isPending}
+                  data-testid={`button-decrease-quantity-${product.id}`}
+                  aria-label={`Decrease quantity of ${product.name}`}
+                >
+                  <Minus size={10} className="text-white" />
+                </button>
+                <span className="min-w-[16px] text-center font-bold text-[10px] text-white px-1" data-testid={`cart-quantity-${product.id}`}>
+                  {cartQuantity}
+                </span>
+                <button
+                  type="button"
+                  className="h-5 w-5 rounded-full bg-white/20 hover:bg-white/30 active:bg-white/40 flex items-center justify-center transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleIncreaseQuantity();
+                  }}
+                  disabled={updateCartItem.isPending || cartQuantity >= 10}
+                  data-testid={`button-increase-quantity-${product.id}`}
+                  aria-label={`Increase quantity of ${product.name}`}
+                >
+                  <Plus size={10} className="text-white" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                className="h-6 w-6 rounded-full bg-secondary hover:bg-secondary/90 active:bg-secondary/80 text-primary transition-colors flex items-center justify-center"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  haptic.add();
+                  addToCart.mutate({
+                    productId: product.id,
+                    quantity: 1,
+                    product,
+                  });
+                }}
+                disabled={addToCart.isPending}
+                data-testid={`button-add-to-cart-${product.id}`}
+                aria-label={`Add ${product.name} to cart`}
+              >
+                <Plus size={14} />
+              </button>
+            )}
           </div>
-        ) : (
-          <button
-            type="button"
-            className="w-full h-7 rounded-md bg-secondary hover:bg-secondary/90 active:bg-secondary/80 text-primary font-medium text-[11px] transition-colors flex items-center justify-center gap-1"
-            onClick={(e) => {
-              e.stopPropagation();
-              haptic.add();
-              addToCart.mutate({
-                productId: product.id,
-                quantity: 1,
-                product,
-              });
-            }}
-            disabled={addToCart.isPending}
-            data-testid={`button-add-to-cart-${product.id}`}
-          >
-            <Plus size={12} />
-            <span>Add</span>
-          </button>
-        )}
+        </div>
       </div>
     </div>
   );

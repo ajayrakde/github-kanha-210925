@@ -713,6 +713,11 @@
     gap: 0.25rem !important;
   }
 
+  /* Product grid wrapper - edge to edge on mobile */
+  .product-grid-wrapper {
+    padding: 0 0.5rem;
+  }
+
   /* Product grid - 2 columns on mobile, compact gaps */
   .product-grid {
     gap: 0.5rem !important;
@@ -1339,6 +1344,10 @@ a:hover {
 .section-heading p {
   color: var(--muted-foreground);
   margin: 0;
+}
+
+.product-grid-wrapper {
+  margin-top: 1.25rem;
 }
 
 .product-grid {
