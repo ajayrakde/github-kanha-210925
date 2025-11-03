@@ -18,20 +18,20 @@ export function StoryCircle({
   return (
     <button
       onClick={onClick}
-      className="flex flex-col items-center gap-1.5 flex-shrink-0 group"
+      className="flex flex-col items-center gap-0.5 flex-shrink-0 group"
       data-testid={`story-circle-${label.toLowerCase().replace(/\s+/g, "-")}`}
     >
       <div
         className={cn(
-          "w-16 h-16 rounded-full p-0.5 bg-gradient-to-br transition-transform group-active:scale-95",
+          "w-12 h-12 rounded-full p-0.5 bg-gradient-to-br transition-transform group-active:scale-95",
           gradient,
-          active && "ring-2 ring-offset-2 ring-primary"
+          active && "ring-1 ring-offset-1 ring-primary"
         )}
       >
         <div className="w-full h-full rounded-full bg-white p-0.5">
           <div
             className={cn(
-              "w-full h-full rounded-full flex items-center justify-center text-2xl bg-gradient-to-br",
+              "w-full h-full rounded-full flex items-center justify-center text-lg bg-gradient-to-br",
               gradient,
               image && "bg-cover bg-center"
             )}
@@ -41,7 +41,7 @@ export function StoryCircle({
           </div>
         </div>
       </div>
-      <span className="text-xs font-medium text-gray-700 max-w-[64px] truncate">
+      <span className="text-[9px] font-medium text-gray-700 max-w-[48px] truncate leading-tight">
         {label}
       </span>
     </button>
@@ -64,7 +64,7 @@ export function StoryCircles({ items, activeId, className }: StoryCirclesProps) 
   return (
     <div
       className={cn(
-        "flex gap-4 overflow-x-auto pb-2 scrollbar-hide md:hidden",
+        "flex gap-2.5 overflow-x-auto pb-1.5 scrollbar-hide md:hidden px-0.5",
         className
       )}
       data-testid="story-circles-container"

@@ -30,7 +30,7 @@ export function StickyCartBar({ onClick, className }: StickyCartBarProps) {
     <div
       id="sticky-cart-bar"
       className={cn(
-        "md:hidden fixed bottom-16 left-0 right-0 z-40 px-4 py-2",
+        "md:hidden fixed bottom-16 left-0 right-0 z-50 px-4 py-2",
         className
       )}
       data-testid="sticky-cart-bar"

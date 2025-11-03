@@ -14,34 +14,33 @@ export default function MobileNav() {
 
   return (
     <nav 
-      className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-200 z-40 shadow-[0_-2px_10px_rgba(0,0,0,0.1)]"
+      className="md:hidden fixed bottom-0 left-0 right-0 bg-white/98 backdrop-blur-sm border-t border-gray-200 z-40 shadow-[0_-1px_8px_rgba(0,0,0,0.08)]"
       aria-label="Mobile navigation"
     >
-      <div className="flex justify-around px-2 py-1">
+      <div className="flex justify-around px-1 py-1.5">
         {navItems.map((item) => (
           <button
             key={item.path}
             onClick={() => setLocation(item.path)}
-            className={`relative flex flex-col items-center justify-center min-w-[64px] min-h-[56px] transition-colors rounded-lg ${
+            className={`relative flex items-center justify-center min-w-[56px] h-12 transition-all rounded-lg ${
               location === item.path 
-                ? 'text-primary bg-secondary/20' 
-                : 'text-gray-600 hover:text-primary hover:bg-gray-50 active:bg-gray-100'
+                ? 'text-primary bg-secondary/25 scale-105' 
+                : 'text-gray-600 hover:text-primary hover:bg-gray-50 active:bg-gray-100 active:scale-95'
             }`}
             data-testid={`nav-${item.label.toLowerCase()}`}
             aria-label={item.label}
             aria-current={location === item.path ? 'page' : undefined}
           >
-            <i className={`${item.icon} text-xl mb-1`} aria-hidden="true"></i>
+            <i className={`${item.icon} text-xl`} aria-hidden="true"></i>
             {item.path === "/cart" && itemCount > 0 && (
               <span
-                className="absolute top-1 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-tertiary text-[11px] font-bold text-white shadow-md"
+                className="absolute top-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-tertiary text-[9px] font-bold text-white shadow-sm"
                 data-testid="text-cart-count-mobile"
                 aria-label={`${itemCount} items in cart`}
               >
                 {itemCount}
               </span>
             )}
-            <span className="text-[11px] font-medium">{item.label}</span>
           </button>
         ))}
       </div>

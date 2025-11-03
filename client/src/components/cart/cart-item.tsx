@@ -154,7 +154,7 @@ export default function CartItem({ item }: CartItemProps) {
 
       {/* Cart Item Content */}
       <div 
-        className="flex items-center space-x-4 py-4 bg-white transition-transform duration-200 ease-out"
+        className="flex items-center gap-3 py-3 bg-white transition-transform duration-200 ease-out"
         style={{ 
           transform: `translateX(-${swipeOffset}px)`,
           touchAction: isSwiping ? 'none' : 'auto'
@@ -166,45 +166,45 @@ export default function CartItem({ item }: CartItemProps) {
         <img
           src={item.product.imageUrl || `https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?ixlib=rb-4.0.3&auto=format&fit=crop&w=80&h=80`}
           alt={item.product.name}
-          className="w-16 h-16 object-cover rounded-md"
+          className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-md flex-shrink-0"
         />
-        <div className="flex-1">
-          <h4 className="font-medium text-gray-900" data-testid={`cart-item-name-${item.id}`}>
+        <div className="flex-1 min-w-0 pr-2">
+          <h4 className="font-semibold text-sm sm:text-base text-gray-900 leading-tight mb-1 truncate" data-testid={`cart-item-name-${item.id}`}>
             {item.product.name}
           </h4>
           <p className="text-sm text-gray-600" data-testid={`cart-item-price-${item.id}`}>
             ₹{parseFloat(item.product.price).toFixed(2)}
           </p>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           <Button
             variant="outline"
             size="sm"
-            className="w-8 h-8 rounded-full p-0"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full p-0 border-gray-300"
             onClick={() => handleQuantityChange(-1)}
             disabled={updateQuantityMutation.isPending}
             data-testid={`button-decrease-${item.id}`}
           >
-            <i className="fas fa-minus text-xs"></i>
+            <i className="fas fa-minus text-[10px]"></i>
           </Button>
-          <span className="w-8 text-center" data-testid={`cart-item-quantity-${item.id}`}>
+          <span className="w-6 text-center text-sm font-medium" data-testid={`cart-item-quantity-${item.id}`}>
             {item.quantity}
           </span>
           <Button
             variant="outline"
             size="sm"
-            className="w-8 h-8 rounded-full p-0"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full p-0 border-gray-300"
             onClick={() => handleQuantityChange(1)}
             disabled={updateQuantityMutation.isPending}
             data-testid={`button-increase-${item.id}`}
           >
-            <i className="fas fa-plus text-xs"></i>
+            <i className="fas fa-plus text-[10px]"></i>
           </Button>
         </div>
         <Button
           variant="ghost"
           size="sm"
-          className="text-red-600 hover:text-red-700 p-2 hidden md:flex"
+          className="text-red-600 hover:text-red-700 hover:bg-red-50 p-2 hidden md:flex flex-shrink-0"
           onClick={() => removeItemMutation.mutate()}
           disabled={removeItemMutation.isPending}
           data-testid={`button-remove-${item.id}`}
