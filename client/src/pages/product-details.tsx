@@ -338,7 +338,8 @@ export default function ProductDetails() {
                     <button
                       onClick={handleDecreaseQuantity}
                       disabled={removeFromCartMutation.isPending || updateCartMutation.isPending}
-                      className="w-9 h-9 flex-shrink-0 rounded-md border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all focus:ring-2 focus:ring-primary/20 focus:ring-offset-1 active:bg-gray-100 active:ring-2 active:ring-primary/30 disabled:opacity-50"
+                      aria-label="Decrease quantity"
+                      className="w-9 h-9 flex-shrink-0 rounded-md border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 active:scale-95 active:shadow-[0_0_8px_rgba(34,197,94,0.3)] disabled:opacity-50 disabled:active:scale-100 disabled:active:shadow-none"
                       data-testid="button-decrease-quantity"
                     >
                       <i className="fas fa-minus text-[9px]"></i>
@@ -349,7 +350,8 @@ export default function ProductDetails() {
                     <button
                       onClick={handleIncreaseQuantity}
                       disabled={cartQuantity >= 10 || updateCartMutation.isPending}
-                      className="w-9 h-9 flex-shrink-0 rounded-md border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all focus:ring-2 focus:ring-primary/20 focus:ring-offset-1 active:bg-gray-100 active:ring-2 active:ring-primary/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Increase quantity"
+                      className="w-9 h-9 flex-shrink-0 rounded-md border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 active:scale-95 active:shadow-[0_0_8px_rgba(34,197,94,0.3)] disabled:opacity-50 disabled:active:scale-100 disabled:active:shadow-none disabled:cursor-not-allowed"
                       data-testid="button-increase-quantity"
                     >
                       <i className="fas fa-plus text-[9px]"></i>
