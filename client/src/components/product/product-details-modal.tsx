@@ -401,46 +401,50 @@ export default function ProductDetailsModal({ product, isOpen, onClose }: Produc
               <div className="pt-4">
                 {cartQuantity > 0 ? (
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 border rounded-lg">
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                    <div className="flex items-center bg-blue-600 hover:bg-blue-700 rounded-md h-10 w-[120px] transition-all duration-200 border border-transparent box-border overflow-visible relative focus-within:ring-2 focus-within:ring-white focus-within:ring-offset-2 focus-within:ring-offset-gray-50">
+                      <button
+                        type="button"
+                        className="h-full w-[36px] flex-none rounded-l-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDecreaseQuantity();
                         }}
                         disabled={updateCartMutation.isPending || removeFromCartMutation.isPending}
                         data-testid="button-decrease-quantity"
+                        aria-label="Decrease quantity"
                       >
-                        <Minus size={16} />
-                      </Button>
-                      <span className="px-3 py-2 font-medium" data-testid="cart-quantity">
+                        <Minus size={14} className="text-white" />
+                      </button>
+                      <span className="w-[48px] text-center font-semibold text-sm text-white" data-testid="cart-quantity">
                         {cartQuantity}
                       </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <button
+                        type="button"
+                        className="h-full w-[36px] flex-none rounded-r-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleIncreaseQuantity();
                         }}
                         disabled={updateCartMutation.isPending || cartQuantity >= 10}
                         data-testid="button-increase-quantity"
+                        aria-label="Increase quantity"
                       >
-                        <Plus size={16} />
-                      </Button>
+                        <Plus size={14} className="text-white" />
+                      </button>
                     </div>
                     <span className="text-sm text-gray-600">in cart</span>
                   </div>
                 ) : (
-                  <Button
+                  <button
+                    type="button"
+                    className="h-10 w-[120px] rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 flex items-center justify-center border border-transparent box-border font-semibold text-sm outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-gray-50 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
                     onClick={() => addToCartMutation.mutate()}
                     disabled={addToCartMutation.isPending || !product.isActive}
-                    className="w-full bg-blue-600 hover:bg-blue-700"
                     data-testid="button-add-to-cart"
+                    aria-label="Add to cart"
                   >
                     {addToCartMutation.isPending ? "Adding..." : "Add to Cart"}
-                  </Button>
+                  </button>
                 )}
               </div>
               

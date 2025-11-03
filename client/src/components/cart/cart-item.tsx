@@ -106,29 +106,33 @@ export default function CartItem({ item }: CartItemProps) {
           </p>
         </div>
 
-        {/* Quantity Controls - 18% width, 3:1 ratio buttons (0.9:1.2:0.9) */}
-        <div className="w-[18%] flex-shrink-0 flex items-center justify-end gap-0.5">
-          <button
-            onClick={() => handleQuantityChange(-1)}
-            disabled={updateQuantityMutation.isPending}
-            aria-label="Decrease quantity"
-            className="w-[26px] h-[26px] min-w-[26px] min-h-[26px] max-w-[26px] max-h-[26px] flex-shrink-0 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 active:scale-95 active:shadow-[0_0_8px_rgba(34,197,94,0.3)] disabled:opacity-50 disabled:active:scale-100 disabled:active:shadow-none p-0"
-            data-testid={`button-decrease-${item.id}`}
-          >
-            <i className="fas fa-minus text-[8px]"></i>
-          </button>
-          <span className="w-[32px] h-[32px] min-w-[32px] min-h-[32px] max-w-[32px] max-h-[32px] flex-shrink-0 flex items-center justify-center text-xs font-medium bg-gray-50" data-testid={`cart-item-quantity-${item.id}`}>
-            {item.quantity}
-          </span>
-          <button
-            onClick={() => handleQuantityChange(1)}
-            disabled={updateQuantityMutation.isPending}
-            aria-label="Increase quantity"
-            className="w-[26px] h-[26px] min-w-[26px] min-h-[26px] max-w-[26px] max-h-[26px] flex-shrink-0 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-all outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 active:scale-95 active:shadow-[0_0_8px_rgba(34,197,94,0.3)] disabled:opacity-50 disabled:active:scale-100 disabled:active:shadow-none p-0"
-            data-testid={`button-increase-${item.id}`}
-          >
-            <i className="fas fa-plus text-[8px]"></i>
-          </button>
+        {/* Quantity Controls - 18% width, normalized stepper design */}
+        <div className="w-[18%] flex-shrink-0 flex items-center justify-end">
+          <div className="flex items-center bg-primary hover:bg-primary/90 rounded-md h-7 w-[84px] transition-all duration-200 border border-transparent box-border overflow-visible relative focus-within:ring-2 focus-within:ring-white focus-within:ring-offset-1 focus-within:ring-offset-transparent">
+            <button
+              type="button"
+              className="h-full w-[25px] flex-none rounded-l-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => handleQuantityChange(-1)}
+              disabled={updateQuantityMutation.isPending}
+              aria-label="Decrease quantity"
+              data-testid={`button-decrease-${item.id}`}
+            >
+              <i className="fas fa-minus text-[9px] text-white"></i>
+            </button>
+            <span className="w-[34px] text-center font-semibold text-xs text-white" data-testid={`cart-item-quantity-${item.id}`}>
+              {item.quantity}
+            </span>
+            <button
+              type="button"
+              className="h-full w-[25px] flex-none rounded-r-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => handleQuantityChange(1)}
+              disabled={updateQuantityMutation.isPending}
+              aria-label="Increase quantity"
+              data-testid={`button-increase-${item.id}`}
+            >
+              <i className="fas fa-plus text-[9px] text-white"></i>
+            </button>
+          </div>
         </div>
       </div>
     </div>
