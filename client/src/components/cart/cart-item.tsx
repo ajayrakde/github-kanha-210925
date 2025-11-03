@@ -169,36 +169,36 @@ export default function CartItem({ item }: CartItemProps) {
           className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded flex-shrink-0 border border-gray-200"
         />
         <div className="flex-1 min-w-0">
-          <h4 className="font-semibold text-sm sm:text-base text-gray-900 leading-tight mb-0.5 truncate" data-testid={`cart-item-name-${item.id}`}>
+          <h4 className="font-semibold text-sm sm:text-base text-gray-900 leading-tight mb-0.5 line-clamp-2" data-testid={`cart-item-name-${item.id}`}>
             {item.product.name}
           </h4>
-          <p className="text-xs sm:text-sm text-gray-600 truncate" data-testid={`cart-item-price-${item.id}`}>
+          <p className="text-xs sm:text-sm text-gray-600" data-testid={`cart-item-price-${item.id}`}>
             ₹{parseFloat(item.product.price).toFixed(2)}
           </p>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-0.5 flex-shrink-0">
           <Button
             variant="outline"
             size="sm"
-            className="w-6 h-6 sm:w-7 sm:h-7 rounded p-0 border-gray-300"
+            className="w-5 h-5 sm:w-6 sm:h-6 rounded p-0 border-gray-300"
             onClick={() => handleQuantityChange(-1)}
             disabled={updateQuantityMutation.isPending}
             data-testid={`button-decrease-${item.id}`}
           >
-            <i className="fas fa-minus text-[10px]"></i>
+            <i className="fas fa-minus text-[8px]"></i>
           </Button>
-          <span className="w-6 sm:w-7 text-center text-sm font-medium" data-testid={`cart-item-quantity-${item.id}`}>
+          <span className="w-5 sm:w-6 text-center text-xs font-medium" data-testid={`cart-item-quantity-${item.id}`}>
             {item.quantity}
           </span>
           <Button
             variant="outline"
             size="sm"
-            className="w-6 h-6 sm:w-7 sm:h-7 rounded p-0 border-gray-300"
+            className="w-5 h-5 sm:w-6 sm:h-6 rounded p-0 border-gray-300"
             onClick={() => handleQuantityChange(1)}
             disabled={updateQuantityMutation.isPending}
             data-testid={`button-increase-${item.id}`}
           >
-            <i className="fas fa-plus text-[10px]"></i>
+            <i className="fas fa-plus text-[8px]"></i>
           </Button>
         </div>
         <Button

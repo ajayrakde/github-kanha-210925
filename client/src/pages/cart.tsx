@@ -274,14 +274,14 @@ export default function Cart() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4">
-      <div className="space-y-3 sm:space-y-3 sm:space-y-6">
+    <div className="max-w-7xl mx-auto px-3 sm:px-4">
+      <div className="space-y-3 sm:space-y-6">
       {/* Back Button and Title */}
       <div className="flex sm:flex-row items-center sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-6">
         <Button
           onClick={() => setLocation("/")}
           variant="ghost"
-          className="-ml-2 text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-white"
+          className="text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-white"
           data-testid="button-back-to-products"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -311,77 +311,49 @@ export default function Cart() {
           <div className="bg-white rounded border border-gray-200">
             {/* Desktop: Always Open */}
             <div className="hidden md:block p-6">
-              <h3 className="text-base font-medium text-gray-900 mb-4">Apply Coupon</h3>
+              <h3 className="text-sm font-medium text-gray-900 mb-3">Apply Coupon</h3>
               {!appliedOffer ? (
                 <>
-                  <div className="flex gap-2 min-w-0">
+                  <div className="flex space-x-2">
                     <Input
                       id="coupon-input-desktop"
                       type="text"
                       placeholder="Enter coupon code"
                       value={couponCode}
                       onChange={handleCouponChange}
-                      className={`flex-1 min-w-0 ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+                      className={`flex-1 text-sm ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
                       data-testid="input-coupon-code"
                     />
                     <Button
                       onClick={applyCoupon}
                       disabled={!couponCode.trim() || validateOfferMutation.isPending || isAuthLoading}
-                      className="flex-shrink-0"
+                      size="sm"
                       data-testid="button-apply-coupon"
                     >
                       {validateOfferMutation.isPending ? "Applying..." : "Apply"}
                     </Button>
                   </div>
                   {couponError && (
-                    <div className="mt-2 text-sm text-red-600" data-testid="coupon-error">
+                    <div className="mt-2 text-xs text-red-600" data-testid="coupon-error">
                       {couponError}
                     </div>
                   )}
                 </>
               ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="text-sm text-green-600 flex-1 min-w-0 truncate">
-                      <i className="fas fa-check-circle mr-1"></i>
-                      <span className="truncate">Coupon "{appliedOffer.code}" applied! You saved ₹{discount.toFixed(2)}</span>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={removeCoupon}
-                      className="flex-shrink-0"
-                      data-testid="button-remove-coupon"
-                    >
-                      Remove
-                    </Button>
+                <div className="flex items-center justify-between bg-green-50 p-2 rounded">
+                  <div className="text-xs text-green-600">
+                    <i className="fas fa-check-circle mr-1"></i>
+                    "{appliedOffer.code}" applied
                   </div>
-                  <div className="pt-2 border-t">
-                    <p className="text-sm text-gray-600 mb-2">Want to try a different coupon?</p>
-                    <div className="flex gap-2 min-w-0">
-                      <Input
-                        type="text"
-                        placeholder="Enter coupon code"
-                        value={couponCode}
-                        onChange={handleCouponChange}
-                        className={`flex-1 min-w-0 ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
-                        data-testid="input-coupon-code-replace"
-                      />
-                      <Button
-                        onClick={applyCoupon}
-                        disabled={!couponCode.trim() || validateOfferMutation.isPending || isAuthLoading}
-                        className="flex-shrink-0"
-                        data-testid="button-replace-coupon"
-                      >
-                        {validateOfferMutation.isPending ? "Applying..." : "Replace"}
-                      </Button>
-                    </div>
-                    {couponError && (
-                      <div className="mt-2 text-sm text-red-600" data-testid="coupon-error-replace">
-                        {couponError}
-                      </div>
-                    )}
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={removeCoupon}
+                    className="text-gray-500 hover:text-red-600 h-6 px-2 text-xs"
+                    data-testid="button-remove-coupon"
+                  >
+                    Remove
+                  </Button>
                 </div>
               )}
             </div>
@@ -413,74 +385,46 @@ export default function Cart() {
                 <div className="p-4 border-t">
                   {!appliedOffer ? (
                     <>
-                      <div className="flex gap-2 min-w-0">
+                      <div className="flex space-x-2">
                         <Input
                           id="coupon-input-mobile"
                           type="text"
                           placeholder="Enter coupon code"
                           value={couponCode}
                           onChange={handleCouponChange}
-                          className={`flex-1 min-w-0 ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
+                          className={`flex-1 text-sm ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
                           data-testid="input-coupon-code-mobile"
                         />
                         <Button
                           onClick={applyCoupon}
                           disabled={!couponCode.trim() || validateOfferMutation.isPending || isAuthLoading}
-                          className="flex-shrink-0"
+                          size="sm"
                           data-testid="button-apply-coupon-mobile"
                         >
                           {validateOfferMutation.isPending ? "Applying..." : "Apply"}
                         </Button>
                       </div>
                       {couponError && (
-                        <div className="mt-2 text-sm text-red-600" data-testid="coupon-error-mobile">
+                        <div className="mt-2 text-xs text-red-600" data-testid="coupon-error-mobile">
                           {couponError}
                         </div>
                       )}
                     </>
                   ) : (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="text-sm text-green-600 flex-1 min-w-0 truncate">
-                          <i className="fas fa-check-circle mr-1"></i>
-                          <span className="truncate">Coupon "{appliedOffer.code}" applied! You saved ₹{discount.toFixed(2)}</span>
-                        </div>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={removeCoupon}
-                          className="flex-shrink-0"
-                          data-testid="button-remove-coupon-mobile"
-                        >
-                          Remove
-                        </Button>
+                    <div className="flex items-center justify-between bg-green-50 p-2 rounded">
+                      <div className="text-xs text-green-600">
+                        <i className="fas fa-check-circle mr-1"></i>
+                        "{appliedOffer.code}" applied
                       </div>
-                      <div className="pt-2 border-t">
-                        <p className="text-sm text-gray-600 mb-2">Want to try a different coupon?</p>
-                        <div className="flex gap-2 min-w-0">
-                          <Input
-                            type="text"
-                            placeholder="Enter coupon code"
-                            value={couponCode}
-                            onChange={handleCouponChange}
-                            className={`flex-1 min-w-0 ${couponError ? 'border-red-500 focus:border-red-500 focus:ring-red-500' : ''}`}
-                            data-testid="input-coupon-code-replace-mobile"
-                          />
-                          <Button
-                            onClick={applyCoupon}
-                            disabled={!couponCode.trim() || validateOfferMutation.isPending || isAuthLoading}
-                            className="flex-shrink-0"
-                            data-testid="button-replace-coupon-mobile"
-                          >
-                            {validateOfferMutation.isPending ? "Applying..." : "Replace"}
-                          </Button>
-                        </div>
-                        {couponError && (
-                          <div className="mt-2 text-sm text-red-600" data-testid="coupon-error-replace-mobile">
-                            {couponError}
-                          </div>
-                        )}
-                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={removeCoupon}
+                        className="text-gray-500 hover:text-red-600 h-6 px-2 text-xs"
+                        data-testid="button-remove-coupon-mobile"
+                      >
+                        Remove
+                      </Button>
                     </div>
                   )}
                 </div>

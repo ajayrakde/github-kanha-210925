@@ -579,14 +579,14 @@ export default function Checkout() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4">
-      <div className="space-y-3 sm:space-y-3 sm:space-y-6">
+    <div className="max-w-7xl mx-auto px-3 sm:px-4">
+      <div className="space-y-3 sm:space-y-6">
         {/* Back Button and Title */}
         <div className="flex sm:flex-row items-center sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-6">
         <Button
           onClick={() => setLocation("/")}
           variant="ghost"
-          className="-ml-2 text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-white"
+          className="text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-white"
           data-testid="button-back-to-products"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />

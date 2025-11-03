@@ -10,9 +10,9 @@ export default function MobileNav() {
 
   // Customer-only navigation items (no admin/influencer)
   const navItems = [
+    { type: "drawer", icon: "fas fa-user", label: "User" },
     { path: "/", icon: "fas fa-home", label: "Home" },
     { path: "/cart", icon: "fas fa-shopping-cart", label: "Cart" },
-    { type: "drawer", icon: "fas fa-user", label: "User" },
   ];
 
   const handleNavClick = (item: typeof navItems[0]) => {

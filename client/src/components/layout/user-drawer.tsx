@@ -1,4 +1,4 @@
-import { User, Package, MapPin, LogOut, FileText, RefreshCw, X } from "lucide-react";
+import { User, Package, MapPin, LogOut, FileText, RefreshCw } from "lucide-react";
 import { useLocation } from "wouter";
 
 interface UserDrawerProps {
@@ -80,28 +80,15 @@ export default function UserDrawer({ isOpen, onClose }: UserDrawerProps) {
         />
       )}
 
-      {/* Drawer */}
+      {/* Bottom Sheet Drawer */}
       <div
-        className={`fixed top-0 left-0 h-full w-[280px] bg-white z-50 transform transition-transform duration-300 ease-out md:hidden ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
+        className={`fixed bottom-0 left-0 right-0 bg-white z-50 transform transition-transform duration-300 ease-out md:hidden rounded-t-2xl ${
+          isOpen ? "translate-y-0" : "translate-y-full"
         }`}
         data-testid="user-drawer"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h2 className="text-lg font-bold text-gray-900">Menu</h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-            data-testid="button-close-drawer"
-            aria-label="Close menu"
-          >
-            <X size={20} className="text-gray-600" />
-          </button>
-        </div>
-
         {/* Menu Items */}
-        <div className="flex flex-col p-2">
+        <div className="flex flex-col p-2 pb-20">
           {menuItems.map((item) => {
             const Icon = item.icon;
             return (
