@@ -17,8 +17,9 @@ export default function MobileNav() {
 
   const handleNavClick = (item: typeof navItems[0]) => {
     if (item.type === "drawer") {
-      setIsDrawerOpen(true);
+      setIsDrawerOpen(!isDrawerOpen);
     } else if (item.path) {
+      setIsDrawerOpen(false);
       setLocation(item.path);
     }
   };

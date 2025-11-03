@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Product, CartItemWithProduct } from "@/lib/types";
-import { ChevronLeft, ChevronRight, Plus, Minus, ArrowLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import ImageLightbox from "../components/product/image-lightbox";
 
@@ -334,14 +334,14 @@ export default function ProductDetails() {
             <div className="space-y-1">
               {isInCart ? (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={handleDecreaseQuantity}
                       disabled={removeFromCartMutation.isPending || updateCartMutation.isPending}
-                      className="w-7 h-7 sm:w-8 sm:h-8 rounded border border-gray-300 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors"
+                      className="w-6 h-6 sm:w-7 sm:h-7 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-colors disabled:opacity-50"
                       data-testid="button-decrease-quantity"
                     >
-                      <Minus size={14} />
+                      <i className="fas fa-minus text-[10px]"></i>
                     </button>
                     <span className="text-base font-medium w-8 text-center" data-testid="cart-quantity">
                       {cartQuantity}
@@ -349,10 +349,10 @@ export default function ProductDetails() {
                     <button
                       onClick={handleIncreaseQuantity}
                       disabled={cartQuantity >= 10 || updateCartMutation.isPending}
-                      className="w-7 h-7 sm:w-8 sm:h-8 rounded border border-gray-300 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-6 h-6 sm:w-7 sm:h-7 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       data-testid="button-increase-quantity"
                     >
-                      <Plus size={14} />
+                      <i className="fas fa-plus text-[10px]"></i>
                     </button>
                     <span className="text-sm text-gray-600">in cart</span>
                   </div>

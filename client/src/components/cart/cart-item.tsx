@@ -176,30 +176,26 @@ export default function CartItem({ item }: CartItemProps) {
             ₹{parseFloat(item.product.price).toFixed(2)}
           </p>
         </div>
-        <div className="flex items-center gap-0.5 flex-shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-5 h-5 sm:w-6 sm:h-6 rounded p-0 border-gray-300"
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
             onClick={() => handleQuantityChange(-1)}
             disabled={updateQuantityMutation.isPending}
+            className="w-5 h-5 sm:w-6 sm:h-6 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-colors disabled:opacity-50"
             data-testid={`button-decrease-${item.id}`}
           >
             <i className="fas fa-minus text-[8px]"></i>
-          </Button>
+          </button>
           <span className="w-5 sm:w-6 text-center text-xs font-medium" data-testid={`cart-item-quantity-${item.id}`}>
             {item.quantity}
           </span>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-5 h-5 sm:w-6 sm:h-6 rounded p-0 border-gray-300"
+          <button
             onClick={() => handleQuantityChange(1)}
             disabled={updateQuantityMutation.isPending}
+            className="w-5 h-5 sm:w-6 sm:h-6 rounded border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center transition-colors disabled:opacity-50"
             data-testid={`button-increase-${item.id}`}
           >
             <i className="fas fa-plus text-[8px]"></i>
-          </Button>
+          </button>
         </div>
         <Button
           variant="ghost"
