@@ -776,7 +776,7 @@
 
   /* Product grid wrapper - edge to edge on mobile */
   .product-grid-wrapper {
-    padding: 4px;
+    padding: 4px !important;
   }
 
   /* Product grid - 2 columns on mobile, compact gaps */
