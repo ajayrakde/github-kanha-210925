@@ -106,12 +106,12 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
       </div>
 
       {/* Flat Info Section - Instagram style */}
-      <div className="pt-1.5 pb-0.5 space-y-0.5" onClick={handleCardNavigation}>
+      <div className="pt-1.5 pb-0.5 px-1 space-y-0.5" onClick={handleCardNavigation}>
         <h3 className="text-xs font-normal text-gray-900 leading-tight line-clamp-2 min-h-[2.4rem]" data-testid={`product-name-${product.id}`}>
           {product.name}
         </h3>
         
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 -mx-1 px-1">
           <span className="text-sm font-bold text-gray-900" data-testid={`product-price-${product.id}`}>
             ₹{parseFloat(product.price).toFixed(2)}
           </span>
