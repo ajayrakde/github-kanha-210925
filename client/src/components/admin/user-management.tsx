@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { scrollToFormError } from "@/lib/scroll-utils";
 
 const userSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -135,6 +136,10 @@ export default function UserManagement() {
     createUserMutation.mutate(data);
   };
 
+  const onError = (errors: any) => {
+    scrollToFormError(errors);
+  };
+
   const handleDeactivate = (user: Admin | Influencer, userType: "admin" | "influencer") => {
     if (confirm(`Are you sure you want to deactivate this ${userType}?`)) {
       deactivateUserMutation.mutate({ userId: user.id, userType });
@@ -193,7 +198,7 @@ export default function UserManagement() {
           <div id="user-form-description" className="sr-only">
             Form to add a new admin or influencer user to the system
           </div>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit, onError)} className="space-y-4">
             <div>
               <Label htmlFor="userType">User Type *</Label>
               <Select

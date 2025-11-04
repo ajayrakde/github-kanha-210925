@@ -2,12 +2,14 @@ import { Product } from "@/lib/types";
 import { Plus, Minus } from "lucide-react";
 import { useLocation } from "wouter";
 import { useCart } from "@/hooks/use-cart";
+import { haptic } from "@/lib/haptic-utils";
 
 interface ProductCardProps {
   product: Product;
+  onClick?: (productId: string) => void;
 }
 
-export default function ProductCard({ product }: ProductCardProps) {
+export default function ProductCard({ product, onClick }: ProductCardProps) {
   const [, navigate] = useLocation();
 
   const { cartItems, addToCart, updateCartItem, removeFromCart } = useCart();
@@ -42,12 +44,17 @@ export default function ProductCard({ product }: ProductCardProps) {
   const displaySummary = summary.length > 120 ? `${summary.slice(0, 117)}…` : summary;
 
   const handleCardNavigation = () => {
-    sessionStorage.setItem("productsScrollPosition", window.scrollY.toString());
-    navigate(`/product/${product.id}`);
+    if (onClick) {
+      onClick(product.id);
+    } else {
+      sessionStorage.setItem("productsScrollPosition", window.scrollY.toString());
+      navigate(`/product/${product.id}`);
+    }
   };
 
   const handleIncreaseQuantity = () => {
     if (cartItem && cartItem.quantity < 10) {
+      haptic.add(); // Medium haptic for adding quantity
       updateCartItem.mutate({
         productId: product.id,
         quantity: cartItem.quantity + 1
@@ -57,6 +64,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   const handleDecreaseQuantity = () => {
     if (cartItem) {
+      haptic.tap(); // Light haptic for decreasing quantity
       if (cartItem.quantity === 1) {
         removeFromCart.mutate(product.id);
       } else {
@@ -68,96 +76,106 @@ export default function ProductCard({ product }: ProductCardProps) {
     }
   };
 
+  const controlBaseClasses =
+    "w-[76px] h-11 md:w-[88px] md:h-8 !min-w-[76px] md:!min-w-[88px] rounded-md bg-primary hover:bg-primary/90 text-white transition-all duration-200 border border-transparent box-border font-semibold text-[11px] md:text-xs outline-none active:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed";
+  const controlFocusRingClasses =
+    "focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-1 focus-visible:ring-offset-transparent";
+
   return (
     <div
-      className="card cursor-pointer"
+      className="card group cursor-pointer"
       data-testid={`product-card-${product.id}`}
-      onClick={handleCardNavigation}
     >
-      {badgeLabel && (
-        <span className="badge-strip" data-testid={`product-badge-${product.id}`}>
-          {badgeLabel}
-        </span>
-      )}
-      <img
-        src={
-          product.displayImageUrl ||
-          product.imageUrl ||
-          `https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=300`
-        }
-        alt={product.name}
-        className="card-image"
-        data-testid={`product-image-${product.id}`}
-      />
-      <div className="card-content">
-        <h3 className="card-title" data-testid={`product-name-${product.id}`}>
+      {/* Image Container - Minimal design */}
+      <div className="relative bg-gray-50 rounded overflow-hidden border border-gray-200" onClick={handleCardNavigation}>
+        {badgeLabel && (
+          <span className="absolute top-2 left-2 text-[10px] font-semibold px-2 py-0.5 rounded bg-white/95 backdrop-blur-sm text-gray-700 z-10 border border-gray-200" data-testid={`product-badge-${product.id}`}>
+            {badgeLabel}
+          </span>
+        )}
+        <img
+          src={
+            product.displayImageUrl ||
+            product.imageUrl ||
+            `https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=300`
+          }
+          alt={product.name}
+          className="w-full aspect-square object-cover group-hover:scale-105 transition-transform duration-300"
+          data-testid={`product-image-${product.id}`}
+        />
+      </div>
+
+      {/* Flat Info Section - Instagram style */}
+      <div className="pt-1.5 pb-0.5 space-y-0.5" onClick={handleCardNavigation}>
+        <h3 className="text-xs font-normal text-gray-900 leading-tight line-clamp-2 min-h-[2.4rem]" data-testid={`product-name-${product.id}`}>
           {product.name}
         </h3>
-        <p className="card-text">{displaySummary}</p>
-        {tagLabels.length > 0 && (
-          <div className="tags">
-            {tagLabels.map((label, index) => {
-              const paletteClass = label === "In your cart" ? "tag--green" : tagPalette[index % tagPalette.length];
-              return (
-                <span key={`${product.id}-${label}`} className={`tag ${paletteClass}`}>
-                  {label}
+        
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm font-bold text-gray-900" data-testid={`product-price-${product.id}`}>
+            ₹{parseFloat(product.price).toFixed(2)}
+          </span>
+          
+          {/* Minimal add button - responsive dimensions */}
+          <div onClick={(e) => e.stopPropagation()} className="ml-auto w-[76px] h-11 md:w-[88px] md:h-8 !min-w-[76px] md:!min-w-[88px]">
+            {cartQuantity > 0 ? (
+              <div
+                className={`${controlBaseClasses} flex items-center md:gap-0 relative focus-within:ring-2 focus-within:ring-white focus-within:ring-offset-1 focus-within:ring-offset-transparent`}
+              >
+                <button
+                  type="button"
+                  className="flex-1 md:w-[24px] h-full p-0 min-h-0 rounded-l-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xl md:text-base font-bold"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDecreaseQuantity();
+                  }}
+                  disabled={updateCartItem.isPending || removeFromCart.isPending}
+                  data-testid={`button-decrease-quantity-${product.id}`}
+                  aria-label={`Decrease quantity of ${product.name}`}
+                >
+                  −
+                </button>
+                <span
+                  className="flex-1 md:w-[28px] text-center font-semibold text-sm md:text-xs text-white flex items-center justify-center"
+                  data-testid={`cart-quantity-${product.id}`}
+                >
+                  {cartQuantity}
                 </span>
-              );
-            })}
-          </div>
-        )}
-        <div className="card-actions">
-          <div className="card-price">
-            <span data-testid={`product-price-${product.id}`}>₹{parseFloat(product.price).toFixed(2)}</span>
-          </div>
-          {cartQuantity > 0 ? (
-            <div className="quantity-group" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className="flex-1 md:w-[24px] h-full p-0 min-h-0 rounded-r-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xl md:text-base font-bold"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleIncreaseQuantity();
+                  }}
+                  disabled={updateCartItem.isPending || cartQuantity >= 10}
+                  data-testid={`button-increase-quantity-${product.id}`}
+                  aria-label={`Increase quantity of ${product.name}`}
+                >
+                  +
+                </button>
+              </div>
+            ) : (
               <button
                 type="button"
-                className="quantity-button"
+                className={`${controlBaseClasses} ${controlFocusRingClasses} flex items-center justify-center`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleDecreaseQuantity();
+                  haptic.add();
+                  addToCart.mutate({
+                    productId: product.id,
+                    quantity: 1,
+                    product,
+                  });
                 }}
-                disabled={updateCartItem.isPending || removeFromCart.isPending}
-                data-testid={`button-decrease-quantity-${product.id}`}
-                aria-label={`Decrease quantity of ${product.name}`}
+                disabled={addToCart.isPending}
+                data-testid={`button-add-to-cart-${product.id}`}
+                aria-label={`Add ${product.name} to cart`}
               >
-                <Minus size={14} />
+                Add
               </button>
-              <span data-testid={`cart-quantity-${product.id}`}>{cartQuantity}</span>
-              <button
-                type="button"
-                className="quantity-button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleIncreaseQuantity();
-                }}
-                disabled={updateCartItem.isPending || cartQuantity >= 10}
-                data-testid={`button-increase-quantity-${product.id}`}
-                aria-label={`Increase quantity of ${product.name}`}
-              >
-                <Plus size={14} />
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              className="btn-secondary card-add-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                addToCart.mutate({
-                  productId: product.id,
-                  quantity: 1,
-                  product,
-                });
-              }}
-              disabled={addToCart.isPending}
-              data-testid={`button-add-to-cart-${product.id}`}
-            >
-              Add to Cart
-            </button>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>

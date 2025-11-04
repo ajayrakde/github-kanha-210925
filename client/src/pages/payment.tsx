@@ -10,6 +10,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/hooks/use-cart";
+import { scrollToContext } from "@/lib/scroll-utils";
 import useUpiPaymentState, {
   type PhonePeTokenUrlData,
   type UpiWidgetStatus,
@@ -752,6 +753,11 @@ export default function Payment() {
         
         clearCart.mutate();
         
+        // Scroll to success message on payment completion
+        setTimeout(() => {
+          scrollToContext('payment-success');
+        }, 100);
+        
         // Wait 2.5 seconds to show the completed step animation before redirecting
         setTimeout(() => {
           const thankYouPath = orderId ? `/thank-you?orderId=${orderId}` : '/thank-you';
@@ -765,6 +771,12 @@ export default function Payment() {
         latestPaymentIdRef.current = null;
         setPaymentStatus('failed');
         applyGatewayStatus('FAILED', errorInfo?.code ?? null);
+        
+        // Scroll to retry section on payment failure
+        setTimeout(() => {
+          scrollToContext('payment-failed');
+        }, 100);
+        
         toast({
           title: "Payment Failed",
           description: errorInfo?.message || "Your payment could not be processed. Please try again.",
@@ -1145,7 +1157,7 @@ export default function Payment() {
   if (!orderId && (intentId || isCreatingOrder)) {
     return (
       <div className="max-w-2xl mx-auto py-8 px-4">
-        <Card>
+        <Card className="rounded border border-gray-200">
           <CardContent className="p-6 text-center">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
             <p className="text-gray-600">Preparing your order and payment...</p>
@@ -1159,7 +1171,7 @@ export default function Payment() {
   if (!orderId) {
     return (
       <div className="max-w-2xl mx-auto py-8 px-4">
-        <Card>
+        <Card className="rounded border border-gray-200">
           <CardContent className="p-6 text-center">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Invalid Payment Link</h2>
@@ -1176,7 +1188,7 @@ export default function Payment() {
   if (isLoading && !currentOrderData) {
     return (
       <div className="max-w-2xl mx-auto py-8 px-4">
-        <Card>
+        <Card className="rounded border border-gray-200">
           <CardContent className="p-6 text-center">
             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
             <p className="text-gray-600">
@@ -1191,7 +1203,7 @@ export default function Payment() {
   if (!currentOrderData) {
     return (
       <div className="max-w-2xl mx-auto py-8 px-4">
-        <Card>
+        <Card className="rounded border border-gray-200">
           <CardContent className="p-6 text-center">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
             <h2 className="text-xl font-semibold text-gray-900 mb-2">Order Not Found</h2>
@@ -1206,10 +1218,10 @@ export default function Payment() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4">
+    <div className="max-w-7xl mx-auto px-1 sm:px-4">
       <div className="space-y-3 sm:space-y-6">
         {/* Back Button and Title */}
-        <div className="flex sm:flex-row items-center sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-6">
+        <div className="flex sm:flex-row items-center sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-6 px-3 sm:px-0">
         <Button
           onClick={handleBackToCheckout}
           variant="ghost"
@@ -1228,10 +1240,10 @@ export default function Payment() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-3 sm:gap-6">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 min-w-0">
           {/* Payment Status */}
-          <Card>
-            <CardContent className="space-y-6">
+          <Card className="rounded border border-gray-200 min-w-0">
+            <CardContent className="space-y-6 p-3 sm:p-6 min-w-0">
               <span className="sr-only" data-testid="text-upi-widget-status">{widgetStatus}</span>
               <UpiPaymentWidget
                 status={derivedWidgetStatus}
@@ -1258,71 +1270,23 @@ export default function Payment() {
                   createCashfreePaymentMutation.isPending || 
                   isPaymentInProgress
                 }
+                showUpiIdTab={isCashfree && !!cashfreePaymentSessionId}
+                upiId={upiId}
+                onUpiIdChange={setUpiId}
+                onUpiIdPayment={() => {
+                  if (isActionLocked) return;
+                  setIsActionLocked(true);
+                  setPaymentStatus('initiating');
+                  handleWidgetCollectTriggered();
+                  initiateUPIPaymentMutation.mutate();
+                }}
+                isUpiIdPaymentPending={initiateUPIPaymentMutation.isPending}
               />
-
-              {isCashfree && cashfreePaymentSessionId ? (
-                <div className="space-y-4 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
-                  <div className="space-y-2">
-                    <label htmlFor="upi-id" className="text-sm font-medium text-gray-900">
-                      UPI ID / VPA
-                    </label>
-                    <Input
-                      id="upi-id"
-                      type="text"
-                      placeholder="yourname@upi (e.g., success@upi)"
-                      value={upiId}
-                      onChange={(e) => setUpiId(e.target.value)}
-                      disabled={
-                        isActionLocked ||
-                        initiateUPIPaymentMutation.isPending || 
-                        createPaymentMutation.isPending || 
-                        createCashfreePaymentMutation.isPending || 
-                        isPaymentInProgress
-                      }
-                      data-testid="input-upi-id"
-                      className="w-full"
-                    />
-                    <p className="text-xs text-gray-500">Use success@upi for testing</p>
-                  </div>
-                  <Button
-                    onClick={() => {
-                      if (isActionLocked) return;
-                      setIsActionLocked(true);
-                      setPaymentStatus('initiating');
-                      handleWidgetCollectTriggered();
-                      initiateUPIPaymentMutation.mutate();
-                    }}
-                    disabled={
-                      isActionLocked ||
-                      !upiId.trim() || 
-                      initiateUPIPaymentMutation.isPending || 
-                      createPaymentMutation.isPending || 
-                      createCashfreePaymentMutation.isPending || 
-                      isPaymentInProgress
-                    }
-                    size="lg"
-                    className="w-full"
-                    data-testid="button-pay-with-upi"
-                  >
-                    {initiateUPIPaymentMutation.isPending ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Initiating Payment...
-                      </>
-                    ) : (
-                      <>
-                        <CreditCard className="mr-2 h-4 w-4" />
-                        Pay {formattedAmount}
-                      </>
-                    )}
-                  </Button>
-                </div>
-              ) : null}
 
 
 
               {paymentStatus === 'failed' ? (
-                <div className="space-y-3 rounded-lg border border-red-100 bg-red-50 p-4">
+                <div className="space-y-3 rounded border border-red-200 bg-red-50 p-4">
                   <div className="flex items-center gap-3 text-sm text-red-900">
                     <AlertCircle className="h-4 w-4" />
                     <span>Your payment could not be processed. Please try again.</span>
@@ -1362,7 +1326,7 @@ export default function Payment() {
 
         {/* Order Summary - Right Side */}
         <div className="lg:col-span-1">
-          <Card className="lg:sticky lg:top-4">
+          <Card className="lg:sticky lg:top-4 rounded border border-gray-200">
             <CardHeader>
               <CardTitle className="text-lg">Order Summary</CardTitle>
             </CardHeader>

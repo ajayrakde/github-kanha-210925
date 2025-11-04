@@ -292,7 +292,23 @@ export default function Admin() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50">
+      {/* Mobile Warning - Only visible on mobile */}
+      <div className="md:hidden bg-amber-50 border-b border-amber-200 p-4" data-testid="mobile-warning-admin">
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0 text-amber-600 text-xl">
+            ⚠️
+          </div>
+          <div>
+            <h3 className="font-semibold text-amber-900 mb-1">Desktop Required</h3>
+            <p className="text-sm text-amber-800">
+              The admin dashboard is optimized for desktop use. Please access this page on a larger screen for the best experience.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex">
       {/* Sidebar */}
       <div className={cn(
         "bg-white shadow-lg transition-all duration-300 ease-in-out flex-shrink-0",
@@ -566,6 +582,7 @@ export default function Admin() {
           />
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }

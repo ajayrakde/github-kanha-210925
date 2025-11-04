@@ -11,7 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import LoginModal from "@/components/auth/login-modal";
-import { User, LogOut, Package } from "lucide-react";
+import { User, LogOut, Package, FileText } from "lucide-react";
+import { Link } from "wouter";
 
 export default function UserMenu() {
   const [, setLocation] = useLocation();
@@ -97,6 +98,23 @@ export default function UserMenu() {
         >
           <Package className="mr-2 h-4 w-4" />
           My Orders
+        </DropdownMenuItem>
+        <DropdownMenuSeparator className="md:hidden" />
+        <DropdownMenuItem
+          onClick={() => setLocation("/terms-of-service")}
+          className="cursor-pointer md:hidden"
+          data-testid="menu-terms-of-service"
+        >
+          <FileText className="mr-2 h-4 w-4" />
+          Terms of Service
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onClick={() => setLocation("/refund-policy")}
+          className="cursor-pointer md:hidden"
+          data-testid="menu-refund-policy"
+        >
+          <FileText className="mr-2 h-4 w-4" />
+          Refund Policy
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem

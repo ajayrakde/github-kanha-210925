@@ -10,10 +10,11 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
-import { ArrowLeft, Plus, Loader2, MapPin } from "lucide-react";
+import { ArrowLeft, Plus, Loader2, MapPin, CheckCircle2, ShoppingCart, MapPinned, CreditCard } from "lucide-react";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
 import { scrollToContext } from "@/lib/scroll-utils";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 
 interface UserInfo {
   name: string;
@@ -39,6 +40,14 @@ export default function Checkout() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { cartItems, subtotal, clearCart, isLoading: isCartLoading } = useCart();
+  
+  // Accordion step tracking
+  const [orderConfirmed, setOrderConfirmed] = useState(false);
+  const [addressComplete, setAddressComplete] = useState(false);
+  const [paymentReady, setPaymentReady] = useState(false);
+  const [activeAccordionStep, setActiveAccordionStep] = useState<string>("step-1");
+  
+  // Old step tracking (for phone/OTP flow within Step 2)
   const [step, setStep] = useState<"phone" | "otp" | "details">("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
@@ -566,6 +575,56 @@ export default function Checkout() {
 
   const total = subtotal + shippingCharge - discount; // Add shipping and subtract discount
 
+  // Handler for confirming order (Step 1)
+  const handleConfirmOrder = () => {
+    if (cartItems.length === 0) {
+      toast({
+        title: "Cart is empty",
+        description: "Please add items to your cart before proceeding",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setOrderConfirmed(true);
+    setActiveAccordionStep("step-2");
+    
+    toast({
+      title: "Order Confirmed",
+      description: "Now please provide your delivery address",
+    });
+  };
+  
+  // Handler for completing address (Step 2)
+  const handleProceedToPayment = () => {
+    // Validate address
+    if (!userInfo.name || !userInfo.addressLine1 || !userInfo.addressLine2 || !userInfo.city || !userInfo.pincode) {
+      toast({
+        title: "Incomplete Address",
+        description: "Please fill in all required address fields",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!isPincodeValid) {
+      toast({
+        title: "Invalid PIN Code",
+        description: "Please enter a valid 6-digit PIN code",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setAddressComplete(true);
+    setActiveAccordionStep("step-3");
+    
+    toast({
+      title: "Address Confirmed",
+      description: "Now choose your payment method",
+    });
+  };
+
   if (!cartItems || cartItems.length === 0) {
     return (
       <div className="text-center py-12">
@@ -579,21 +638,20 @@ export default function Checkout() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-4">
-      <div className="space-y-3 sm:space-y-6">
-        {/* Back Button and Title */}
-        <div className="flex sm:flex-row items-center sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-6">
+    <div className="max-w-4xl mx-auto px-4 py-6">
+      {/* Header */}
+      <div className="flex items-center gap-4 mb-6">
         <Button
           onClick={() => setLocation("/")}
           variant="ghost"
-          className="text-gray-800 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-100 dark:hover:bg-gray-800 dark:hover:text-white"
+          className="-ml-2 text-gray-800 hover:bg-gray-100 hover:text-gray-900"
           data-testid="button-back-to-products"
         >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back
         </Button>
         <div>
-          <h2 className="text-2xl font-semibold text-gray-900 mb-1">Checkout</h2>
+          <h1 className="text-3xl font-semibold text-gray-900">Checkout</h1>
         </div>
       </div>
 

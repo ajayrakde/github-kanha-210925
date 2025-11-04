@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Product, CartItemWithProduct } from "@/lib/types";
-import { ChevronLeft, ChevronRight, Plus, Minus, ArrowLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 import ImageLightbox from "../components/product/image-lightbox";
 
@@ -334,36 +334,42 @@ export default function ProductDetails() {
             <div className="space-y-1">
               {isInCart ? (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-4">
-                    <button
-                      onClick={handleDecreaseQuantity}
-                      disabled={removeFromCartMutation.isPending || updateCartMutation.isPending}
-                      className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors"
-                      data-testid="button-decrease-quantity"
-                    >
-                      <Minus size={18} />
-                    </button>
-                    <span className="text-lg font-medium w-12 text-center" data-testid="cart-quantity">
-                      {cartQuantity}
-                    </span>
-                    <button
-                      onClick={handleIncreaseQuantity}
-                      disabled={cartQuantity >= 10 || updateCartMutation.isPending}
-                      className="w-10 h-10 rounded-full bg-gray-200 hover:bg-gray-300 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      data-testid="button-increase-quantity"
-                    >
-                      <Plus size={18} />
-                    </button>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center bg-green-600 hover:bg-green-700 rounded-md h-10 w-[120px] transition-all duration-200 border border-transparent box-border overflow-visible relative focus-within:ring-2 focus-within:ring-white focus-within:ring-offset-2 focus-within:ring-offset-gray-50">
+                      <button
+                        type="button"
+                        className="h-full w-[36px] flex-none rounded-l-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={handleDecreaseQuantity}
+                        disabled={removeFromCartMutation.isPending || updateCartMutation.isPending}
+                        aria-label="Decrease quantity"
+                        data-testid="button-decrease-quantity"
+                      >
+                        <i className="fas fa-minus text-[11px] text-white"></i>
+                      </button>
+                      <span className="w-[48px] text-center font-semibold text-sm text-white" data-testid="cart-quantity">
+                        {cartQuantity}
+                      </span>
+                      <button
+                        type="button"
+                        className="h-full w-[36px] flex-none rounded-r-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={handleIncreaseQuantity}
+                        disabled={cartQuantity >= 10 || updateCartMutation.isPending}
+                        aria-label="Increase quantity"
+                        data-testid="button-increase-quantity"
+                      >
+                        <i className="fas fa-plus text-[11px] text-white"></i>
+                      </button>
+                    </div>
                     <span className="text-sm text-gray-600">in cart</span>
                   </div>
                   
-                  {/* Proceed to Checkout Button */}
+                  {/* Proceed to Checkout Button - Smaller Blue when in cart */}
                   {cartItems && cartItems.length > 0 && (
                     <>
                       <Button
                         onClick={() => navigate('/checkout')}
-                        className="w-full bg-green-600 hover:bg-green-700 text-white"
-                        size="lg"
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                        size="default"
                         data-testid="button-proceed-checkout"
                       >
                         Proceed to Checkout
@@ -372,7 +378,7 @@ export default function ProductDetails() {
                         onClick={handleBack}
                         variant="outline"
                         className="w-full"
-                        size="lg"
+                        size="default"
                         data-testid="button-continue-shopping"
                       >
                         Continue Shopping
@@ -381,15 +387,16 @@ export default function ProductDetails() {
                   )}
                 </div>
               ) : (
-                <Button
+                <button
+                  type="button"
+                  className="h-10 w-[120px] rounded-md bg-green-600 hover:bg-green-700 text-white transition-all duration-200 flex items-center justify-center border border-transparent box-border font-semibold text-sm outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-gray-50 active:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={() => addToCartMutation.mutate()}
                   disabled={addToCartMutation.isPending || !product.isActive}
-                  className="w-full bg-blue-600 hover:bg-blue-700"
-                  size="lg"
                   data-testid="button-add-to-cart"
+                  aria-label="Add to cart"
                 >
                   {addToCartMutation.isPending ? "Adding..." : "Add to Cart"}
-                </Button>
+                </button>
               )}
             </div>
 

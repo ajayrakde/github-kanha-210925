@@ -31,12 +31,13 @@
   --chart-3: #3aaf61;
   --chart-4: #6a4c93;
   --chart-5: #ff595e;
-  --radius: 0.75rem;
-  --radius-lg: 24px;
-  --radius-md: 16px;
-  --shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
-  --transition: all 0.3s ease;
-  --font-sans: 'Nunito', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --radius: 0.25rem;
+  --radius-lg: 0.375rem;
+  --radius-md: 0.25rem;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --transition: all 0.2s ease;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Nunito', sans-serif;
   --sidebar: #ffffff;
   --sidebar-foreground: #222222;
   --sidebar-primary: #0b6fa7;
@@ -98,7 +99,34 @@
     @apply bg-background text-foreground font-sans;
     background-color: var(--bg-light);
     color: var(--text-dark);
-    font-family: 'Nunito', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-size: 14px;
+  }
+  
+  @media (min-width: 768px) {
+    body {
+      font-size: 16px;
+    }
+  }
+
+  button,
+  a,
+  [role="button"],
+  input,
+  textarea,
+  select {
+    outline: none;
+  }
+
+  button:focus-visible,
+  a:focus-visible,
+  [role="button"]:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid hsl(var(--primary));
+    outline-offset: 2px;
+    border-radius: 0.25rem;
   }
 }
 
@@ -131,53 +159,55 @@
       opacity: 1;
     }
   }
-  /* Header shadow matching design reference */
+  /* Minimal header border */
   .header-shadow {
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    border-bottom: 1px solid var(--border);
   }
 
-  /* Product card styling matching design reference */
+  /* Minimal product card styling */
   .product-card {
-    @apply bg-white rounded-lg overflow-hidden;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-    transition: box-shadow 0.2s ease;
+    @apply bg-white rounded overflow-hidden border border-gray-200;
+    transition: border-color 0.2s ease;
   }
 
   .product-card:hover {
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    border-color: var(--primary);
   }
 
-  /* Card styling for admin and other sections */
+  /* Minimal card styling for admin and other sections */
   .admin-card {
-    @apply bg-white rounded-lg;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    @apply bg-white rounded border border-gray-200;
   }
 
-  /* Stats cards with gradients matching design reference */
+  /* Minimal stats cards */
   .stats-card {
-    @apply p-6 rounded-lg text-white;
+    @apply p-6 rounded text-white border;
   }
 
   .stats-card.blue {
-    background: linear-gradient(135deg, #0b6fa7 0%, #0a5f8f 100%);
+    background-color: var(--primary);
+    border-color: #0a5f8f;
   }
 
   .stats-card.green {
-    background: linear-gradient(135deg, #3aaf61 0%, #2f8f4f 100%);
+    background-color: var(--accent);
+    border-color: #2f8f4f;
   }
 
   .stats-card.purple {
-    background: linear-gradient(135deg, #6a4c93 0%, #55397a 100%);
+    background-color: var(--purple);
+    border-color: #55397a;
   }
 
   .stats-card.orange {
-    background: linear-gradient(135deg, #ffd93d 0%, #f9c920 100%);
+    background-color: var(--secondary);
+    border-color: #e0bd2d;
+    color: var(--text-dark);
   }
 
-  /* Form section styling */
+  /* Minimal form section styling */
   .form-section {
-    @apply bg-white rounded-lg p-6;
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+    @apply bg-white rounded p-6 border border-gray-200;
   }
 
   /* Mobile bottom navigation */
@@ -185,13 +215,13 @@
     @apply bg-white border-t border-gray-200 px-4 py-2;
   }
 
-  /* Button variants refreshed for playful theme */
+  /* Minimal button variants */
   .btn-primary {
-    @apply font-bold text-base;
+    @apply font-semibold text-base;
     background-color: var(--secondary);
     color: var(--text-dark);
-    border: none;
-    border-radius: 999px;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
     padding: 0.75rem 1.5rem;
     box-shadow: none;
     transition: var(--transition);
@@ -201,16 +231,15 @@
   }
 
   .btn-primary:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow);
+    opacity: 0.9;
   }
 
   .btn-secondary {
-    @apply font-bold text-base;
+    @apply font-semibold text-base;
     background-color: var(--accent);
     color: var(--text-light);
-    border: none;
-    border-radius: 999px;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
     padding: 0.75rem 1.5rem;
     box-shadow: none;
     transition: var(--transition);
@@ -220,16 +249,15 @@
   }
 
   .btn-secondary:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow);
+    opacity: 0.9;
   }
 
   .btn-accent {
-    @apply font-bold text-base;
+    @apply font-semibold text-base;
     background-color: var(--tertiary);
     color: var(--text-light);
-    border: none;
-    border-radius: 999px;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
     padding: 0.75rem 1.5rem;
     box-shadow: none;
     transition: var(--transition);
@@ -239,8 +267,7 @@
   }
 
   .btn-accent:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow);
+    opacity: 0.9;
   }
 
   /* Tab styling matching design reference */
@@ -255,29 +282,29 @@
     @apply border-b-2 border-transparent font-medium text-sm hover:text-gray-700;
   }
 
-  /* Badge variants matching design reference */
+  /* Badge variants - minimal design */
   .badge-success {
     background-color: #e2f8ec;
     color: #1f7a43;
-    @apply inline-flex px-2 py-1 text-xs font-semibold rounded-full;
+    @apply inline-flex px-2 py-1 text-xs font-semibold rounded;
   }
 
   .badge-warning {
     background-color: #fff1b8;
     color: #7a5c00;
-    @apply inline-flex px-2 py-1 text-xs font-semibold rounded-full;
+    @apply inline-flex px-2 py-1 text-xs font-semibold rounded;
   }
 
   .badge-danger {
     background-color: #ffe0e2;
     color: #c0383d;
-    @apply inline-flex px-2 py-1 text-xs font-semibold rounded-full;
+    @apply inline-flex px-2 py-1 text-xs font-semibold rounded;
   }
 
   .badge-info {
     background-color: #d7f0ff;
     color: var(--primary);
-    @apply inline-flex px-2 py-1 text-xs font-semibold rounded-full;
+    @apply inline-flex px-2 py-1 text-xs font-semibold rounded;
   }
 
   /* Progress bar styling */
@@ -313,6 +340,48 @@
   .sticky-summary {
     position: sticky;
     top: 1.5rem;
+  }
+
+  /* Touch/Click feedback - Keyboard-only focus with subtle glow effects */
+  button:active {
+    transform: scale(0.98);
+  }
+
+  /* Quantity button styling */
+  .quantity-btn {
+    @apply transition-all duration-150;
+  }
+
+  .quantity-btn:focus-visible {
+    box-shadow: 0 0 0 2px rgba(11, 111, 167, 0.2);
+  }
+
+  .quantity-btn:active {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 2px rgba(11, 111, 167, 0.3);
+  }
+
+  /* Input glow effects - keyboard only */
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    box-shadow: 0 0 0 3px rgba(11, 111, 167, 0.15);
+    border-color: var(--primary);
+  }
+
+  /* Dark mode glow effects - keyboard only */
+  .dark button:focus-visible {
+    box-shadow: 0 0 0 3px rgba(74, 177, 226, 0.2);
+  }
+
+  .dark button:active {
+    box-shadow: 0 0 0 3px rgba(74, 177, 226, 0.3);
+  }
+
+  .dark input:focus-visible,
+  .dark textarea:focus-visible,
+  .dark select:focus-visible {
+    box-shadow: 0 0 0 3px rgba(74, 177, 226, 0.15);
   }
 }
 
@@ -615,9 +684,7 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: radial-gradient(circle at 0% 0%, rgba(255, 217, 61, 0.18) 0%, rgba(255, 217, 61, 0) 45%),
-    radial-gradient(circle at 100% 0%, rgba(58, 175, 97, 0.16) 0%, rgba(58, 175, 97, 0) 40%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(245, 250, 255, 1) 60%);
+  background: var(--background);
 }
 
 .page-main {
@@ -636,29 +703,237 @@
 }
 
 /* Mobile-first responsive enhancements */
-@media (max-width: 768px) {
+
+/* Extra small devices (phones, 375px and down) */
+@media (max-width: 375px) {
   .container {
-    @apply px-4;
+    @apply px-2;
+  }
+
+  .hero-title {
+    font-size: 1.75rem !important;
+  }
+
+  .hero-subtitle {
+    font-size: 0.95rem !important;
+  }
+
+  .card-title {
+    font-size: 1.1rem !important;
+  }
+}
+
+/* Small devices (phones, 640px and down) */
+@media (max-width: 640px) {
+  .container {
+    @apply px-3;
   }
   
+  /* Dramatically reduce header padding */
+  header .container {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+  }
+
+  /* Make header logo and elements more compact */
+  header h1 {
+    font-size: 1.125rem !important;
+  }
+
+  header .text-xs {
+    font-size: 0.625rem !important;
+  }
+
+  /* Hero section - HIDE on mobile to save space */
+  .hero {
+    display: none !important;
+  }
+
+  /* Product section - minimal padding to show grid immediately */
+  .product-section {
+    padding: 0.5rem 0 1.5rem !important;
+    background-color: #ffffff !important;
+  }
+
+  .section-heading {
+    margin-bottom: 0.75rem !important;
+    gap: 0.25rem !important;
+  }
+
+  .section-heading h2 {
+    font-size: 1.25rem !important;
+    margin-bottom: 0 !important;
+  }
+
+  .section-heading p {
+    font-size: 0.813rem !important;
+    line-height: 1.3 !important;
+  }
+
+  .section-heading .space-y-2 {
+    gap: 0.25rem !important;
+  }
+
+  /* Product grid wrapper - edge to edge on mobile */
+  .product-grid-wrapper {
+    padding: 4px !important;
+  }
+
+  /* Product grid - 2 columns on mobile, compact gaps */
+  .product-grid {
+    column-gap: 0.75rem !important;
+    row-gap: 1.125rem !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    padding: 0.25rem;
+  }
+
+  /* Product cards - compact with minimal padding and elevation */
+  .card {
+    padding: 0.5rem !important;
+    overflow: hidden;
+    width: 100% !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
+  }
+
+  .card-image {
+    height: clamp(180px, 25vw, 200px) !important;
+    padding: 0.5rem !important;
+  }
+
+  .card-content {
+    padding: 0.625rem !important;
+    gap: 0.5rem !important;
+    min-width: 0;
+  }
+
+  .card-title {
+    font-size: 1.15rem;
+  }
+
+  /* Fix all card/flex alignment and overflow issues */
+  .flex {
+    min-width: 0 !important;
+  }
+
+  .flex-1 {
+    min-width: 0 !important;
+    overflow-wrap: break-word;
+  }
+
+  /* Cart and checkout cards */
+  .space-y-4 > *,
+  .space-y-6 > * {
+    width: 100% !important;
+    overflow: hidden;
+  }
+
+  /* Ensure container doesn't add excessive side padding */
+  .container {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
+
+  /* Fix payment provider icons - prevent shrinking */
+  button img[alt*="Pay"],
+  button img[alt*="PhonePe"],
+  button img[alt*="Paytm"],
+  button img[alt*="Google"],
+  [aria-label="UPI apps"] img {
+    min-width: 48px !important;
+    min-height: 48px !important;
+    flex-shrink: 0 !important;
+    width: 48px !important;
+    height: 48px !important;
+  }
+
+  /* Fix payment app buttons layout */
+  [aria-label="UPI apps"] button {
+    min-height: 72px !important;
+    padding: 0.5rem !important;
+  }
+
+  [aria-label="UPI apps"] {
+    gap: 0.5rem !important;
+  }
+
+  /* Fix tab text overlapping - add gaps and proper sizing */
+  [role="tablist"] {
+    gap: 0.5rem !important;
+  }
+
+  [role="tab"] {
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.875rem !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .card-text {
+    font-size: 0.875rem;
+  }
+
+  .card-price {
+    font-size: 1.1rem;
+  }
+
+  /* Footer - much more compact */
+  .footer {
+    padding: 1.5rem 1rem !important;
+    margin-top: 2rem !important;
+  }
+
+  .footer-grid {
+    gap: 1.25rem !important;
+  }
+
+  .footer h4 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem !important;
+  }
+
+  .footer p {
+    font-size: 0.875rem;
+  }
+
+  .footer li {
+    font-size: 0.875rem;
+  }
+
+  .footer li + li {
+    margin-top: 0.35rem !important;
+  }
+
+  .footer .mt-4 {
+    margin-top: 1rem !important;
+  }
+
+  /* Page main - reduce padding */
+  .page-main {
+    padding: 1rem 0 2rem !important;
+  }
+
+  /* Typography adjustments */
+  .text-3xl {
+    @apply text-2xl;
+  }
+
   .text-2xl {
     @apply text-xl;
   }
 
-  .page-main {
-    padding: 1.5rem 0 3rem;
+  .text-xl {
+    font-size: 1.125rem !important;
   }
 
-  .hero {
-    padding: 2.5rem 1.25rem 2.75rem;
-  }
-
-  .section-heading {
-    margin-bottom: 1.75rem;
-  }
-
-  .product-section {
-    padding: 1.5rem 0 2.5rem;
+  /* Touch targets - ensure minimum 44x44px */
+  button,
+  a[role="button"],
+  .btn-primary,
+  .btn-secondary,
+  .btn-accent {
+    min-height: 44px;
+    min-width: 44px;
   }
 
   /* Mobile navigation item styling */
@@ -669,6 +944,206 @@
   .mobile-nav-item:hover,
   .mobile-nav-item.active {
     color: var(--primary);
+  }
+
+  /* Cart icon in header */
+  header a[href="/cart"] {
+    width: 44px !important;
+    height: 44px !important;
+  }
+
+  /* Checkout page optimizations - properly override Tailwind spacing */
+  .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 1rem !important;
+  }
+
+  .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.75rem !important;
+  }
+
+  .space-y-3 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.5rem !important;
+  }
+
+  .space-y-2 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.375rem !important;
+  }
+
+  /* Form inputs - more compact */
+  input[type="text"],
+  input[type="tel"],
+  input[type="email"],
+  textarea,
+  select {
+    padding: 0.625rem 0.75rem !important;
+    font-size: 0.9375rem !important;
+  }
+
+  /* Labels - smaller */
+  label {
+    font-size: 0.875rem !important;
+    margin-bottom: 0.375rem !important;
+  }
+
+  /* Buttons - ensure touch targets */
+  .Button,
+  button[type="submit"],
+  button[type="button"] {
+    padding: 0.75rem 1rem !important;
+    font-size: 0.9375rem !important;
+  }
+
+  /* Card/Panel spacing reduction */
+  .bg-white.rounded-lg,
+  .bg-gray-50.rounded-lg {
+    padding: 1rem !important;
+  }
+
+  /* Grid layouts - stack on mobile */
+  .grid.grid-cols-2,
+  .grid.grid-cols-3,
+  .grid.md\\:grid-cols-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Cart page optimizations */
+  .cart-item {
+    padding: 0.75rem 0 !important;
+  }
+
+  /* Product details page */
+  .product-details-container {
+    padding: 1rem 0 !important;
+  }
+
+  /* Summary cards - less padding */
+  .sticky-summary {
+    position: static !important;
+    margin-top: 1rem;
+  }
+
+  /* Payment page optimizations */
+  .payment-container {
+    padding: 1rem !important;
+  }
+
+  /* Thank you page */
+  .thank-you-container {
+    padding: 1rem !important;
+  }
+
+  /* Order summary in checkout/cart */
+  .order-summary {
+    padding: 1rem !important;
+    margin-top: 1rem !important;
+  }
+
+  /* Modal/Dialog optimizations */
+  .DialogContent,
+  [role="dialog"] {
+    max-width: calc(100vw - 2rem) !important;
+    padding: 1.25rem !important;
+  }
+
+  /* Back button spacing */
+  .mb-6 {
+    margin-bottom: 1rem !important;
+  }
+
+  .mb-4 {
+    margin-bottom: 0.75rem !important;
+  }
+
+  /* Headings in pages */
+  h2.text-2xl,
+  h2.text-3xl {
+    font-size: 1.5rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  h3.text-xl {
+    font-size: 1.125rem !important;
+  }
+
+  /* Tables - make scrollable */
+  .table-responsive,
+  table {
+    font-size: 0.875rem !important;
+  }
+
+  table td,
+  table th {
+    padding: 0.5rem 0.375rem !important;
+  }
+
+  /* Image galleries - optimize for mobile */
+  .image-gallery {
+    max-height: 60vh;
+  }
+
+  /* Reduce badge/tag sizes */
+  .badge,
+  .tag {
+    font-size: 0.65rem !important;
+    padding: 0.2rem 0.5rem !important;
+  }
+
+  /* Optimize user menu dropdown */
+  .user-menu-dropdown {
+    font-size: 0.875rem !important;
+  }
+
+  /* Step indicators */
+  .step-indicator {
+    margin-bottom: 1rem !important;
+  }
+
+  /* Address cards in checkout */
+  .address-card {
+    padding: 0.75rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  /* Coupon input section */
+  .coupon-section {
+    padding: 0.75rem !important;
+  }
+
+  /* Payment method cards */
+  .payment-method-card {
+    padding: 0.75rem !important;
+  }
+
+  /* Back buttons - ensure proper touch targets */
+  button[aria-label*="back"],
+  button[data-testid*="back"],
+  a[data-testid*="back"] {
+    min-height: 48px !important;
+    min-width: 48px !important;
+    padding: 0.75rem 1rem !important;
+  }
+
+  /* ArrowLeft icon buttons */
+  button svg,
+  button i.fa-arrow-left {
+    font-size: 1.25rem !important;
+  }
+
+  /* Mobile bottom nav spacing */
+  .page-main.pb-16 {
+    padding-bottom: 4rem !important;
+  }
+
+  /* Footer spacing with mobile nav */
+  footer.footer {
+    margin-bottom: 4rem;
+  }
+}
+
+/* Medium devices (tablets, 768px and down) */
+@media (max-width: 768px) {
+  .container {
+    @apply px-4;
   }
 }
 
@@ -794,11 +1269,11 @@
   color: var(--text-light);
 }
 
-/* Focus and accessibility improvements */
-button:focus,
-input:focus,
-select:focus,
-textarea:focus {
+/* Focus and accessibility improvements - keyboard only */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
@@ -921,6 +1396,7 @@ a:hover {
 
 .product-section {
   padding: 1.5rem 0 3rem;
+  background-color: #ffffff;
 }
 
 .section-heading {
@@ -935,16 +1411,32 @@ a:hover {
   margin: 0;
 }
 
+.product-grid-wrapper {
+  margin-top: 1.25rem;
+  padding: 0.5rem 1rem;
+}
+
 .product-grid {
   display: grid;
-  gap: 1.5rem;
+  column-gap: 1.25rem;
+  row-gap: 2rem;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   align-items: stretch;
+  padding: 0.5rem;
 }
 
 @media (min-width: 768px) {
   .product-grid {
     grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    column-gap: 1.25rem;
+    row-gap: 2rem;
+  }
+  
+  /* Override mobile card borders for desktop - use gap instead */
+  .card {
+    border-right: none !important;
+    border-bottom: none !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
   }
 }
 
@@ -957,16 +1449,17 @@ a:hover {
 .card {
   background-color: #ffffff;
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
   overflow: hidden;
   position: relative;
   transition: var(--transition);
   display: flex;
   flex-direction: column;
+  padding: 0.75rem;
 }
 
 .card:hover {
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
 .card-image {
@@ -975,11 +1468,11 @@ a:hover {
   object-fit: contain;
   display: block;
   background: linear-gradient(135deg, #f9fcff 0%, #eef6ff 100%);
-  padding: 1.25rem;
+  padding: 1rem;
 }
 
 .card-content {
-  padding: 1.25rem;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.8rem;

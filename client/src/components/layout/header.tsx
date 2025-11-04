@@ -1,52 +1,38 @@
 import { Link } from "wouter";
+import { Heart } from "lucide-react";
 
-import { useCart } from "@/hooks/use-cart";
 import UserMenu from "./user-menu";
 
 export default function Header() {
-  const { itemCount } = useCart();
-
-  const cartCount = itemCount;
-
   return (
-    <header className="sticky top-0 z-50 bg-white/85 backdrop-blur-md shadow-sm">
-      <div className="container py-4">
+    <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
+      <div className="container px-3 py-1.5 md:py-3">
         <nav className="flex items-center justify-between" aria-label="Primary navigation">
           <Link
             href="/"
-            className="group flex items-center gap-3 rounded-full px-3 py-2 transition-transform hover:no-underline focus-visible:outline-none focus-visible:no-underline focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+            className="group flex items-center gap-1.5 sm:gap-2 md:gap-3 rounded px-1.5 sm:px-2 py-0.5 md:py-1 transition-transform hover:no-underline focus-visible:outline-none focus-visible:no-underline focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-1"
             aria-label="Kanhaa home"
           >
-            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-primary shadow-md transition-transform group-hover:-translate-y-1">
-              <i className="fas fa-store text-lg" aria-hidden="true"></i>
+            <span className="flex h-7 w-7 md:h-9 md:w-9 items-center justify-center rounded bg-secondary text-primary border border-secondary/20 transition-transform group-hover:-translate-y-0.5">
+              <i className="fas fa-store text-sm md:text-base" aria-hidden="true"></i>
             </span>
-            <div className="rounded-lg px-2 py-1 leading-tight text-primary transition-all duration-200 group-hover:bg-secondary/15 group-hover:text-secondary group-focus-visible:bg-secondary/20 group-focus-visible:text-secondary">
-              <h1 className="text-xl font-bold transition-all duration-200">Kanhaa</h1>
-              <span className="text-xs text-muted-foreground transition-all duration-200 group-hover:text-secondary group-focus-visible:text-secondary">
-                Playful snacks &amp; treats
+            <div className="rounded px-1 leading-tight text-primary transition-all duration-200 group-hover:bg-secondary/15 group-hover:text-secondary">
+              <h1 className="text-sm md:text-lg font-bold transition-all duration-200">Kanhaa</h1>
+              <span className="hidden sm:inline text-[10px] text-muted-foreground transition-all duration-200 group-hover:text-secondary">
+                Snacks &amp; treats
               </span>
             </div>
           </Link>
-          <div className="flex items-center gap-3">
-            <span className="hidden text-sm text-muted-foreground sm:block">Brighten snack time today!</span>
+          <div className="flex items-center gap-1.5 md:gap-2">
             <UserMenu />
-            <Link
-              href="/cart"
-              className="relative flex h-11 w-11 items-center justify-center rounded-full bg-secondary text-primary shadow-md transition-transform hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-              aria-label="View cart"
-              data-testid="button-cart"
+            <button
+              className="relative flex h-9 w-9 md:h-10 md:w-10 items-center justify-center rounded bg-secondary text-primary border border-secondary/20 transition-transform hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-1"
+              aria-label="Favorites"
+              data-testid="button-favorites"
             >
-              <i className="fas fa-shopping-cart text-lg" aria-hidden="true"></i>
-              <span className="sr-only">Cart</span>
-              {cartCount > 0 && (
-                <span
-                  className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-tertiary text-xs font-semibold text-white shadow"
-                  data-testid="text-cart-count"
-                >
-                  {cartCount}
-                </span>
-              )}
-            </Link>
+              <Heart size={18} className="md:w-5 md:h-5" />
+              <span className="sr-only">Favorites</span>
+            </button>
           </div>
         </nav>
       </div>

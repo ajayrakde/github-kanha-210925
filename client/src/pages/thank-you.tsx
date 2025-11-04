@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, CheckCircle, XCircle, Clock, AlertCircle } from "lucide-react";
+import { scrollToContext } from "@/lib/scroll-utils";
 
 interface OrderData {
   orderId: string;
@@ -642,10 +643,17 @@ export default function ThankYou() {
     : 50;
   const headerInfo = getHeaderInfo(currentPaymentStatus, currentOrderStatus);
 
+  // Scroll to order confirmation on mount
+  useEffect(() => {
+    setTimeout(() => {
+      scrollToContext('order-confirmation');
+    }, 300);
+  }, []);
+
   return (
     <div className="max-w-3xl mx-auto py-8">
       {/* Dynamic Status Message */}
-      <div className="text-center mb-8">
+      <div id="order-confirmation" className="text-center mb-8">
         <div className={`w-16 h-16 ${headerInfo.iconColor} rounded-full flex items-center justify-center mx-auto mb-4`}>
           <i className={`${headerInfo.icon} text-white text-2xl`}></i>
         </div>
@@ -660,45 +668,78 @@ export default function ThankYou() {
         >
           <div className="flex items-start gap-3">
             <AlertCircle className="h-5 w-5 mt-0.5" />
-            <div>
-              <p className="font-medium">Unable to load live payment updates</p>
-              <p className="text-sm leading-relaxed">{authorizationError}</p>
+            <div className="flex-1">
+              <h3 className="font-semibold">Authorization Required</h3>
+              <p className="text-sm mt-1">{authorizationError}</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Payment Receipt */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 mb-3 sm:mb-6">
-        <div className="text-center mb-3 sm:mb-6">
-          <h3 className="text-2xl font-semibold text-gray-900">Payment Receipt</h3>
-          <p className="text-sm text-gray-500 mt-2">Order Date: {orderDate}</p>
-        </div>
-
-        <Separator className="mb-3 sm:mb-6" />
-
-        {/* Order Details */}
-        <div className="space-y-4 mb-3 sm:mb-6">
-          <div className="flex justify-between">
-            <span className="text-gray-600">Order ID:</span>
-            <span className="font-mono font-medium" data-testid="text-order-id">
-              #{displayOrderData.orderId.slice(0, 8).toUpperCase()}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Customer Name:</span>
-            <span>{displayOrderData.userInfo.name}</span>
-          </div>
-          {displayOrderData.userInfo.email && (
-            <div className="flex justify-between">
-              <span className="text-gray-600">Email:</span>
-              <span>{displayOrderData.userInfo.email}</span>
+      {reconciliationStatus === 'processing' && (
+        <div
+          className="mb-6 rounded-md border border-blue-200 bg-blue-50 p-4 text-blue-900"
+          data-testid="reconciliation-message"
+        >
+          <div className="flex items-start gap-3">
+            <Loader2 className="h-5 w-5 mt-0.5 animate-spin" />
+            <div className="flex-1">
+              <h3 className="font-semibold">Processing Payment...</h3>
+              <p className="text-sm mt-1">{reconciliationMessage || 'We are waiting for the payment to be confirmed. This usually takes a few moments.'}</p>
             </div>
-          )}
-          <div className="flex justify-between">
-            <span className="text-gray-600">Delivery Address:</span>
-            <span className="text-right max-w-xs">{displayOrderData.deliveryAddress}</span>
           </div>
+        </div>
+      )}
+
+      {canStartPhonePeRetry && retryError && (
+        <div
+          className="mb-6 rounded-md border border-red-200 bg-red-50 p-4 text-red-900"
+          data-testid="retry-error"
+        >
+          <div className="flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 mt-0.5" />
+            <div className="flex-1">
+              <h3 className="font-semibold">Retry Failed</h3>
+              <p className="text-sm mt-1">{retryError}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {canStartPhonePeRetry && (
+        <div className="mb-6 rounded-md border border-yellow-200 bg-yellow-50 p-4">
+          <div className="flex items-start gap-3">
+            <Clock className="h-5 w-5 mt-0.5 text-yellow-700" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-yellow-900">Payment Expired</h3>
+              <p className="text-sm text-yellow-800 mt-1">
+                The payment request expired before PhonePe could confirm it. Would you like to try again?
+              </p>
+              <Button
+                onClick={handlePhonePeRetry}
+                disabled={isRetryingPhonePe}
+                className="mt-3"
+                size="sm"
+                data-testid="button-retry-phonepe"
+              >
+                {isRetryingPhonePe ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Retrying...
+                  </>
+                ) : (
+                  'Retry Payment'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-xl font-semibold text-gray-900">Order Details</h3>
+          <PaymentStatusBadge status={currentPaymentStatus} />
         </div>
 
         <Separator className="mb-3 sm:mb-6" />
@@ -706,310 +747,141 @@ export default function ThankYou() {
         {/* Price Breakdown */}
         <div className="space-y-3 mb-3 sm:mb-6">
           <h4 className="font-semibold text-gray-900">Price Details</h4>
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Subtotal (incl. tax):</span>
-            <span>₹{parseFloat(displayOrderData.subtotal).toFixed(2)}</span>
-          </div>
-          {parseFloat(displayOrderData.discountAmount) > 0 && (
-            <div className="flex justify-between text-sm text-green-600">
-              <span>Discount Applied:</span>
-              <span>-₹{parseFloat(displayOrderData.discountAmount).toFixed(2)}</span>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Subtotal</span>
+              <span data-testid="text-subtotal">₹{parseFloat(displayOrderData.subtotal).toFixed(2)}</span>
             </div>
-          )}
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-600">Shipping Charges:</span>
-            <span>₹{shippingCharge.toFixed(2)}</span>
-          </div>
-          <Separator />
-          <div className="flex justify-between font-semibold text-lg">
-            <span>Total Amount Paid:</span>
-            <span className="text-green-600" data-testid="text-final-total">
-              ₹{parseFloat(displayOrderData.total).toFixed(2)}
-            </span>
+            {parseFloat(displayOrderData.discountAmount) > 0 && (
+              <div className="flex justify-between text-green-600">
+                <span>Discount</span>
+                <span data-testid="text-discount">-₹{parseFloat(displayOrderData.discountAmount).toFixed(2)}</span>
+              </div>
+            )}
+            <div className="flex justify-between">
+              <span className="text-gray-600">Shipping</span>
+              <span data-testid="text-shipping">₹{shippingCharge.toFixed(2)}</span>
+            </div>
+            <Separator />
+            <div className="flex justify-between font-semibold text-base">
+              <span>Total</span>
+              <span data-testid="text-total">₹{parseFloat(displayOrderData.total).toFixed(2)}</span>
+            </div>
           </div>
         </div>
-
-        {/* Payment Info */}
-        <div className="bg-gray-50 rounded-lg p-4 mb-3 sm:mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <i className="fas fa-credit-card text-blue-600 mr-2"></i>
-              <span className="font-medium">Payment Method:</span>
-            </div>
-            <span>{formatPaymentMethod(displayOrderData.paymentMethod)}</span>
-          </div>
-          
-          {/* Payment Status */}
-          <div className="flex items-center justify-between mt-2">
-            <div className="flex items-center">
-              <i className="fas fa-check-circle text-green-600 mr-2"></i>
-              <span className="font-medium">Payment Status:</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {isLoadingPayment && shouldStartPolling ? (
-                <div className="flex items-center gap-1">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span className="text-sm">Checking...</span>
-                </div>
-              ) : (
-                <PaymentStatusBadge status={currentPaymentStatus} data-testid="badge-payment-status" />
-              )}
-            </div>
-          </div>
-          {reconciliationStatus === 'processing' && reconciliationMessage && (
-            <p className="text-xs text-gray-500 text-right mt-1" data-testid="text-reconciliation-message">
-              {reconciliationMessage}
-            </p>
-          )}
-
-          {/* Transaction Info for UPI payments */}
-          {isUpiMethod(displayOrderData.paymentMethod) && latestTransaction && (
-            <div className="mt-3 pt-3 border-t border-gray-200">
-              <div className="text-sm text-gray-600 space-y-1">
-                {latestTransaction.merchantTransactionId && (
-                  <div className="flex justify-between">
-                    <span>Merchant Txn ID:</span>
-                    <span className="font-mono text-xs" data-testid="text-transaction-id">
-                      {formatIdentifier(latestTransaction.merchantTransactionId)}
-                    </span>
-                  </div>
-                )}
-                {latestTransaction.providerTransactionId && (
-                  <div className="flex justify-between">
-                    <span>Provider Txn ID:</span>
-                    <span className="font-mono text-xs">
-                      {formatIdentifier(latestTransaction.providerTransactionId)}
-                    </span>
-                  </div>
-                )}
-                {(latestTransaction.upiInstrumentLabel || latestTransaction.upiInstrumentVariant) && (
-                  <div className="flex justify-between">
-                    <span>UPI Instrument:</span>
-                    <span className="font-medium text-xs">
-                      {latestTransaction.upiInstrumentLabel ?? latestTransaction.upiInstrumentVariant}
-                    </span>
-                  </div>
-                )}
-                {latestTransaction.upiUtr && (
-                  <div className="flex justify-between">
-                    <span>UTR:</span>
-                    <span className="font-mono text-xs">{latestTransaction.upiUtr}</span>
-                  </div>
-                )}
-                {latestTransaction.upiPayerHandle && (
-                  <div className="flex justify-between">
-                    <span>Payer VPA:</span>
-                    <span className="font-mono text-xs break-all">{latestTransaction.upiPayerHandle}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span>Amount Paid:</span>
-                  <span className="font-medium text-green-600" data-testid="text-amount-paid">
-                    ₹{paymentInfo.totalPaid.toFixed(2)}
-                  </span>
-                </div>
-                {latestTransaction.receiptUrl && (
-                  <div className="flex justify-between items-center">
-                    <span>Receipt:</span>
-                    <a
-                      href={latestTransaction.receiptUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
-                    >
-                      View Receipt
-                    </a>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {(latestTransaction?.refunds?.length ?? 0) > 0 && (
-            <div className="mt-4 pt-3 border-t border-gray-200">
-              <h4 className="text-sm font-semibold text-gray-700 mb-2">Refunds</h4>
-              <div className="space-y-2">
-                {latestTransaction?.refunds?.map((refund) => (
-                  <div
-                    key={refund.id}
-                    className="text-xs text-gray-600 border border-dashed border-gray-200 rounded-md p-2 space-y-1"
-                  >
-                    <div className="flex justify-between">
-                      <span>Status:</span>
-                      <span className="font-medium capitalize">{refund.status}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Amount:</span>
-                      <span className="font-medium">
-                        ₹{((refund.amountMinor ?? 0) / 100).toFixed(2)}
-                      </span>
-                    </div>
-                    {refund.upiUtr && (
-                      <div className="flex justify-between">
-                        <span>UTR:</span>
-                        <span className="font-mono">{formatIdentifier(refund.upiUtr)}</span>
-                      </div>
-                    )}
-                    {refund.merchantRefundId && (
-                      <div className="flex justify-between">
-                        <span>Merchant Refund ID:</span>
-                        <span className="font-mono">{formatIdentifier(refund.merchantRefundId)}</span>
-                      </div>
-                    )}
-                    {refund.originalMerchantOrderId && (
-                      <div className="flex justify-between">
-                        <span>Original Order ID:</span>
-                        <span className="font-mono">{formatIdentifier(refund.originalMerchantOrderId)}</span>
-                      </div>
-                    )}
-                    {refund.reason && (
-                      <div className="flex justify-between">
-                        <span>Reason:</span>
-                        <span className="font-medium">{refund.reason}</span>
-                      </div>
-                    )}
-                    {refund.createdAt && (
-                      <div className="flex justify-between">
-                        <span>Requested:</span>
-                        <span>{new Date(refund.createdAt).toLocaleString('en-IN')}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between mt-2">
-            <div className="flex items-center">
-              <i className="fas fa-truck text-blue-600 mr-2"></i>
-              <span className="font-medium">Estimated Delivery:</span>
-            </div>
-            <span data-testid="text-delivery-time">3-5 business days</span>
-          </div>
-        </div>
-
-        {/* Payment Status Messages */}
-        {isUpiMethod(displayOrderData.paymentMethod) && paymentInfo?.order && (
-          <div className="mb-3 sm:mb-6">
-            {['pending', 'processing'].includes(normalizeStatus(paymentInfo.order.paymentStatus)) && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <Clock className="w-5 h-5 text-yellow-600 mr-2" />
-                  <div>
-                    <h4 className="text-sm font-medium text-yellow-800">Payment Processing</h4>
-                    <p className="text-sm text-yellow-700 mt-1">
-                      Your payment is being processed. This page will update automatically once payment is confirmed.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {(paymentInfo.order.paymentStatus === 'failed' || latestTransactionFailed) && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <XCircle className="w-5 h-5 text-red-600 mr-2" />
-                  <div>
-                    <h4 className="text-sm font-medium text-red-800">Payment Failed</h4>
-                    <p className="text-sm text-red-700 mt-1">
-                      Your payment could not be processed. Please contact support if amount was debited from your account.
-                    </p>
-                    {latestTransactionFailureAt && (
-                      <p className="text-xs text-red-600 mt-2">
-                        Last failed attempt recorded at {new Date(latestTransactionFailureAt).toLocaleString('en-IN')}.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {paymentInfo.order.paymentStatus === 'paid' && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
-                  <div>
-                    <h4 className="text-sm font-medium text-green-800">Payment Successful</h4>
-                    <p className="text-sm text-green-700 mt-1">
-                      Your payment has been successfully processed. Your order is now confirmed and will be shipped soon.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         <Separator className="mb-3 sm:mb-6" />
 
-        {/* Policy Information - At the bottom, not as warning */}
-        <div className="text-sm text-gray-600 space-y-2">
-          <h4 className="font-semibold text-gray-700 mb-3">Store Policies</h4>
-          <div className="grid gap-2">
-            <div className="flex items-start">
-              <span className="mr-2">•</span>
-              <span>All products are non-returnable and non-cancellable once ordered.</span>
+        {/* Order Information */}
+        <div className="space-y-3">
+          <h4 className="font-semibold text-gray-900">Order Information</h4>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-gray-600">Order ID</span>
+              <span className="font-mono text-xs" data-testid="text-order-id">
+                #{displayOrderData.orderId.slice(0, 8).toUpperCase()}
+              </span>
             </div>
-            <div className="flex items-start">
-              <span className="mr-2">•</span>
-              <span>Refunds are issued only for damaged, defective, or wrong items delivered.</span>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Order Date</span>
+              <span data-testid="text-order-date">{orderDate}</span>
             </div>
-            <div className="flex items-start">
-              <span className="mr-2">•</span>
-              <span>Please accept delivery and raise refund requests on the same day with photo/video proof.</span>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Payment Method</span>
+              <span data-testid="text-payment-method">{formatPaymentMethod(displayOrderData.paymentMethod)}</span>
             </div>
-            <div className="flex items-start">
-              <span className="mr-2">•</span>
-              <span>Refunds are processed within 3 working days or at the earliest possible time.</span>
+            {latestTransaction && (
+              <>
+                <Separator className="my-2" />
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Transaction ID</span>
+                    <span className="font-mono text-xs" data-testid="text-transaction-id">
+                      {formatIdentifier(latestTransaction.id, 12)}
+                    </span>
+                  </div>
+                  {latestTransaction.upiUtr && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">UPI Reference (UTR)</span>
+                      <span className="font-mono text-xs" data-testid="text-upi-utr">
+                        {formatIdentifier(latestTransaction.upiUtr, 16)}
+                      </span>
+                    </div>
+                  )}
+                  {latestTransaction.providerReferenceId && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Provider Reference</span>
+                      <span className="font-mono text-xs" data-testid="text-provider-reference">
+                        {formatIdentifier(latestTransaction.providerReferenceId, 16)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {displayOrderData.deliveryAddress && (
+          <>
+            <Separator className="my-3 sm:my-6" />
+            <div className="space-y-2">
+              <h4 className="font-semibold text-gray-900">Delivery Address</h4>
+              <p className="text-sm text-gray-600 whitespace-pre-line" data-testid="text-delivery-address">
+                {displayOrderData.userInfo.name}
+                {'\n'}
+                {displayOrderData.deliveryAddress}
+              </p>
             </div>
-            <div className="flex items-start">
-              <span className="mr-2">•</span>
-              <span>Please track courier messages/calls and be available on the delivery day.</span>
+          </>
+        )}
+
+        {displayOrderData.userInfo.phone && (
+          <>
+            <Separator className="my-3 sm:my-6" />
+            <div className="space-y-2">
+              <h4 className="font-semibold text-gray-900">Contact Information</h4>
+              <div className="space-y-1 text-sm text-gray-600">
+                <p data-testid="text-contact-phone">Phone: {displayOrderData.userInfo.phone}</p>
+                {displayOrderData.userInfo.email && (
+                  <p data-testid="text-contact-email">Email: {displayOrderData.userInfo.email}</p>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {latestTransactionFailed && latestTransactionFailureAt && (
+        <div className="mb-6 rounded-md border border-red-200 bg-red-50 p-4">
+          <div className="flex items-start gap-3">
+            <XCircle className="h-5 w-5 mt-0.5 text-red-600" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-red-900">Transaction Failed</h3>
+              <p className="text-sm text-red-800 mt-1">
+                The payment transaction was not successful. You may retry the payment or choose a different payment method.
+              </p>
+              {latestTransactionFailureAt && (
+                <p className="text-xs text-red-700 mt-2">
+                  Failed at: {new Date(latestTransactionFailureAt).toLocaleString('en-IN')}
+                </p>
+              )}
             </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Action Buttons */}
-      <div className="space-y-3 text-center">
-        {canStartPhonePeRetry && (
-          <div className="space-y-2">
-            <Button
-              className="w-full max-w-md bg-indigo-600 hover:bg-indigo-700"
-              onClick={handlePhonePeRetry}
-              disabled={isRetryingPhonePe}
-              data-testid="button-phonepe-retry"
-            >
-              {isRetryingPhonePe && <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />}
-              {isRetryingPhonePe ? 'Restarting…' : 'Start again'}
-            </Button>
-            {retryError && (
-              <p className="text-sm text-red-600" role="alert">
-                {retryError}
-              </p>
-            )}
-          </div>
-        )}
-        {latestTransactionFailed && displayOrderData && (
-          <Button
-            className="w-full max-w-md bg-red-600 hover:bg-red-700"
-            onClick={() => setLocation(`/payment?orderId=${displayOrderData.orderId}`)}
-            data-testid="button-retry-payment"
-          >
-            Retry Payment
-          </Button>
-        )}
-        <Button
-          className="w-full max-w-md bg-blue-600 hover:bg-blue-700"
-          onClick={() => setLocation("/")}
-          data-testid="button-continue-shopping-final"
-        >
+      <div className="flex flex-col sm:flex-row gap-3 justify-center">
+        <Button onClick={() => setLocation("/")} data-testid="button-continue-shopping">
           Continue Shopping
         </Button>
-        <p className="text-sm text-gray-600">
-          You will receive an SMS confirmation on your registered phone number.
-        </p>
+        <Button 
+          onClick={() => setLocation("/orders")} 
+          variant="outline"
+          data-testid="button-view-orders"
+        >
+          View All Orders
+        </Button>
       </div>
     </div>
   );
