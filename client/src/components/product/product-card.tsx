@@ -124,7 +124,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
               >
                 <button
                   type="button"
-                  className="flex-1 md:w-[24px] h-full p-0 min-h-0 rounded-l-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 md:w-[24px] h-full p-0 min-h-0 rounded-l-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xl md:text-base font-bold"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDecreaseQuantity();
@@ -133,7 +133,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                   data-testid={`button-decrease-quantity-${product.id}`}
                   aria-label={`Decrease quantity of ${product.name}`}
                 >
-                  <Minus className="w-7 h-7 md:w-3 md:h-3 text-white stroke-white" strokeWidth={3} />
+                  −
                 </button>
                 <span
                   className="flex-1 md:w-[28px] text-center font-semibold text-sm md:text-xs text-white flex items-center justify-center"
@@ -143,7 +143,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                 </span>
                 <button
                   type="button"
-                  className="flex-1 md:w-[24px] h-full p-0 min-h-0 rounded-r-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 md:w-[24px] h-full p-0 min-h-0 rounded-r-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xl md:text-base font-bold"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleIncreaseQuantity();
@@ -152,7 +152,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                   data-testid={`button-increase-quantity-${product.id}`}
                   aria-label={`Increase quantity of ${product.name}`}
                 >
-                  <Plus className="w-7 h-7 md:w-3 md:h-3 text-white stroke-white" strokeWidth={3} />
+                  +
                 </button>
               </div>
             ) : (
