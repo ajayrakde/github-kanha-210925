@@ -1413,6 +1413,7 @@ a:hover {
 
 .product-grid-wrapper {
   margin-top: 1.25rem;
+  padding: 0.5rem 1rem;
 }
 
 .product-grid {
@@ -1421,6 +1422,7 @@ a:hover {
   row-gap: 2rem;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   align-items: stretch;
+  padding: 0.5rem;
 }
 
 @media (min-width: 768px) {
@@ -1434,7 +1436,7 @@ a:hover {
   .card {
     border-right: none !important;
     border-bottom: none !important;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
   }
 }
 
@@ -1447,16 +1449,17 @@ a:hover {
 .card {
   background-color: #ffffff;
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
   overflow: hidden;
   position: relative;
   transition: var(--transition);
   display: flex;
   flex-direction: column;
+  padding: 0.5rem;
 }
 
 .card:hover {
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
 }
 
 .card-image {
@@ -1465,11 +1468,11 @@ a:hover {
   object-fit: contain;
   display: block;
   background: linear-gradient(135deg, #f9fcff 0%, #eef6ff 100%);
-  padding: 1.25rem;
+  padding: 1rem;
 }
 
 .card-content {
-  padding: 1.25rem;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.8rem;
