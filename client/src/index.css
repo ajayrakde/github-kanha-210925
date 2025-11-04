@@ -776,48 +776,32 @@
 
   /* Product grid wrapper - edge to edge on mobile */
   .product-grid-wrapper {
-    padding: 0 0.5rem;
+    padding: 0.25rem 0.75rem;
   }
 
   /* Product grid - 2 columns on mobile, compact gaps */
   .product-grid {
-    column-gap: 0.625rem !important;
-    row-gap: 1rem !important;
+    column-gap: 0.75rem !important;
+    row-gap: 1.125rem !important;
     grid-template-columns: repeat(2, 1fr) !important;
+    padding: 0.25rem;
   }
 
-  /* Product cards - compact with minimal padding */
+  /* Product cards - compact with minimal padding and elevation */
   .card {
-    padding: 0 !important;
+    padding: 0.25rem !important;
     overflow: hidden;
     width: 100% !important;
-    border-right: 1px solid #e5e7eb;
-    border-bottom: 1px solid #e5e7eb;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08) !important;
-  }
-  
-  /* Remove right border on even columns (2nd column on mobile) */
-  .card:nth-child(2n) {
-    border-right: none;
-  }
-  
-  /* Remove bottom border from last item always */
-  .product-grid .card:last-child {
-    border-bottom: none;
-  }
-  
-  /* When total count is even (last card is at even position), also remove border from second-to-last */
-  .product-grid:has(.card:nth-child(even):last-child) .card:nth-last-child(2) {
-    border-bottom: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04) !important;
   }
 
   .card-image {
     height: clamp(180px, 25vw, 200px) !important;
-    padding: 0.75rem !important;
+    padding: 0.5rem !important;
   }
 
   .card-content {
-    padding: 0.875rem !important;
+    padding: 0.625rem !important;
     gap: 0.5rem !important;
     min-width: 0;
   }
