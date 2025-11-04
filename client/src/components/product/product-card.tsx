@@ -124,7 +124,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
               >
                 <button
                   type="button"
-                  className="w-[24px] md:flex-1 h-full rounded-l-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 md:w-[24px] h-full p-0 min-h-0 rounded-l-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleDecreaseQuantity();
@@ -136,14 +136,14 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                   <Minus className="w-4 h-4 md:w-3 md:h-3 text-white stroke-white" strokeWidth={2.5} />
                 </button>
                 <span
-                  className="w-[28px] md:flex-1 text-center font-semibold text-[11px] md:text-xs text-white flex items-center justify-center"
+                  className="flex-1 md:w-[28px] text-center font-semibold text-[11px] md:text-xs text-white flex items-center justify-center"
                   data-testid={`cart-quantity-${product.id}`}
                 >
                   {cartQuantity}
                 </span>
                 <button
                   type="button"
-                  className="w-[24px] md:flex-1 h-full rounded-r-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 md:w-[24px] h-full p-0 min-h-0 rounded-r-md bg-white/0 hover:bg-white/20 flex items-center justify-center transition-colors outline-none active:bg-white/30 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleIncreaseQuantity();
