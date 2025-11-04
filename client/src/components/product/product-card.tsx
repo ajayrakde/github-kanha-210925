@@ -133,7 +133,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                   data-testid={`button-decrease-quantity-${product.id}`}
                   aria-label={`Decrease quantity of ${product.name}`}
                 >
-                  <Minus size={12} className="text-white" />
+                  <Minus className="w-4 h-4 md:w-3 md:h-3 text-white stroke-white" strokeWidth={2.5} />
                 </button>
                 <span
                   className="w-[28px] md:flex-1 text-center font-semibold text-[11px] md:text-xs text-white flex items-center justify-center"
@@ -152,7 +152,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
                   data-testid={`button-increase-quantity-${product.id}`}
                   aria-label={`Increase quantity of ${product.name}`}
                 >
-                  <Plus size={12} className="text-white" />
+                  <Plus className="w-4 h-4 md:w-3 md:h-3 text-white stroke-white" strokeWidth={2.5} />
                 </button>
               </div>
             ) : (
