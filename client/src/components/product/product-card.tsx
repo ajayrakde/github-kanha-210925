@@ -83,7 +83,7 @@ export default function ProductCard({ product, onClick }: ProductCardProps) {
 
   return (
     <div
-      className="card group cursor-pointer"
+      className="card group cursor-pointer p-2 md:p-3"
       data-testid={`product-card-${product.id}`}
     >
       {/* Image Container - Minimal design */}
