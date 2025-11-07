@@ -49,6 +49,7 @@
   --bg-light: #f5faff;
   --text-dark: #222222;
   --text-light: #ffffff;
+  --max-width: 80rem;
 }
 
 .dark {
@@ -89,6 +90,7 @@
   --bg-light: #0f172a;
   --text-dark: #f7f9ff;
   --text-light: #0b140f;
+  --max-width: 80rem;
 }
 
 @layer base {
